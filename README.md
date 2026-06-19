@@ -26,8 +26,26 @@ uvicorn app.main:app --reload
 
 Open:
 
+- Admin console: `http://localhost:8000/`
 - API health: `http://localhost:8000/api/health`
 - API docs: `http://localhost:8000/docs`
+
+The admin console can already create topics, generate scripts, create digital humans, create video tasks, run mock generation, and inspect task status.
+
+## Script Model Setup
+
+By default, the platform uses a stub script generator so the product flow works without paid services.
+
+To use a real OpenAI-compatible model provider, set these values in `backend/.env`:
+
+```bash
+LLM_PROVIDER="openai-compatible"
+LLM_API_BASE="https://api.openai.com/v1"
+LLM_API_KEY="your_api_key"
+LLM_MODEL="gpt-4.1-mini"
+```
+
+For DeepSeek, Tongyi, Doubao, or a self-hosted vLLM server, keep `LLM_PROVIDER="openai-compatible"` and replace `LLM_API_BASE`, `LLM_API_KEY`, and `LLM_MODEL` with that provider's values.
 
 ## Docker Start
 
@@ -61,3 +79,10 @@ docker compose --profile gpu up --build
 8. Prepare a publish record.
 
 The current media generation implementation returns mock URLs so the business flow can be tested before connecting paid or GPU services.
+
+## Verification
+
+```bash
+curl http://localhost:8000/api/health
+curl http://localhost:8000/api/dashboard
+```

@@ -7,6 +7,10 @@ curl http://localhost:8000/api/health
 ```
 
 ```bash
+curl http://localhost:8000/api/dashboard
+```
+
+```bash
 curl -X POST http://localhost:8000/api/topics \
   -H "Content-Type: application/json" \
   -d '{"title":"企业短视频数字人获客","industry":"B2B服务","audience":"中小企业老板"}'

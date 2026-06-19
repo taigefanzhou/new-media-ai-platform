@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from app.api.routes import router
 from app.core.config import get_settings
 from app.core.db import init_db
@@ -24,3 +25,4 @@ def on_startup() -> None:
 
 
 app.include_router(router, prefix="/api")
+app.mount("/", StaticFiles(directory="app/static", html=True), name="static")

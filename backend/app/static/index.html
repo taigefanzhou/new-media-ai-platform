@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>New Media AI Platform</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="mark">AI</div>
+        <div>
+          <strong>新媒体视频平台</strong>
+          <span>内容生产中台</span>
+        </div>
+      </div>
+      <nav>
+        <a href="#overview">总览</a>
+        <a href="#script">脚本生成</a>
+        <a href="#human">数字人</a>
+        <a href="#video">视频任务</a>
+        <a href="#publish">发布准备</a>
+      </nav>
+    </aside>
+
+    <main>
+      <header>
+        <div>
+          <p class="eyebrow">MVP Console</p>
+          <h1>公司短视频生产工作台</h1>
+        </div>
+        <button id="refreshBtn" class="iconBtn" title="刷新">↻</button>
+      </header>
+
+      <section id="overview" class="metrics"></section>
+
+      <section class="grid">
+        <form id="topicForm" class="panel">
+          <h2>选题</h2>
+          <label>选题名称<input name="title" value="企业短视频数字人获客" /></label>
+          <label>行业<input name="industry" value="B2B服务" /></label>
+          <label>目标人群<input name="audience" value="中小企业老板" /></label>
+          <button type="submit">创建选题</button>
+        </form>
+
+        <form id="scriptForm" class="panel">
+          <h2>脚本生成</h2>
+          <label>选题内容<textarea name="topic">企业短视频数字人获客</textarea></label>
+          <label>平台
+            <select name="target_platform">
+              <option value="douyin">抖音</option>
+              <option value="wechat_channels">视频号</option>
+              <option value="xiaohongshu">小红书</option>
+            </select>
+          </label>
+          <label>时长<input name="duration_seconds" type="number" min="15" max="120" value="30" /></label>
+          <button type="submit">生成脚本</button>
+        </form>
+
+        <form id="humanForm" class="panel">
+          <h2>数字人</h2>
+          <label>名称<input name="name" value="公司讲解员A" /></label>
+          <label>角色<input name="role" value="品牌顾问" /></label>
+          <label>风格
+            <select name="style">
+              <option value="business">商务</option>
+              <option value="consultant">顾问</option>
+              <option value="cartoon">卡通</option>
+            </select>
+          </label>
+          <button type="submit">创建数字人</button>
+        </form>
+
+        <form id="taskForm" class="panel">
+          <h2>视频任务</h2>
+          <label>脚本 ID<input name="script_id" type="number" min="1" placeholder="生成脚本后自动填入" /></label>
+          <label>数字人 ID<input name="digital_human_id" type="number" min="1" placeholder="创建数字人后自动填入" /></label>
+          <div class="actions">
+            <button type="submit">创建任务</button>
+            <button id="runTaskBtn" type="button" class="secondary">运行任务</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="split">
+        <div class="panel wide">
+          <h2>最新脚本</h2>
+          <div id="scriptPreview" class="preview empty">还没有脚本</div>
+        </div>
+        <div class="panel">
+          <h2>任务状态</h2>
+          <div id="taskList" class="list"></div>
+        </div>
+      </section>
+
+      <section id="publish" class="panel footerPanel">
+        <h2>下一步接入</h2>
+        <div class="roadmap">
+          <span>真实脚本模型</span>
+          <span>CosyVoice 配音</span>
+          <span>SadTalker/MuseTalk 数字人</span>
+          <span>Seedance 镜头生成</span>
+          <span>FFmpeg 成片合成</span>
+        </div>
+      </section>
+    </main>
+
+    <div id="toast"></div>
+    <script src="/app.js"></script>
+  </body>
+</html>

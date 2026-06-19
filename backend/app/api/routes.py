@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session, select
+from sqlmodel import Session, func, select
 from app.core.db import get_session
 from app.models.entities import (
     DigitalHuman,
@@ -30,6 +30,21 @@ router = APIRouter()
 @router.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@router.get("/dashboard")
+def dashboard(session: Session = Depends(get_session)) -> dict[str, object]:
+    counts = {
+        "materials": session.exec(select(func.count()).select_from(Material)).one(),
+        "topics": session.exec(select(func.count()).select_from(Topic)).one(),
+        "scripts": session.exec(select(func.count()).select_from(Script)).one(),
+        "digital_humans": session.exec(select(func.count()).select_from(DigitalHuman)).one(),
+        "video_tasks": session.exec(select(func.count()).select_from(VideoTask)).one(),
+        "publish_records": session.exec(select(func.count()).select_from(PublishRecord)).one(),
+    }
+    recent_tasks = session.exec(select(VideoTask).order_by(VideoTask.created_at.desc()).limit(5)).all()
+    recent_scripts = session.exec(select(Script).order_by(Script.created_at.desc()).limit(5)).all()
+    return {"counts": counts, "recent_tasks": recent_tasks, "recent_scripts": recent_scripts}
 
 
 @router.post("/materials", response_model=Material)

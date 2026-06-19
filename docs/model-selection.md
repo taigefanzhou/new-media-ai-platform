@@ -7,6 +7,17 @@ Fastest:
 - Hosted OpenAI-compatible API
 - Dify workflow in front of Qwen, DeepSeek, OpenAI, Doubao, or Tongyi
 
+Current backend support:
+
+```bash
+LLM_PROVIDER="openai-compatible"
+LLM_API_BASE="https://provider.example.com/v1"
+LLM_API_KEY="..."
+LLM_MODEL="..."
+```
+
+The backend calls `POST {LLM_API_BASE}/chat/completions` and requests strict JSON containing hook, voiceover, storyboard, Seedance prompt, titles, hashtags, and compliance notes.
+
 Open-source local:
 
 - Qwen3 Instruct for Chinese scripts and storyboards
