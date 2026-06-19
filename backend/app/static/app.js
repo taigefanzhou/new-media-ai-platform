@@ -36,6 +36,7 @@ const state = {
   platformAccounts: [],
   publishRecords: [],
   platformCredentials: [],
+  digitalHumans: [],
 };
 
 const pages = {
@@ -379,6 +380,33 @@ function renderPlatformAccounts(accounts) {
     .join("");
 }
 
+function renderDigitalHumans(humans) {
+  const target = document.querySelector("#humanList");
+  if (!target) return;
+  if (!humans.length) {
+    target.innerHTML = `<div class="item">还没有数字人形象</div>`;
+    return;
+  }
+  target.innerHTML = humans
+    .map((human) => {
+      const preview = human.portrait_material_id
+        ? `<img src="/api/materials/${human.portrait_material_id}/preview" alt="${escapeHtml(human.name)}" />`
+        : `<div class="portraitPlaceholder">无头像</div>`;
+      return `
+        <div class="humanCard">
+          <div class="portraitPreview">${preview}</div>
+          <div>
+            <strong>${escapeHtml(human.name)}</strong>
+            <div>${escapeHtml(human.role || "未设置角色")}</div>
+            <span class="status">${escapeHtml(human.style)}</span>
+            <div class="recordMeta">头像素材 ID：${human.portrait_material_id || "-"}</div>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+}
+
 function renderIntegrations(status) {
   const labels = {
     script_model: "脚本模型",
@@ -569,7 +597,7 @@ async function refresh() {
   renderScripts(dashboard.recent_scripts);
   renderTasks(dashboard.recent_tasks);
   if (api.token) {
-    const [models, platformCredentials, searches, videos, transcriptions, publishRecords, platformAccounts] = await Promise.all([
+    const [models, platformCredentials, searches, videos, transcriptions, publishRecords, platformAccounts, digitalHumans] = await Promise.all([
       api.get("/settings/models"),
       api.get("/settings/platform-credentials"),
       api.get("/trending/searches"),
@@ -577,16 +605,19 @@ async function refresh() {
       api.get("/transcriptions"),
       api.get("/publish-records"),
       api.get("/platform-accounts"),
+      api.get("/digital-humans"),
     ]);
     state.platformCredentials = platformCredentials;
     state.platformAccounts = platformAccounts;
     state.publishRecords = publishRecords;
+    state.digitalHumans = digitalHumans;
     renderModels(models);
     renderPlatformCredentials(platformCredentials);
     renderTrending(searches, videos);
     renderTranscriptions(transcriptions);
     renderPublishRecords(publishRecords);
     renderPlatformAccounts(platformAccounts);
+    renderDigitalHumans(digitalHumans);
   }
 }
 

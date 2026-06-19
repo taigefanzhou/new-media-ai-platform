@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Optional
 from uuid import uuid4
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from sqlmodel import Session, func, select
 from app.core.config import get_settings
 from app.core.auth import current_user
@@ -358,6 +359,17 @@ async def upload_material(
 @router.get("/materials", response_model=list[Material])
 def list_materials(session: Session = Depends(get_session)) -> list[Material]:
     return list(session.exec(select(Material).order_by(Material.created_at.desc())).all())
+
+
+@router.get("/materials/{material_id}/preview")
+def preview_material(material_id: int, session: Session = Depends(get_session)) -> FileResponse:
+    material = session.get(Material, material_id)
+    if material is None or not material.file_path:
+        raise HTTPException(status_code=404, detail="Material preview not found")
+    path = Path(material.file_path)
+    if not path.exists() or not path.is_file():
+        raise HTTPException(status_code=404, detail="Material file not found")
+    return FileResponse(path)
 
 
 @router.post("/transcriptions", response_model=TranscriptionTask)
