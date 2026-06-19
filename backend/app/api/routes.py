@@ -39,6 +39,7 @@ from app.schemas.requests import (
     TrendingSearchCreate,
     TrendingVideoCreate,
     TranscriptionTaskCreate,
+    VideoTaskPublishPrepareRequest,
     VideoTaskCreate,
 )
 from app.services.ai_clients import ScriptGenerator
@@ -498,6 +499,40 @@ def approve_video_task(task_id: int, session: Session = Depends(get_session)) ->
 @router.get("/video-tasks", response_model=list[VideoTask])
 def list_video_tasks(session: Session = Depends(get_session)) -> list[VideoTask]:
     return list(session.exec(select(VideoTask).order_by(VideoTask.created_at.desc())).all())
+
+
+@router.post("/video-tasks/{task_id}/publish-record", response_model=PublishRecord)
+def prepare_publish_record_from_video_task(
+    task_id: int,
+    payload: VideoTaskPublishPrepareRequest,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> PublishRecord:
+    task = session.get(VideoTask, task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Video task not found")
+    if task.status != TaskStatus.approved:
+        raise HTTPException(status_code=400, detail="Video task must be approved before publishing")
+    script = session.get(Script, task.script_id)
+    title = payload.title or _publish_title_from_script(script)
+    record = PublishRecord(
+        video_task_id=task.id,
+        platform=payload.platform,
+        account_name=payload.account_name,
+        title=title,
+        publish_status="prepared",
+    )
+    session.add(record)
+    session.commit()
+    session.refresh(record)
+    return record
+
+
+def _publish_title_from_script(script: Optional[Script]) -> str:
+    if script is None:
+        return "待发布视频"
+    first_line = script.title_options.splitlines()[0] if script.title_options else ""
+    return first_line.replace("1.", "").strip() or script.hook[:40] or "待发布视频"
 
 
 @router.post("/trending/searches", response_model=TrendingSearch)

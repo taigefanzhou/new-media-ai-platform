@@ -208,6 +208,11 @@ function renderTasks(tasks) {
           <div>数字人 ID: ${task.digital_human_id ?? "-"}</div>
           <span class="status">${task.status}</span>
           ${task.output_path ? `<div>${task.output_path}</div>` : ""}
+          <div class="itemActions">
+            <button type="button" data-action="run-video-task" data-id="${task.id}">运行</button>
+            <button type="button" class="secondary" data-action="approve-video-task" data-id="${task.id}">审核通过</button>
+            <button type="button" class="secondary" data-action="prepare-publish" data-id="${task.id}">准备发布</button>
+          </div>
         </div>
       `,
     )
@@ -215,6 +220,27 @@ function renderTasks(tasks) {
   targets.forEach((target) => {
     target.innerHTML = html;
   });
+}
+
+function renderPublishRecords(records) {
+  const target = document.querySelector("#publishRecordList");
+  if (!target) return;
+  if (!records.length) {
+    target.innerHTML = `<div class="item">还没有发布记录</div>`;
+    return;
+  }
+  target.innerHTML = records
+    .map(
+      (record) => `
+        <div class="item">
+          <strong>${record.title}</strong>
+          <div>视频任务 #${record.video_task_id}</div>
+          <div>${record.platform} · ${record.account_name || "未指定账号"}</div>
+          <span class="status">${record.publish_status}</span>
+        </div>
+      `,
+    )
+    .join("");
 }
 
 function renderIntegrations(status) {
@@ -357,15 +383,17 @@ async function refresh() {
   renderScripts(dashboard.recent_scripts);
   renderTasks(dashboard.recent_tasks);
   if (api.token) {
-    const [models, searches, videos, transcriptions] = await Promise.all([
+    const [models, searches, videos, transcriptions, publishRecords] = await Promise.all([
       api.get("/settings/models"),
       api.get("/trending/searches"),
       api.get("/trending/videos"),
       api.get("/transcriptions"),
+      api.get("/publish-records"),
     ]);
     renderModels(models);
     renderTrending(searches, videos);
     renderTranscriptions(transcriptions);
+    renderPublishRecords(publishRecords);
   }
 }
 
@@ -479,6 +507,29 @@ document.querySelector("#runTaskBtn").addEventListener("click", async () => {
   toast(`任务已运行：${task.status}`);
   await refresh();
 });
+
+document.querySelectorAll("#taskListTasks, #taskList").forEach((list) => list.addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-action]");
+  if (!button) return;
+  const id = button.dataset.id;
+  if (button.dataset.action === "run-video-task") {
+    const task = await api.post(`/video-tasks/${id}/run`);
+    toast(`任务已运行：${task.status}`);
+  }
+  if (button.dataset.action === "approve-video-task") {
+    const task = await api.post(`/video-tasks/${id}/approve`);
+    toast(`任务已审核：${task.status}`);
+  }
+  if (button.dataset.action === "prepare-publish") {
+    const record = await api.post(`/video-tasks/${id}/publish-record`, {
+      platform: "douyin",
+      account_name: "公司官方号",
+    });
+    toast(`发布记录已创建 #${record.id}`);
+    switchPage("publish");
+  }
+  await refresh();
+}));
 
 document.querySelector("#modelConfigForm").addEventListener("submit", async (event) => {
   event.preventDefault();

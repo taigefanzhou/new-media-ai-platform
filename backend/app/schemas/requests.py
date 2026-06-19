@@ -102,3 +102,9 @@ class PublishPrepareRequest(BaseModel):
     platform: str
     account_name: Optional[str] = None
     title: str
+
+
+class VideoTaskPublishPrepareRequest(BaseModel):
+    platform: str = "douyin"
+    account_name: Optional[str] = None
+    title: Optional[str] = None
