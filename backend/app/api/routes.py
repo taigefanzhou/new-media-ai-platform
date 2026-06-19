@@ -40,6 +40,7 @@ from app.schemas.requests import (
 )
 from app.services.ai_clients import ScriptGenerator
 from app.services.pipeline import VideoPipeline
+from app.services.trending import TrendingCollector
 
 
 router = APIRouter()
@@ -184,6 +185,10 @@ def integrations_status() -> dict[str, dict[str, object]]:
         "composition": {
             "provider": settings.composition_provider,
             "configured": settings.composition_provider in ("mock", "ffmpeg"),
+        },
+        "trending_search": {
+            "provider": settings.trending_search_provider,
+            "configured": settings.trending_search_provider == "mock" or bool(settings.trending_search_api_base),
         },
     }
 
@@ -343,7 +348,7 @@ def create_trending_search(
 
 
 @router.post("/trending/searches/{search_id}/run", response_model=TrendingSearch)
-def run_trending_search(
+async def run_trending_search(
     search_id: int,
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
@@ -355,30 +360,11 @@ def run_trending_search(
     session.add(search)
     session.commit()
 
-    examples = [
-        ("3秒讲清楚客户为什么不下单", "开头直接抛出反常识问题，再给出一个可执行判断标准。"),
-        ("老板最关心的短视频获客闭环", "用痛点、流程、结果三段式拆解，适合企业服务账号复用。"),
-        ("数字人不是替代员工，而是放大内容产能", "先化解误区，再展示团队如何用数字人稳定生产内容。"),
-    ]
-    for index, (title, summary) in enumerate(examples, start=1):
-        video = TrendingVideo(
-            search_id=search.id,
-            platform=search.platform,
-            title=f"{search.keyword}｜{title}",
-            source_url=f"mock://{search.platform}/trending/{search.id}/{index}",
-            author="mock-trend-source",
-            play_count=100000 + index * 23000,
-            like_count=8000 + index * 1200,
-            comment_count=600 + index * 80,
-            share_count=900 + index * 120,
-            duration_seconds=30 + index * 5,
-            hook=title,
-            summary=summary,
-            tags=f"{search.keyword},爆款结构,选题参考",
-        )
+    videos = await TrendingCollector().collect(search)
+    for video in videos:
         session.add(video)
     search.status = TaskStatus.needs_review
-    search.result_count = len(examples)
+    search.result_count = len(videos)
     session.add(search)
     session.commit()
     session.refresh(search)

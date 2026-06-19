@@ -72,6 +72,7 @@ The admin console includes a trending-video collection area:
 - Run mock collection to populate structured references.
 - Manually save reference video links.
 - Store hook, summary, tags, and metrics as inspiration.
+- Connect a real HTTP JSON data source with `TRENDING_SEARCH_PROVIDER="http-json"`.
 
 This module is designed for compliant ideation. Reference videos should be used for topic and structure analysis only, not for copying footage, captions, or scripts.
 

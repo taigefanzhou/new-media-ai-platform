@@ -166,3 +166,58 @@ FFMPEG_BINARY="ffmpeg"
 ```
 
 This mode concatenates local MP4 paths returned by upstream services. Remote URLs should be downloaded by the provider adapter before enabling production use.
+
+## Trending Search
+
+Mock mode:
+
+```bash
+TRENDING_SEARCH_PROVIDER="mock"
+```
+
+Generic HTTP JSON provider:
+
+```bash
+TRENDING_SEARCH_PROVIDER="http-json"
+TRENDING_SEARCH_API_BASE="https://provider.example.com/api"
+TRENDING_SEARCH_API_KEY="..."
+```
+
+The backend calls:
+
+```text
+POST {TRENDING_SEARCH_API_BASE}/trending/search
+```
+
+Payload:
+
+```json
+{
+  "platform": "douyin",
+  "keyword": "数字人获客",
+  "category": "企业服务",
+  "limit": 20
+}
+```
+
+The response may be a list or an object containing `items`, `videos`, `data`, `results`, or `list`.
+
+Each item can use common field names:
+
+```json
+{
+  "title": "视频标题",
+  "url": "https://...",
+  "author": "作者",
+  "views": 100000,
+  "likes": 8000,
+  "comments": 300,
+  "shares": 500,
+  "duration": 35,
+  "hook": "开头爆点",
+  "summary": "结构分析",
+  "tags": ["数字人", "获客"]
+}
+```
+
+This module is for compliant topic research. Do not copy footage, captions, or scripts from unlicensed videos.

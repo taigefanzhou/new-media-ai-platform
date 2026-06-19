@@ -121,6 +121,7 @@ function renderIntegrations(status) {
     digital_human: "数字人",
     video_generation: "视频生成",
     composition: "视频合成",
+    trending_search: "爆款采集",
   };
   document.querySelector("#integrationStatus").innerHTML = Object.entries(labels)
     .map(([key, label]) => {
