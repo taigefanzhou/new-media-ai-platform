@@ -34,6 +34,7 @@ from app.schemas.requests import (
     MaterialCreate,
     PublishPrepareRequest,
     ScriptGenerateRequest,
+    ScriptVideoTaskCreate,
     TopicCreate,
     TrendingSearchCreate,
     TrendingVideoCreate,
@@ -429,6 +430,24 @@ async def generate_script(payload: ScriptGenerateRequest, session: Session = Dep
 @router.get("/scripts", response_model=list[Script])
 def list_scripts(session: Session = Depends(get_session)) -> list[Script]:
     return list(session.exec(select(Script).order_by(Script.created_at.desc())).all())
+
+
+@router.post("/scripts/{script_id}/video-task", response_model=VideoTask)
+def create_video_task_from_script(
+    script_id: int,
+    payload: ScriptVideoTaskCreate,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> VideoTask:
+    if session.get(Script, script_id) is None:
+        raise HTTPException(status_code=404, detail="Script not found")
+    if payload.digital_human_id is not None and session.get(DigitalHuman, payload.digital_human_id) is None:
+        raise HTTPException(status_code=404, detail="Digital human not found")
+    task = VideoTask(script_id=script_id, digital_human_id=payload.digital_human_id, status=TaskStatus.queued)
+    session.add(task)
+    session.commit()
+    session.refresh(task)
+    return task
 
 
 @router.post("/digital-humans", response_model=DigitalHuman)

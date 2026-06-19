@@ -45,6 +45,13 @@ curl -X POST http://localhost:8000/api/transcriptions/1/generate-script \
 ```
 
 ```bash
+curl -X POST http://localhost:8000/api/scripts/1/video-task \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"digital_human_id":null}'
+```
+
+```bash
 printf "demo" > /tmp/demo-portrait.txt
 curl -X POST http://localhost:8000/api/materials/upload \
   -F "file=@/tmp/demo-portrait.txt" \

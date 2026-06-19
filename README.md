@@ -83,6 +83,7 @@ The admin console includes a reference analysis module:
 - Run transcription to get transcript, summary, and hook analysis.
 - Use the transcript as input for original topic and script generation.
 - Generate a topic or an original script directly from the transcription result.
+- Create a video task directly from a generated script.
 
 Volcengine/Doubao ASR can be connected through:
 

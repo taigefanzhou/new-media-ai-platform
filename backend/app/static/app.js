@@ -448,6 +448,28 @@ document.querySelector("#taskForm").addEventListener("submit", async (event) => 
   await refresh();
 });
 
+document.querySelector("#createTaskFromScriptBtn").addEventListener("click", async () => {
+  if (!state.latestScriptId) {
+    toast("请先生成脚本");
+    return;
+  }
+  const humanInput = document.querySelector("#taskForm [name='digital_human_id']");
+  const payload = {
+    digital_human_id: humanInput.value ? Number(humanInput.value) : state.latestHumanId,
+  };
+  const task = await api.post(`/scripts/${state.latestScriptId}/video-task`, payload);
+  state.latestTaskId = task.id;
+  document.querySelector("#taskForm [name='script_id']").value = task.script_id;
+  if (task.digital_human_id) {
+    humanInput.value = task.digital_human_id;
+  }
+  toast(`视频任务已创建 #${task.id}`);
+  await refresh();
+  switchPage("tasks");
+});
+
+document.querySelector("#goTaskPageBtn").addEventListener("click", () => switchPage("tasks"));
+
 document.querySelector("#runTaskBtn").addEventListener("click", async () => {
   if (!state.latestTaskId) {
     toast("请先创建视频任务");

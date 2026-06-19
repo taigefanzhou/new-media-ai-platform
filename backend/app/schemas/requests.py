@@ -93,6 +93,10 @@ class VideoTaskCreate(BaseModel):
     digital_human_id: Optional[int] = None
 
 
+class ScriptVideoTaskCreate(BaseModel):
+    digital_human_id: Optional[int] = None
+
+
 class PublishPrepareRequest(BaseModel):
     video_task_id: int
     platform: str
