@@ -36,6 +36,7 @@ https://dashscope.aliyuncs.com/compatible-mode/v1
 - `.env` values are fallback defaults for local or unattended runs.
 - The system keeps `stub` as the development default so the full workflow can run without a paid API key.
 - For production, create an active script model in System Settings and paste the Volcengine Ark API key.
+- Video tasks use the active `video` model setting. The initial Seedance integration generates one 9:16, 480p, 5-second clip per task to keep early testing cost controlled.
 
 ## Reference Links
 

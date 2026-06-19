@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import asyncio
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Optional
@@ -143,8 +144,9 @@ class ScriptGenerator:
 
 
 class MediaGenerationClient:
-    def __init__(self) -> None:
+    def __init__(self, video_model_config=None) -> None:
         self.settings = get_settings()
+        self.video_model_config = video_model_config
         self.storage_dir = Path(self.settings.storage_dir)
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 
@@ -187,21 +189,12 @@ class MediaGenerationClient:
         return self._extract_media_url(result, "digital_human_video")
 
     async def generate_seedance_clips(self, prompt: str) -> list[str]:
+        if self.video_model_config and self.video_model_config.provider == "seedance":
+            return [await self._generate_seedance_clip_via_ark(prompt)]
+
         provider = self.settings.video_generation_provider
         if provider == "seedance" and self.settings.seedance_api_base:
-            payload = {
-                "model": self.settings.seedance_model,
-                "prompt": prompt,
-                "aspect_ratio": "9:16",
-                "duration": 5,
-            }
-            result = await self._post_media(
-                self.settings.seedance_api_base,
-                "/videos/generations",
-                payload,
-                api_key=self.settings.seedance_api_key,
-            )
-            return self._extract_clip_list(result)
+            return [await self._generate_seedance_clip_via_ark(prompt)]
 
         if provider == "comfyui" and self.settings.comfyui_api_base:
             payload = {"prompt": prompt, "workflow": "default-video-generation"}
@@ -215,6 +208,9 @@ class MediaGenerationClient:
 
     async def compose_final_video(self, clips: list[str], avatar_clip: str) -> str:
         if self.settings.composition_provider != "ffmpeg":
+            local_clip = next((item for item in clips if self._is_local_path(item)), None)
+            if local_clip:
+                return local_clip
             return self._mock_asset("final", "final-video.mp4")
 
         local_inputs = [item for item in [avatar_clip, *clips] if self._is_local_path(item)]
@@ -262,10 +258,76 @@ class MediaGenerationClient:
                 return response.content
             return response.json()
 
+    async def _generate_seedance_clip_via_ark(self, prompt: str) -> str:
+        config = self.video_model_config
+        api_base = config.api_base if config and config.api_base else self.settings.seedance_api_base
+        api_key = config.api_key if config and config.api_key else self.settings.seedance_api_key
+        model_name = config.model_name if config and config.model_name else self.settings.seedance_model
+        if not api_base:
+            api_base = "https://ark.cn-beijing.volces.com/api/v3"
+        if not api_key:
+            return self._mock_asset("seedance", "clip-1.mp4")
+
+        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+        payload = {
+            "model": model_name,
+            "content": [{"type": "text", "text": self._seedance_prompt(prompt)}],
+        }
+        async with httpx.AsyncClient(timeout=180) as client:
+            response = await client.post(
+                api_base.rstrip("/") + "/contents/generations/tasks",
+                headers=headers,
+                json=payload,
+            )
+            response.raise_for_status()
+            task_id = response.json().get("id")
+            if not task_id:
+                raise RuntimeError("Seedance task id not returned")
+
+            task_data = None
+            query_url = api_base.rstrip("/") + f"/contents/generations/tasks/{task_id}"
+            for _ in range(120):
+                await asyncio.sleep(5)
+                task_response = await client.get(query_url, headers=headers)
+                task_response.raise_for_status()
+                task_data = task_response.json()
+                status = task_data.get("status")
+                if status == "succeeded":
+                    break
+                if status in {"failed", "cancelled", "canceled"}:
+                    raise RuntimeError(f"Seedance task {status}: {task_data.get('error')}")
+            else:
+                raise RuntimeError(f"Seedance task timed out: {task_id}")
+
+            video_url = self._seedance_video_url(task_data or {})
+            if not video_url:
+                raise RuntimeError("Seedance video url not returned")
+            video_response = await client.get(video_url, timeout=180)
+            video_response.raise_for_status()
+
+        output_path = self._asset_path("seedance", f"{task_id}.mp4")
+        output_path.write_bytes(video_response.content)
+        return str(output_path)
+
     def _asset_path(self, category: str, filename: str) -> Path:
         folder = self.storage_dir / category / uuid4().hex
         folder.mkdir(parents=True, exist_ok=True)
         return folder / filename
+
+    def _seedance_prompt(self, prompt: str) -> str:
+        controls = "--ratio 9:16 --resolution 480p --dur 5 --fps 24"
+        if "--ratio" in prompt or "--resolution" in prompt or "--dur" in prompt:
+            return prompt
+        return f"{prompt.strip()} {controls}"
+
+    def _seedance_video_url(self, task_data: dict[str, object]) -> Optional[str]:
+        content = task_data.get("content")
+        if isinstance(content, dict):
+            for key in ("video_url", "url", "output_url"):
+                value = content.get(key)
+                if isinstance(value, str) and value:
+                    return value
+        return None
 
     def _mock_asset(self, category: str, filename: str) -> str:
         return f"mock://{category}/{filename}"

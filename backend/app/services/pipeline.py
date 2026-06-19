@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 from datetime import datetime
+from sqlmodel import select
 from sqlmodel import Session
-from app.models.entities import DigitalHuman, Material, Script, TaskStatus, VideoTask
+from app.models.entities import AIModelConfig, DigitalHuman, Material, Script, TaskStatus, VideoTask
 from app.services.ai_clients import MediaGenerationClient
 
 
 class VideoPipeline:
     def __init__(self, session: Session) -> None:
         self.session = session
-        self.media = MediaGenerationClient()
+        self.media = MediaGenerationClient(self._active_video_model())
 
     async def run(self, task: VideoTask) -> VideoTask:
         task.status = TaskStatus.running
@@ -55,3 +56,11 @@ class VideoPipeline:
         if material is None:
             return None
         return material.file_path
+
+    def _active_video_model(self) -> AIModelConfig | None:
+        return self.session.exec(
+            select(AIModelConfig).where(
+                AIModelConfig.purpose == "video",
+                AIModelConfig.is_active == True,
+            )
+        ).first()
