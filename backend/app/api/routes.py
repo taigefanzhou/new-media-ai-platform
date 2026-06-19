@@ -16,6 +16,7 @@ from app.models.entities import (
     DigitalHuman,
     Material,
     MaterialKind,
+    PlatformAccount,
     PublishRecord,
     Script,
     TaskStatus,
@@ -33,6 +34,7 @@ from app.schemas.requests import (
     LoginRequest,
     MaterialCreate,
     PublishPrepareRequest,
+    PlatformAccountCreate,
     ScriptGenerateRequest,
     ScriptVideoTaskCreate,
     TopicCreate,
@@ -514,12 +516,17 @@ def prepare_publish_record_from_video_task(
     if task.status != TaskStatus.approved:
         raise HTTPException(status_code=400, detail="Video task must be approved before publishing")
     script = session.get(Script, task.script_id)
+    account = session.get(PlatformAccount, payload.platform_account_id) if payload.platform_account_id else None
     title = payload.title or _publish_title_from_script(script)
     record = PublishRecord(
         video_task_id=task.id,
-        platform=payload.platform,
-        account_name=payload.account_name,
+        platform=account.platform if account else payload.platform,
+        platform_account_id=account.id if account else payload.platform_account_id,
+        account_name=account.account_name if account else payload.account_name,
         title=title,
+        hashtags=payload.hashtags or _hashtags_from_script(script),
+        caption=payload.caption or _caption_from_script(script),
+        scheduled_at=_parse_optional_datetime(payload.scheduled_at),
         publish_status="prepared",
     )
     session.add(record)
@@ -533,6 +540,24 @@ def _publish_title_from_script(script: Optional[Script]) -> str:
         return "待发布视频"
     first_line = script.title_options.splitlines()[0] if script.title_options else ""
     return first_line.replace("1.", "").strip() or script.hook[:40] or "待发布视频"
+
+
+def _hashtags_from_script(script: Optional[Script]) -> str:
+    return script.hashtags if script else ""
+
+
+def _caption_from_script(script: Optional[Script]) -> str:
+    if script is None:
+        return ""
+    return f"{script.hook}\n\n{script.hashtags}".strip()
+
+
+def _parse_optional_datetime(value: Optional[str]):
+    if not value:
+        return None
+    from datetime import datetime
+
+    return datetime.fromisoformat(value)
 
 
 @router.post("/trending/searches", response_model=TrendingSearch)
@@ -605,7 +630,18 @@ def create_trending_video(
 def prepare_publish_record(payload: PublishPrepareRequest, session: Session = Depends(get_session)) -> PublishRecord:
     if session.get(VideoTask, payload.video_task_id) is None:
         raise HTTPException(status_code=404, detail="Video task not found")
-    record = PublishRecord.model_validate(payload)
+    account = session.get(PlatformAccount, payload.platform_account_id) if payload.platform_account_id else None
+    record = PublishRecord(
+        video_task_id=payload.video_task_id,
+        platform=account.platform if account else payload.platform,
+        platform_account_id=account.id if account else payload.platform_account_id,
+        account_name=account.account_name if account else payload.account_name,
+        title=payload.title,
+        hashtags=payload.hashtags,
+        caption=payload.caption,
+        scheduled_at=_parse_optional_datetime(payload.scheduled_at),
+        publish_status="prepared",
+    )
     session.add(record)
     session.commit()
     session.refresh(record)
@@ -615,3 +651,24 @@ def prepare_publish_record(payload: PublishPrepareRequest, session: Session = De
 @router.get("/publish-records", response_model=list[PublishRecord])
 def list_publish_records(session: Session = Depends(get_session)) -> list[PublishRecord]:
     return list(session.exec(select(PublishRecord).order_by(PublishRecord.created_at.desc())).all())
+
+
+@router.post("/platform-accounts", response_model=PlatformAccount)
+def create_platform_account(
+    payload: PlatformAccountCreate,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> PlatformAccount:
+    account = PlatformAccount.model_validate(payload)
+    session.add(account)
+    session.commit()
+    session.refresh(account)
+    return account
+
+
+@router.get("/platform-accounts", response_model=list[PlatformAccount])
+def list_platform_accounts(
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> list[PlatformAccount]:
+    return list(session.exec(select(PlatformAccount).order_by(PlatformAccount.created_at.desc())).all())

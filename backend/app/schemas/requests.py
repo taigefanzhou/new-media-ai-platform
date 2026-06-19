@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional
 from pydantic import BaseModel, Field
-from app.models.entities import CopyrightStatus, MaterialKind, TrendingSource
+from app.models.entities import CopyrightStatus, MaterialKind, PublishPlatform, TrendingSource
 
 
 class LoginRequest(BaseModel):
@@ -97,14 +97,30 @@ class ScriptVideoTaskCreate(BaseModel):
     digital_human_id: Optional[int] = None
 
 
+class PlatformAccountCreate(BaseModel):
+    platform: PublishPlatform
+    account_name: str
+    owner: Optional[str] = None
+    status: str = "active"
+    notes: str = ""
+
+
 class PublishPrepareRequest(BaseModel):
     video_task_id: int
     platform: str
+    platform_account_id: Optional[int] = None
     account_name: Optional[str] = None
     title: str
+    hashtags: str = ""
+    caption: str = ""
+    scheduled_at: Optional[str] = None
 
 
 class VideoTaskPublishPrepareRequest(BaseModel):
     platform: str = "douyin"
+    platform_account_id: Optional[int] = None
     account_name: Optional[str] = None
     title: Optional[str] = None
+    hashtags: str = ""
+    caption: str = ""
+    scheduled_at: Optional[str] = None

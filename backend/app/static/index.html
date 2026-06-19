@@ -255,20 +255,28 @@
 
       <section id="page-publish" class="page">
         <section class="split">
-          <div class="panel">
-            <h2>发布流程</h2>
-            <div class="roadmap">
-              <span>运行视频任务</span>
-              <span>审核通过</span>
-              <span>准备发布记录</span>
-              <span>下载成片</span>
-              <span>人工上传平台</span>
-            </div>
-          </div>
+          <form id="platformAccountForm" class="panel">
+            <h2>平台账号管理</h2>
+            <label>平台
+              <select name="platform">
+                <option value="douyin">抖音</option>
+                <option value="wechat_channels">视频号</option>
+                <option value="xiaohongshu">小红书</option>
+                <option value="kuaishou">快手</option>
+              </select>
+            </label>
+            <label>账号名称<input name="account_name" placeholder="公司官方号" /></label>
+            <label>负责人<input name="owner" placeholder="运营负责人" /></label>
+            <button type="submit">保存平台账号</button>
+          </form>
           <div class="panel">
             <h2>发布记录</h2>
             <div id="publishRecordList" class="list"></div>
           </div>
+        </section>
+        <section class="panel footerPanel">
+          <h2>平台账号列表</h2>
+          <div id="platformAccountList" class="list"></div>
         </section>
       </section>
 

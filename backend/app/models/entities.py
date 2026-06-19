@@ -45,6 +45,14 @@ class TrendingSource(str, Enum):
     manual = "manual"
 
 
+class PublishPlatform(str, Enum):
+    douyin = "douyin"
+    wechat_channels = "wechat_channels"
+    xiaohongshu = "xiaohongshu"
+    kuaishou = "kuaishou"
+    manual = "manual"
+
+
 class Material(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
@@ -177,12 +185,26 @@ class VideoTask(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+class PlatformAccount(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    platform: PublishPlatform
+    account_name: str
+    owner: Optional[str] = None
+    status: str = "active"
+    notes: str = ""
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 class PublishRecord(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     video_task_id: int
     platform: str
+    platform_account_id: Optional[int] = None
     account_name: Optional[str] = None
     title: str
+    hashtags: str = ""
+    caption: str = ""
+    scheduled_at: Optional[datetime] = None
     publish_status: str = "prepared"
     published_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)

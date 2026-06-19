@@ -236,7 +236,29 @@ function renderPublishRecords(records) {
           <strong>${record.title}</strong>
           <div>视频任务 #${record.video_task_id}</div>
           <div>${record.platform} · ${record.account_name || "未指定账号"}</div>
+          <div>${record.hashtags || ""}</div>
+          <div>${record.caption || ""}</div>
           <span class="status">${record.publish_status}</span>
+        </div>
+      `,
+    )
+    .join("");
+}
+
+function renderPlatformAccounts(accounts) {
+  const target = document.querySelector("#platformAccountList");
+  if (!target) return;
+  if (!accounts.length) {
+    target.innerHTML = `<div class="item">还没有平台账号</div>`;
+    return;
+  }
+  target.innerHTML = accounts
+    .map(
+      (account) => `
+        <div class="item">
+          <strong>#${account.id} ${account.account_name}</strong>
+          <div>${account.platform} · ${account.owner || "未指定负责人"}</div>
+          <span class="status">${account.status}</span>
         </div>
       `,
     )
@@ -383,17 +405,19 @@ async function refresh() {
   renderScripts(dashboard.recent_scripts);
   renderTasks(dashboard.recent_tasks);
   if (api.token) {
-    const [models, searches, videos, transcriptions, publishRecords] = await Promise.all([
+    const [models, searches, videos, transcriptions, publishRecords, platformAccounts] = await Promise.all([
       api.get("/settings/models"),
       api.get("/trending/searches"),
       api.get("/trending/videos"),
       api.get("/transcriptions"),
       api.get("/publish-records"),
+      api.get("/platform-accounts"),
     ]);
     renderModels(models);
     renderTrending(searches, videos);
     renderTranscriptions(transcriptions);
     renderPublishRecords(publishRecords);
+    renderPlatformAccounts(platformAccounts);
   }
 }
 
@@ -521,15 +545,26 @@ document.querySelectorAll("#taskListTasks, #taskList").forEach((list) => list.ad
     toast(`任务已审核：${task.status}`);
   }
   if (button.dataset.action === "prepare-publish") {
+    const accounts = await api.get("/platform-accounts");
+    const account = accounts[0] || null;
     const record = await api.post(`/video-tasks/${id}/publish-record`, {
-      platform: "douyin",
-      account_name: "公司官方号",
+      platform: account ? account.platform : "douyin",
+      platform_account_id: account ? account.id : null,
+      account_name: account ? account.account_name : "公司官方号",
     });
     toast(`发布记录已创建 #${record.id}`);
     switchPage("publish");
   }
   await refresh();
 }));
+
+document.querySelector("#platformAccountForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const account = await api.post("/platform-accounts", formData(event.currentTarget));
+  toast(`平台账号已保存 #${account.id}`);
+  event.currentTarget.reset();
+  await refresh();
+});
 
 document.querySelector("#modelConfigForm").addEventListener("submit", async (event) => {
   event.preventDefault();

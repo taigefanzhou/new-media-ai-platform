@@ -61,6 +61,14 @@ curl -X POST http://localhost:8000/api/video-tasks/1/publish-record \
 ```
 
 ```bash
+curl -X POST http://localhost:8000/api/platform-accounts \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"platform":"douyin","account_name":"公司官方号","owner":"运营"}'
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/platform-accounts
+```
+
+```bash
 printf "demo" > /tmp/demo-portrait.txt
 curl -X POST http://localhost:8000/api/materials/upload \
   -F "file=@/tmp/demo-portrait.txt" \

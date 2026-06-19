@@ -85,6 +85,7 @@ The admin console includes a reference analysis module:
 - Generate a topic or an original script directly from the transcription result.
 - Create a video task directly from a generated script.
 - Run, approve, and prepare publishing records from video tasks.
+- Maintain platform accounts for Douyin, WeChat Channels, Xiaohongshu, and Kuaishou.
 
 Volcengine/Doubao ASR can be connected through:
 
