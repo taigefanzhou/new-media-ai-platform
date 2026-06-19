@@ -18,6 +18,7 @@ from app.models.entities import (
     Material,
     MaterialKind,
     PlatformAccount,
+    PlatformCredential,
     PublishRecord,
     Script,
     TaskStatus,
@@ -36,6 +37,9 @@ from app.schemas.requests import (
     MaterialCreate,
     PlatformAccountCreate,
     PlatformAccountUpdate,
+    PlatformCredentialCreate,
+    PlatformCredentialPublic,
+    PlatformCredentialUpdate,
     PublishPrepareRequest,
     PublishRecordUpdate,
     ScriptGenerateRequest,
@@ -164,6 +168,109 @@ def _deactivate_models(session: Session, purpose: str) -> None:
     for item in configs:
         item.is_active = False
         session.add(item)
+
+
+@router.get("/settings/platform-credentials", response_model=list[PlatformCredentialPublic])
+def list_platform_credentials(
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> list[PlatformCredentialPublic]:
+    credentials = session.exec(
+        select(PlatformCredential).order_by(
+            PlatformCredential.is_active.desc(),
+            PlatformCredential.created_at.desc(),
+        )
+    ).all()
+    return [_platform_credential_public(item) for item in credentials]
+
+
+@router.post("/settings/platform-credentials", response_model=PlatformCredentialPublic)
+def create_platform_credential(
+    payload: PlatformCredentialCreate,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> PlatformCredentialPublic:
+    if payload.is_active:
+        _deactivate_platform_credentials(session, payload.platform, payload.purpose)
+    credential = PlatformCredential.model_validate(payload)
+    credential.updated_at = datetime.utcnow()
+    session.add(credential)
+    session.commit()
+    session.refresh(credential)
+    return _platform_credential_public(credential)
+
+
+@router.patch("/settings/platform-credentials/{credential_id}", response_model=PlatformCredentialPublic)
+def update_platform_credential(
+    credential_id: int,
+    payload: PlatformCredentialUpdate,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> PlatformCredentialPublic:
+    credential = session.get(PlatformCredential, credential_id)
+    if credential is None:
+        raise HTTPException(status_code=404, detail="Platform credential not found")
+    update_data = payload.model_dump(exclude_unset=True)
+    next_platform = update_data.get("platform", credential.platform)
+    next_purpose = update_data.get("purpose", credential.purpose)
+    if update_data.get("is_active") is True:
+        _deactivate_platform_credentials(session, next_platform, next_purpose)
+    for key, value in update_data.items():
+        setattr(credential, key, value)
+    credential.updated_at = datetime.utcnow()
+    session.add(credential)
+    session.commit()
+    session.refresh(credential)
+    return _platform_credential_public(credential)
+
+
+@router.post("/settings/platform-credentials/{credential_id}/activate", response_model=PlatformCredentialPublic)
+def activate_platform_credential(
+    credential_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> PlatformCredentialPublic:
+    credential = session.get(PlatformCredential, credential_id)
+    if credential is None:
+        raise HTTPException(status_code=404, detail="Platform credential not found")
+    _deactivate_platform_credentials(session, credential.platform, credential.purpose)
+    credential.is_active = True
+    credential.status = "active"
+    credential.updated_at = datetime.utcnow()
+    session.add(credential)
+    session.commit()
+    session.refresh(credential)
+    return _platform_credential_public(credential)
+
+
+def _deactivate_platform_credentials(session: Session, platform: str, purpose: str) -> None:
+    credentials = session.exec(
+        select(PlatformCredential).where(
+            PlatformCredential.platform == platform,
+            PlatformCredential.purpose == purpose,
+        )
+    ).all()
+    for item in credentials:
+        item.is_active = False
+        session.add(item)
+
+
+def _platform_credential_public(credential: PlatformCredential) -> PlatformCredentialPublic:
+    return PlatformCredentialPublic(
+        id=credential.id or 0,
+        platform=credential.platform,
+        purpose=credential.purpose,
+        display_name=credential.display_name,
+        api_base=credential.api_base,
+        client_id=credential.client_id,
+        webhook_url=credential.webhook_url,
+        status=credential.status,
+        is_active=credential.is_active,
+        notes=credential.notes,
+        has_client_secret=bool(credential.client_secret),
+        has_access_token=bool(credential.access_token),
+        has_refresh_token=bool(credential.refresh_token),
+    )
 
 
 @router.get("/integrations/status")
@@ -614,7 +721,8 @@ async def run_trending_search(
     session.add(search)
     session.commit()
 
-    videos = await TrendingCollector().collect(search)
+    credential = _active_platform_credential(session, search.platform, "trending")
+    videos = await TrendingCollector(credential).collect(search)
     for video in videos:
         session.add(video)
     search.status = TaskStatus.needs_review
@@ -765,6 +873,20 @@ def _set_publish_status(
     session.commit()
     session.refresh(record)
     return record
+
+
+def _active_platform_credential(
+    session: Session,
+    platform: str,
+    purpose: str,
+) -> Optional[PlatformCredential]:
+    return session.exec(
+        select(PlatformCredential).where(
+            PlatformCredential.platform == platform,
+            PlatformCredential.purpose == purpose,
+            PlatformCredential.is_active == True,
+        )
+    ).first()
 
 
 @router.post("/platform-accounts", response_model=PlatformAccount)

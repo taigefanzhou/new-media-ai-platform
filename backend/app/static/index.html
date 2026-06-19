@@ -317,6 +317,40 @@
             <div id="modelConfigList" class="list"></div>
           </div>
         </section>
+        <section class="split">
+          <form id="platformCredentialForm" class="panel">
+            <h2>短视频平台 API 接入</h2>
+            <label>配置名称<input name="display_name" value="抖音爆款采集接口" /></label>
+            <label>平台
+              <select name="platform">
+                <option value="douyin">抖音</option>
+                <option value="wechat_channels">视频号</option>
+                <option value="xiaohongshu">小红书</option>
+                <option value="kuaishou">快手</option>
+              </select>
+            </label>
+            <label>用途
+              <select name="purpose">
+                <option value="trending">爆款采集</option>
+                <option value="publishing">自动发布</option>
+                <option value="analytics">数据回收</option>
+              </select>
+            </label>
+            <label>接口地址<input name="api_base" placeholder="https://your-adapter.example.com" /></label>
+            <label>Client ID<input name="client_id" placeholder="平台应用 ID 或账号标识" /></label>
+            <label>Client Secret<input name="client_secret" type="password" placeholder="保存后不回显明文" /></label>
+            <label>Access Token<input name="access_token" type="password" placeholder="可选，已有授权时填写" /></label>
+            <label>Refresh Token<input name="refresh_token" type="password" placeholder="可选" /></label>
+            <label>回调地址<input name="webhook_url" placeholder="https://your-domain.com/callback" /></label>
+            <label>备注<textarea name="notes" placeholder="记录申请主体、授权范围、到期时间"></textarea></label>
+            <label class="checkLine"><input name="is_active" type="checkbox" checked /> 设为启用</label>
+            <button type="submit">保存平台接入</button>
+          </form>
+          <div class="panel">
+            <h2>平台接入配置</h2>
+            <div id="platformCredentialList" class="list"></div>
+          </div>
+        </section>
       </section>
     </main>
 

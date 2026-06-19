@@ -35,6 +35,7 @@ const state = {
   currentPage: "overview",
   platformAccounts: [],
   publishRecords: [],
+  platformCredentials: [],
 };
 
 const pages = {
@@ -51,22 +52,24 @@ const pages = {
 
 const providerOptions = {
   script: [
-    { value: "openai-compatible", label: "OpenAI 兼容接口", model: "gpt-4.1-mini" },
-    { value: "deepseek", label: "DeepSeek", model: "deepseek-chat" },
-    { value: "doubao", label: "豆包 / 火山方舟", model: "doubao-seed-1-6" },
-    { value: "tongyi", label: "通义千问", model: "qwen-plus" },
-    { value: "qwen-local", label: "Qwen 本地模型", model: "Qwen3-Instruct" },
-    { value: "vllm", label: "vLLM 自建服务", model: "Qwen/Qwen3-30B-A3B-Instruct-2507" },
+    { value: "volcengine-ark", label: "火山方舟 / Doubao Seed 2.0 Pro", model: "doubao-seed-2-0-pro-260215", base: "https://ark.cn-beijing.volces.com/api/v3" },
+    { value: "volcengine-ark-lite", label: "火山方舟 / Doubao Seed 2.0 Lite", model: "doubao-seed-2-0-lite-260215", base: "https://ark.cn-beijing.volces.com/api/v3" },
+    { value: "aliyun-bailian", label: "阿里云百炼 / Qwen3.7 Plus", model: "qwen3.7-plus", base: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
+    { value: "aliyun-bailian-max", label: "阿里云百炼 / Qwen3.7 Max", model: "qwen3.7-max", base: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
+    { value: "aliyun-bailian-latest", label: "阿里云百炼 / Qwen Plus Latest", model: "qwen-plus-latest", base: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
+    { value: "deepseek", label: "DeepSeek", model: "deepseek-chat", base: "https://api.deepseek.com/v1" },
+    { value: "openai-compatible", label: "其他 OpenAI 兼容接口", model: "gpt-4.1-mini", base: "https://api.openai.com/v1" },
+    { value: "vllm", label: "vLLM 自建服务", model: "Qwen/Qwen3-30B-A3B-Instruct-2507", base: "http://localhost:8000/v1" },
   ],
   tts: [
+    { value: "volcengine-tts", label: "火山语音", model: "volcano-tts" },
     { value: "cosyvoice", label: "CosyVoice", model: "cosyvoice-v2" },
     { value: "fish-speech", label: "Fish Speech", model: "fish-speech" },
-    { value: "volcengine-tts", label: "火山语音", model: "volcano-tts" },
     { value: "aliyun-tts", label: "阿里云语音", model: "cosyvoice-v1" },
     { value: "mock", label: "Mock 测试", model: "mock-tts" },
   ],
   video: [
-    { value: "seedance", label: "Seedance", model: "seedance" },
+    { value: "seedance", label: "火山方舟 / Seedance 2.0", model: "doubao-seedance-2-0-260128" },
     { value: "comfyui", label: "ComfyUI", model: "wan2.1-workflow" },
     { value: "wan", label: "Wan2.1", model: "wan2.1-t2v-1.3b" },
     { value: "hunyuan-video", label: "HunyuanVideo", model: "hunyuan-video" },
@@ -74,15 +77,17 @@ const providerOptions = {
   ],
   asr: [
     { value: "volcengine", label: "火山引擎 / 豆包 ASR", model: "volcengine-asr" },
+    { value: "aliyun-bailian", label: "阿里云百炼 / Qwen Audio", model: "qwen-audio-asr" },
     { value: "openai-compatible", label: "OpenAI 兼容转写", model: "whisper-1" },
     { value: "whisperx", label: "WhisperX 本地服务", model: "whisperx-large-v3" },
     { value: "mock", label: "Mock 测试", model: "mock-asr" },
   ],
   compliance: [
-    { value: "openai-compatible", label: "OpenAI 兼容接口", model: "gpt-4.1-mini" },
-    { value: "deepseek", label: "DeepSeek", model: "deepseek-chat" },
-    { value: "doubao", label: "豆包 / 火山方舟", model: "doubao-seed-1-6" },
-    { value: "tongyi", label: "通义千问", model: "qwen-plus" },
+    { value: "volcengine-ark", label: "火山方舟 / Doubao Seed 2.0 Pro", model: "doubao-seed-2-0-pro-260215", base: "https://ark.cn-beijing.volces.com/api/v3" },
+    { value: "aliyun-bailian", label: "阿里云百炼 / Qwen3.7 Plus", model: "qwen3.7-plus", base: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
+    { value: "aliyun-bailian-max", label: "阿里云百炼 / Qwen3.7 Max", model: "qwen3.7-max", base: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
+    { value: "deepseek", label: "DeepSeek", model: "deepseek-chat", base: "https://api.deepseek.com/v1" },
+    { value: "openai-compatible", label: "其他 OpenAI 兼容接口", model: "gpt-4.1-mini", base: "https://api.openai.com/v1" },
   ],
 };
 
@@ -137,11 +142,19 @@ function syncProviderOptions() {
   const purpose = form.querySelector("[name='purpose']").value;
   const provider = form.querySelector("[name='provider']");
   const model = form.querySelector("[name='model_name']");
+  const apiBase = form.querySelector("[name='api_base']");
   const options = providerOptions[purpose] || providerOptions.script;
   provider.innerHTML = options.map((item) => `<option value="${item.value}">${item.label}</option>`).join("");
   if (!model.value || model.dataset.autofilled === "true") {
     model.value = options[0].model;
     model.dataset.autofilled = "true";
+  }
+  if (options[0].base && (!apiBase.value || apiBase.dataset.autofilled === "true")) {
+    apiBase.value = options[0].base;
+    apiBase.dataset.autofilled = "true";
+  } else if (!options[0].base && apiBase.dataset.autofilled === "true") {
+    apiBase.value = "";
+    apiBase.dataset.autofilled = "true";
   }
 }
 
@@ -150,10 +163,17 @@ function applyProviderDefaultModel() {
   const purpose = form.querySelector("[name='purpose']").value;
   const provider = form.querySelector("[name='provider']").value;
   const model = form.querySelector("[name='model_name']");
+  const apiBase = form.querySelector("[name='api_base']");
   const selected = (providerOptions[purpose] || []).find((item) => item.value === provider);
   if (selected) {
     model.value = selected.model;
     model.dataset.autofilled = "true";
+    if (selected.base) {
+      apiBase.value = selected.base;
+      apiBase.dataset.autofilled = "true";
+    } else if (apiBase.dataset.autofilled === "true") {
+      apiBase.value = "";
+    }
   }
 }
 
@@ -390,9 +410,58 @@ function renderModels(models) {
     .join("");
 }
 
+function renderPlatformCredentials(credentials) {
+  const target = document.querySelector("#platformCredentialList");
+  if (!target) return;
+  if (!credentials.length) {
+    target.innerHTML = `<div class="item">还没有平台接入配置</div>`;
+    return;
+  }
+  target.innerHTML = credentials
+    .map(
+      (credential) => `
+        <div class="item">
+          <div class="itemHeader">
+            <strong>#${credential.id} ${escapeHtml(credential.display_name)}</strong>
+            <span class="status">${credential.is_active ? "启用" : escapeHtml(credential.status)}</span>
+          </div>
+          <div>${platformLabel(credential.platform)} · ${credentialPurposeLabel(credential.purpose)}</div>
+          <div>${escapeHtml(credential.api_base || "未填写接口地址")}</div>
+          <div class="secretFlags">
+            <span>${credential.client_id ? "Client ID 已填" : "缺 Client ID"}</span>
+            <span>${credential.has_client_secret ? "Secret 已保存" : "缺 Secret"}</span>
+            <span>${credential.has_access_token ? "Token 已保存" : "缺 Token"}</span>
+          </div>
+          <div class="itemActions accountActions">
+            <button type="button" class="secondary" data-action="activate-platform-credential" data-id="${credential.id}">设为启用</button>
+          </div>
+        </div>
+      `,
+    )
+    .join("");
+}
+
 function providerLabel(purpose, value) {
   const option = (providerOptions[purpose] || []).find((item) => item.value === value);
   return option ? option.label : value;
+}
+
+function platformLabel(value) {
+  return {
+    douyin: "抖音",
+    wechat_channels: "视频号",
+    xiaohongshu: "小红书",
+    kuaishou: "快手",
+    manual: "手动",
+  }[value] || value;
+}
+
+function credentialPurposeLabel(value) {
+  return {
+    trending: "爆款采集",
+    publishing: "自动发布",
+    analytics: "数据回收",
+  }[value] || value;
 }
 
 function purposeLabel(value) {
@@ -491,17 +560,20 @@ async function refresh() {
   renderScripts(dashboard.recent_scripts);
   renderTasks(dashboard.recent_tasks);
   if (api.token) {
-    const [models, searches, videos, transcriptions, publishRecords, platformAccounts] = await Promise.all([
+    const [models, platformCredentials, searches, videos, transcriptions, publishRecords, platformAccounts] = await Promise.all([
       api.get("/settings/models"),
+      api.get("/settings/platform-credentials"),
       api.get("/trending/searches"),
       api.get("/trending/videos"),
       api.get("/transcriptions"),
       api.get("/publish-records"),
       api.get("/platform-accounts"),
     ]);
+    state.platformCredentials = platformCredentials;
     state.platformAccounts = platformAccounts;
     state.publishRecords = publishRecords;
     renderModels(models);
+    renderPlatformCredentials(platformCredentials);
     renderTrending(searches, videos);
     renderTranscriptions(transcriptions);
     renderPublishRecords(publishRecords);
@@ -702,6 +774,27 @@ document.querySelector("#modelConfigForm").addEventListener("submit", async (eve
   await refresh();
 });
 
+document.querySelector("#platformCredentialForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const payload = formData(event.currentTarget);
+  payload.is_active = Boolean(event.currentTarget.querySelector("[name='is_active']").checked);
+  const credential = await api.post("/settings/platform-credentials", payload);
+  toast(`平台接入已保存 #${credential.id}`);
+  event.currentTarget.reset();
+  event.currentTarget.querySelector("[name='is_active']").checked = true;
+  await refresh();
+});
+
+document.querySelector("#platformCredentialList").addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-action]");
+  if (!button) return;
+  if (button.dataset.action === "activate-platform-credential") {
+    const credential = await api.post(`/settings/platform-credentials/${button.dataset.id}/activate`);
+    toast(`${credential.display_name} 已启用`);
+    await refresh();
+  }
+});
+
 document.querySelector("#modelConfigForm [name='purpose']").addEventListener("change", () => {
   const model = document.querySelector("#modelConfigForm [name='model_name']");
   model.value = "";
@@ -712,6 +805,10 @@ document.querySelector("#modelConfigForm [name='purpose']").addEventListener("ch
 document.querySelector("#providerSelect").addEventListener("change", applyProviderDefaultModel);
 
 document.querySelector("#modelConfigForm [name='model_name']").addEventListener("input", (event) => {
+  event.currentTarget.dataset.autofilled = "false";
+});
+
+document.querySelector("#modelConfigForm [name='api_base']").addEventListener("input", (event) => {
   event.currentTarget.dataset.autofilled = "false";
 });
 

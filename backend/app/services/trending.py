@@ -3,17 +3,42 @@ from __future__ import annotations
 from typing import Any, Optional
 import httpx
 from app.core.config import get_settings
-from app.models.entities import TrendingSearch, TrendingVideo
+from app.models.entities import PlatformCredential, TrendingSearch, TrendingVideo
 
 
 class TrendingCollector:
-    def __init__(self) -> None:
+    def __init__(self, credential: Optional[PlatformCredential] = None) -> None:
         self.settings = get_settings()
+        self.credential = credential
 
     async def collect(self, search: TrendingSearch) -> list[TrendingVideo]:
+        if self.credential and self.credential.api_base:
+            return await self._collect_credential_http_json(search)
         if self.settings.trending_search_provider == "http-json" and self.settings.trending_search_api_base:
             return await self._collect_http_json(search)
         return self._collect_mock(search)
+
+    async def _collect_credential_http_json(self, search: TrendingSearch) -> list[TrendingVideo]:
+        headers = {}
+        if self.credential:
+            token = self.credential.access_token or self.credential.client_secret
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+
+        payload = {
+            "platform": search.platform,
+            "keyword": search.keyword,
+            "category": search.category,
+            "limit": 20,
+        }
+        url = (self.credential.api_base or "").rstrip("/") + "/trending/search"
+        async with httpx.AsyncClient(timeout=60) as client:
+            response = await client.post(url, headers=headers, json=payload)
+            response.raise_for_status()
+            data = response.json()
+
+        items = self._extract_items(data)
+        return [self._video_from_item(search, item) for item in items]
 
     async def _collect_http_json(self, search: TrendingSearch) -> list[TrendingVideo]:
         headers = {}

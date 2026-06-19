@@ -196,6 +196,24 @@ class PlatformAccount(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+class PlatformCredential(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    platform: PublishPlatform
+    purpose: str = "publishing"
+    display_name: str
+    api_base: Optional[str] = None
+    client_id: Optional[str] = None
+    client_secret: Optional[str] = None
+    access_token: Optional[str] = None
+    refresh_token: Optional[str] = None
+    webhook_url: Optional[str] = None
+    status: str = "draft"
+    is_active: bool = False
+    notes: str = ""
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 class PublishRecord(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     video_task_id: int

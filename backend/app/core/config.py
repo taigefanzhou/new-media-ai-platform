@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     llm_provider: str = "stub"
     llm_api_base: Optional[str] = None
     llm_api_key: Optional[str] = None
-    llm_model: str = "qwen3-or-deepseek"
+    llm_model: str = "doubao-seed-2-0-pro-260215"
 
     tts_provider: str = "mock"
     tts_api_base: Optional[str] = None
@@ -24,7 +24,7 @@ class Settings(BaseSettings):
 
     seedance_api_base: Optional[str] = None
     seedance_api_key: Optional[str] = None
-    seedance_model: str = "seedance"
+    seedance_model: str = "doubao-seedance-2-0-260128"
     comfyui_api_base: Optional[str] = None
     video_generation_provider: str = "mock"
 

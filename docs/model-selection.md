@@ -1,63 +1,43 @@
-# Model Selection
+# Model Selection Guide
 
-## Script Generation
+Current recommendation for this platform:
 
-Fastest:
+1. Use Volcengine Ark first for script generation, compliance rewriting, and Seedance video generation.
+2. Use Alibaba Cloud Bailian Qwen as the second choice or backup model family.
+3. Keep self-hosted vLLM/Qwen only for later private deployment scenarios.
 
-- Hosted OpenAI-compatible API
-- Dify workflow in front of Qwen, DeepSeek, OpenAI, Doubao, or Tongyi
+## Recommended Defaults
 
-Current backend support:
+| Capability | Primary provider | Default model | Backup |
+| --- | --- | --- | --- |
+| Script generation | Volcengine Ark | `doubao-seed-2-0-pro-260215` | `qwen3.7-plus` |
+| Compliance check | Volcengine Ark | `doubao-seed-2-0-pro-260215` | `qwen3.7-plus` |
+| Video generation | Volcengine Ark | `doubao-seedance-2-0-260128` | ComfyUI/Wan for private GPU |
+| ASR/reference analysis | Volcengine ASR adapter | `volcengine-asr` | Qwen Audio or WhisperX |
 
-```bash
-LLM_PROVIDER="openai-compatible"
-LLM_API_BASE="https://provider.example.com/v1"
-LLM_API_KEY="..."
-LLM_MODEL="..."
+## API Base URLs
+
+Volcengine Ark OpenAI-compatible endpoint:
+
+```text
+https://ark.cn-beijing.volces.com/api/v3
 ```
 
-The backend calls `POST {LLM_API_BASE}/chat/completions` and requests strict JSON containing hook, voiceover, storyboard, Seedance prompt, titles, hashtags, and compliance notes.
+Alibaba Cloud Bailian OpenAI-compatible endpoint:
 
-Open-source local:
+```text
+https://dashscope.aliyuncs.com/compatible-mode/v1
+```
 
-- Qwen3 Instruct for Chinese scripts and storyboards
-- vLLM for serving when GPU is available
+## Notes
 
-## TTS
+- The admin console model settings take priority when a saved model has `api_base`, `api_key`, and `model_name`.
+- `.env` values are fallback defaults for local or unattended runs.
+- The system keeps `stub` as the development default so the full workflow can run without a paid API key.
+- For production, create an active script model in System Settings and paste the Volcengine Ark API key.
 
-Primary:
+## Reference Links
 
-- CosyVoice: strong Mandarin and multilingual TTS, voice cloning path
-
-Alternatives:
-
-- Fish Speech
-- EmotiVoice for Chinese/English emotion-controlled TTS
-
-## Digital Human
-
-MVP:
-
-- SadTalker: one portrait plus audio to talking head video
-
-Higher quality:
-
-- MuseTalk: lip sync for existing person/digital-human video
-- LivePortrait: portrait animation and expression control
-
-Avoid:
-
-- Wav2Lip for commercial use unless separately licensed.
-
-## Video Generation
-
-Primary if API access exists:
-
-- Seedance API
-
-Open-source fallback:
-
-- Wan2.1, especially T2V-1.3B for easier local deployment
-- LTX-Video for ComfyUI-oriented workflows
-- HunyuanVideo for high-quality but heavier inference
-- CogVideoX for mature open video generation
+- Volcengine Ark documentation: https://www.volcengine.com/docs/82379
+- Doubao API documentation: https://www.volcengine.com/docs/6561/1354868
+- Alibaba Cloud Model Studio model list: https://help.aliyun.com/zh/model-studio/models

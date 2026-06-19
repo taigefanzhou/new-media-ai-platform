@@ -63,6 +63,8 @@ LLM_MODEL="gpt-4.1-mini"
 For DeepSeek, Tongyi, Doubao, or a self-hosted vLLM server, keep `LLM_PROVIDER="openai-compatible"` and replace `LLM_API_BASE`, `LLM_API_KEY`, and `LLM_MODEL` with that provider's values.
 
 You can also maintain model entries in the admin console under system settings. The active `script` model takes priority when generating scripts.
+For this project, the recommended production order is Volcengine Ark/Doubao Seed first, then Alibaba Cloud Bailian/Qwen as backup.
+See `docs/model-selection.md` for the current model recommendation table.
 
 ## Trending Video Collection
 
@@ -73,6 +75,7 @@ The admin console includes a trending-video collection area:
 - Manually save reference video links.
 - Store hook, summary, tags, and metrics as inspiration.
 - Connect a real HTTP JSON data source with `TRENDING_SEARCH_PROVIDER="http-json"`.
+- Maintain platform API credentials in system settings and activate one credential per platform/use case.
 
 ## Reference Video Analysis
 

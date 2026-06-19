@@ -363,6 +363,22 @@ button:hover {
   line-height: 1.55;
 }
 
+.secretFlags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.secretFlags span {
+  padding: 5px 7px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475467;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .publishRecord {
   padding: 14px;
 }

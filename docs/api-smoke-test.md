@@ -20,7 +20,15 @@ TOKEN=$(curl -s -X POST http://localhost:8000/api/auth/login \
 curl -X POST http://localhost:8000/api/settings/models \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
-  -d '{"name":"Script model","provider":"openai-compatible","purpose":"script","api_base":"https://api.example.com/v1","api_key":"test","model_name":"demo","is_active":true}'
+  -d '{"name":"Volcengine script model","provider":"volcengine-ark","purpose":"script","api_base":"https://ark.cn-beijing.volces.com/api/v3","api_key":"test","model_name":"doubao-seed-2-0-pro-260215","is_active":true}'
+```
+
+```bash
+curl -X POST http://localhost:8000/api/settings/platform-credentials \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"platform":"douyin","purpose":"trending","display_name":"Douyin trending adapter","api_base":"https://adapter.example.com","client_id":"demo","client_secret":"test","access_token":"test","is_active":true}'
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/settings/platform-credentials
 ```
 
 ```bash

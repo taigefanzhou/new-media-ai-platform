@@ -115,6 +115,52 @@ class PlatformAccountUpdate(BaseModel):
     notes: Optional[str] = None
 
 
+class PlatformCredentialCreate(BaseModel):
+    platform: PublishPlatform
+    purpose: str = "publishing"
+    display_name: str
+    api_base: Optional[str] = None
+    client_id: Optional[str] = None
+    client_secret: Optional[str] = None
+    access_token: Optional[str] = None
+    refresh_token: Optional[str] = None
+    webhook_url: Optional[str] = None
+    status: str = "draft"
+    is_active: bool = False
+    notes: str = ""
+
+
+class PlatformCredentialUpdate(BaseModel):
+    platform: Optional[PublishPlatform] = None
+    purpose: Optional[str] = None
+    display_name: Optional[str] = None
+    api_base: Optional[str] = None
+    client_id: Optional[str] = None
+    client_secret: Optional[str] = None
+    access_token: Optional[str] = None
+    refresh_token: Optional[str] = None
+    webhook_url: Optional[str] = None
+    status: Optional[str] = None
+    is_active: Optional[bool] = None
+    notes: Optional[str] = None
+
+
+class PlatformCredentialPublic(BaseModel):
+    id: int
+    platform: PublishPlatform
+    purpose: str
+    display_name: str
+    api_base: Optional[str] = None
+    client_id: Optional[str] = None
+    webhook_url: Optional[str] = None
+    status: str
+    is_active: bool
+    notes: str = ""
+    has_client_secret: bool = False
+    has_access_token: bool = False
+    has_refresh_token: bool = False
+
+
 class PublishPrepareRequest(BaseModel):
     video_task_id: int
     platform: str

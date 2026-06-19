@@ -33,6 +33,8 @@ class ScriptGenerator:
         duration_seconds: int,
         target_platform: str,
     ) -> GeneratedScript:
+        if self.model_config and self.model_config.api_base and self.model_config.api_key:
+            return await self._openai_compatible(topic, brand_voice, duration_seconds, target_platform)
         if self.settings.llm_provider == "stub":
             return self._stub(topic, brand_voice, duration_seconds, target_platform)
         if self.settings.llm_provider == "openai-compatible":
