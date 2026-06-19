@@ -12,6 +12,7 @@ Current recommendation for this platform:
 | --- | --- | --- | --- |
 | Script generation | Volcengine Ark | `doubao-seed-2-0-pro-260215` | `qwen3.7-plus` |
 | Compliance check | Volcengine Ark | `doubao-seed-2-0-pro-260215` | `qwen3.7-plus` |
+| Knowledge/docs/long context | Alibaba Cloud Bailian | `qwen3.7-plus` | `doubao-seed-2-0-pro-260215` |
 | Video generation | Volcengine Ark | `doubao-seedance-2-0-260128` | ComfyUI/Wan for private GPU |
 | ASR/reference analysis | Volcengine ASR adapter | `volcengine-asr` | Qwen Audio or WhisperX |
 

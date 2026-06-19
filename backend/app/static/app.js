@@ -89,6 +89,14 @@ const providerOptions = {
     { value: "deepseek", label: "DeepSeek", model: "deepseek-chat", base: "https://api.deepseek.com/v1" },
     { value: "openai-compatible", label: "其他 OpenAI 兼容接口", model: "gpt-4.1-mini", base: "https://api.openai.com/v1" },
   ],
+  knowledge: [
+    { value: "aliyun-bailian", label: "阿里云百炼 / Qwen3.7 Plus", model: "qwen3.7-plus", base: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
+    { value: "aliyun-bailian-max", label: "阿里云百炼 / Qwen3.7 Max", model: "qwen3.7-max", base: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
+    { value: "aliyun-bailian-latest", label: "阿里云百炼 / Qwen Plus Latest", model: "qwen-plus-latest", base: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
+    { value: "volcengine-ark", label: "火山方舟 / Doubao Seed 2.0 Pro", model: "doubao-seed-2-0-pro-260215", base: "https://ark.cn-beijing.volces.com/api/v3" },
+    { value: "deepseek", label: "DeepSeek", model: "deepseek-chat", base: "https://api.deepseek.com/v1" },
+    { value: "openai-compatible", label: "其他 OpenAI 兼容接口", model: "gpt-4.1-mini", base: "https://api.openai.com/v1" },
+  ],
 };
 
 function authHeaders() {
@@ -471,6 +479,7 @@ function purposeLabel(value) {
     video: "视频生成",
     asr: "语音识别",
     compliance: "合规检查",
+    knowledge: "知识库/文档/长文本",
   }[value] || value;
 }
 
