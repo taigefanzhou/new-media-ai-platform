@@ -31,6 +31,18 @@ const state = {
   latestTaskId: null,
   latestPortraitId: null,
   latestTrendingSearchId: null,
+  currentPage: "overview",
+};
+
+const pages = {
+  overview: { title: "运营总览", eyebrow: "Overview" },
+  materials: { title: "素材库", eyebrow: "Assets" },
+  creation: { title: "内容创作", eyebrow: "Creation" },
+  humans: { title: "数字人", eyebrow: "Digital Human" },
+  tasks: { title: "视频任务", eyebrow: "Video Tasks" },
+  trending: { title: "爆款采集", eyebrow: "Trending" },
+  publish: { title: "发布中心", eyebrow: "Publishing" },
+  settings: { title: "系统设置", eyebrow: "Settings" },
 };
 
 function authHeaders() {
@@ -46,6 +58,16 @@ function toast(message) {
   el.textContent = message;
   el.classList.add("show");
   setTimeout(() => el.classList.remove("show"), 2600);
+}
+
+function switchPage(page) {
+  state.currentPage = page;
+  document.querySelectorAll(".page").forEach((el) => el.classList.remove("activePage"));
+  document.querySelector(`#page-${page}`)?.classList.add("activePage");
+  document.querySelectorAll(".navItem").forEach((el) => el.classList.toggle("active", el.dataset.page === page));
+  document.querySelector("#pageTitle").textContent = pages[page].title;
+  document.querySelector("#pageEyebrow").textContent = pages[page].eyebrow;
+  window.location.hash = page;
 }
 
 function renderMetrics(counts) {
@@ -64,17 +86,21 @@ function renderMetrics(counts) {
 }
 
 function renderScripts(scripts) {
-  const target = document.querySelector("#scriptPreview");
+  const targets = [
+    document.querySelector("#scriptPreview"),
+    document.querySelector("#scriptPreviewCreation"),
+  ].filter(Boolean);
   if (!scripts.length) {
-    target.className = "preview empty";
-    target.textContent = "还没有脚本";
+    targets.forEach((target) => {
+      target.className = "preview empty";
+      target.textContent = "还没有脚本";
+    });
     return;
   }
   const script = scripts[0];
   state.latestScriptId = script.id;
   document.querySelector("[name='script_id']").value = script.id;
-  target.className = "preview";
-  target.textContent = [
+  const content = [
     `脚本 ID: ${script.id}`,
     `开头: ${script.hook}`,
     "",
@@ -90,16 +116,25 @@ function renderScripts(scripts) {
     `标签: ${script.hashtags}`,
     `合规: ${script.compliance_notes}`,
   ].join("\n");
+  targets.forEach((target) => {
+    target.className = "preview";
+    target.textContent = content;
+  });
 }
 
 function renderTasks(tasks) {
-  const target = document.querySelector("#taskList");
+  const targets = [
+    document.querySelector("#taskList"),
+    document.querySelector("#taskListTasks"),
+  ].filter(Boolean);
   if (!tasks.length) {
-    target.innerHTML = `<div class="item">还没有视频任务</div>`;
+    targets.forEach((target) => {
+      target.innerHTML = `<div class="item">还没有视频任务</div>`;
+    });
     return;
   }
   state.latestTaskId = tasks[0].id;
-  target.innerHTML = tasks
+  const html = tasks
     .map(
       (task) => `
         <div class="item">
@@ -112,6 +147,9 @@ function renderTasks(tasks) {
       `,
     )
     .join("");
+  targets.forEach((target) => {
+    target.innerHTML = html;
+  });
 }
 
 function renderIntegrations(status) {
@@ -222,6 +260,10 @@ async function refresh() {
 }
 
 document.querySelector("#refreshBtn").addEventListener("click", () => refresh().then(() => toast("已刷新")));
+
+document.querySelectorAll(".navItem").forEach((item) => {
+  item.addEventListener("click", () => switchPage(item.dataset.page));
+});
 
 document.querySelector("#loginForm").addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -353,4 +395,9 @@ if (api.token) {
 } else {
   setLoginState(null);
   refresh().catch((err) => toast(err.message));
+}
+
+const initialPage = window.location.hash.replace("#", "") || "overview";
+if (pages[initialPage]) {
+  switchPage(initialPage);
 }

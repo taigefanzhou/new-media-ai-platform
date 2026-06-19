@@ -62,14 +62,21 @@ nav {
   margin-top: 22px;
 }
 
-nav a {
-  color: #d1d5db;
-  text-decoration: none;
-  padding: 10px 12px;
+.navItem {
+  width: 100%;
+  min-height: 40px;
+  border: 0;
   border-radius: 6px;
+  background: transparent;
+  color: #d1d5db;
+  padding: 10px 12px;
+  text-align: left;
+  font-weight: 800;
+  cursor: pointer;
 }
 
-nav a:hover {
+.navItem:hover,
+.navItem.active {
   background: rgba(255, 255, 255, 0.08);
   color: white;
 }
@@ -157,8 +164,16 @@ h2 {
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
+}
+
+.page {
+  display: none;
+}
+
+.activePage {
+  display: block;
 }
 
 .split {
@@ -371,5 +386,9 @@ button:hover {
   header {
     align-items: flex-start;
     gap: 12px;
+  }
+
+  .inlineForm {
+    grid-template-columns: 1fr;
   }
 }
