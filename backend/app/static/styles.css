@@ -86,6 +86,22 @@ header {
   margin-bottom: 20px;
 }
 
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.loginState {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: white;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .eyebrow {
   margin: 0 0 6px;
   color: var(--accent);
@@ -141,7 +157,7 @@ h2 {
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 14px;
 }
 
@@ -215,6 +231,32 @@ button:hover {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+}
+
+.inlineForm {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) minmax(140px, 1fr) 120px;
+  gap: 12px;
+  align-items: end;
+}
+
+.loginPanel {
+  margin-bottom: 18px;
+}
+
+.compactLogin {
+  display: none;
+}
+
+.checkLine {
+  display: flex;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 8px;
+}
+
+.checkLine input {
+  width: auto;
 }
 
 .preview {

@@ -31,6 +31,20 @@ class TaskStatus(str, Enum):
     failed = "failed"
 
 
+class UserRole(str, Enum):
+    admin = "admin"
+    operator = "operator"
+    reviewer = "reviewer"
+
+
+class TrendingSource(str, Enum):
+    douyin = "douyin"
+    wechat_channels = "wechat_channels"
+    xiaohongshu = "xiaohongshu"
+    kuaishou = "kuaishou"
+    manual = "manual"
+
+
 class Material(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
@@ -39,6 +53,65 @@ class Material(SQLModel, table=True):
     file_path: Optional[str] = None
     source_url: Optional[str] = None
     tags: str = ""
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class User(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    username: str = Field(index=True, unique=True)
+    password_hash: str
+    role: UserRole = UserRole.admin
+    is_active: bool = True
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class AuthSession(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int
+    token: str = Field(index=True, unique=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class AIModelConfig(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    provider: str
+    purpose: str = "script"
+    api_base: Optional[str] = None
+    api_key: Optional[str] = None
+    model_name: str
+    is_active: bool = False
+    notes: str = ""
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class TrendingSearch(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    platform: TrendingSource
+    keyword: str
+    category: Optional[str] = None
+    status: TaskStatus = TaskStatus.queued
+    result_count: int = 0
+    notes: str = ""
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class TrendingVideo(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    search_id: Optional[int] = None
+    platform: TrendingSource
+    title: str
+    source_url: str
+    author: Optional[str] = None
+    play_count: Optional[int] = None
+    like_count: Optional[int] = None
+    comment_count: Optional[int] = None
+    share_count: Optional[int] = None
+    duration_seconds: Optional[int] = None
+    hook: str = ""
+    summary: str = ""
+    tags: str = ""
+    compliance_notes: str = "仅作为选题和结构参考，不可直接搬运画面或文案。"
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 

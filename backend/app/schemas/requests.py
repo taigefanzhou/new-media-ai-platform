@@ -2,7 +2,51 @@ from __future__ import annotations
 
 from typing import Optional
 from pydantic import BaseModel, Field
-from app.models.entities import CopyrightStatus, MaterialKind
+from app.models.entities import CopyrightStatus, MaterialKind, TrendingSource
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class AIModelConfigCreate(BaseModel):
+    name: str
+    provider: str
+    purpose: str = "script"
+    api_base: Optional[str] = None
+    api_key: Optional[str] = None
+    model_name: str
+    is_active: bool = False
+    notes: str = ""
+
+
+class AIModelConfigUpdate(BaseModel):
+    name: Optional[str] = None
+    provider: Optional[str] = None
+    purpose: Optional[str] = None
+    api_base: Optional[str] = None
+    api_key: Optional[str] = None
+    model_name: Optional[str] = None
+    is_active: Optional[bool] = None
+    notes: Optional[str] = None
+
+
+class TrendingSearchCreate(BaseModel):
+    platform: TrendingSource
+    keyword: str
+    category: Optional[str] = None
+    notes: str = ""
+
+
+class TrendingVideoCreate(BaseModel):
+    platform: TrendingSource
+    title: str
+    source_url: str
+    author: Optional[str] = None
+    hook: str = ""
+    summary: str = ""
+    tags: str = ""
 
 
 class MaterialCreate(BaseModel):

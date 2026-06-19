@@ -20,6 +20,8 @@
         <a href="#script">脚本生成</a>
         <a href="#human">数字人</a>
         <a href="#video">视频任务</a>
+        <a href="#trending">爆款采集</a>
+        <a href="#settings">系统设置</a>
         <a href="#publish">发布准备</a>
       </nav>
     </aside>
@@ -30,8 +32,20 @@
           <p class="eyebrow">MVP Console</p>
           <h1>公司短视频生产工作台</h1>
         </div>
-        <button id="refreshBtn" class="iconBtn" title="刷新">↻</button>
+        <div class="headerActions">
+          <span id="loginState" class="loginState">未登录</span>
+          <button id="refreshBtn" class="iconBtn" title="刷新">↻</button>
+        </div>
       </header>
+
+      <section id="loginPanel" class="panel loginPanel">
+        <h2>账号登录</h2>
+        <form id="loginForm" class="inlineForm">
+          <label>账号<input name="username" value="admin" /></label>
+          <label>密码<input name="password" type="password" value="admin123456" /></label>
+          <button type="submit">登录</button>
+        </form>
+      </section>
 
       <section id="overview" class="metrics"></section>
 
@@ -113,6 +127,78 @@
         <div class="panel">
           <h2>任务状态</h2>
           <div id="taskList" class="list"></div>
+        </div>
+      </section>
+
+      <section id="trending" class="split">
+        <form id="trendingSearchForm" class="panel">
+          <h2>爆款视频搜索采集</h2>
+          <label>平台
+            <select name="platform">
+              <option value="douyin">抖音</option>
+              <option value="wechat_channels">视频号</option>
+              <option value="xiaohongshu">小红书</option>
+              <option value="kuaishou">快手</option>
+            </select>
+          </label>
+          <label>关键词<input name="keyword" value="数字人获客" /></label>
+          <label>分类<input name="category" value="企业服务" /></label>
+          <div class="actions">
+            <button type="submit">创建采集</button>
+            <button id="runTrendingBtn" type="button" class="secondary">运行采集</button>
+          </div>
+        </form>
+
+        <form id="trendingManualForm" class="panel">
+          <h2>手动录入参考视频</h2>
+          <label>平台
+            <select name="platform">
+              <option value="douyin">抖音</option>
+              <option value="wechat_channels">视频号</option>
+              <option value="xiaohongshu">小红书</option>
+              <option value="manual">手动</option>
+            </select>
+          </label>
+          <label>标题<input name="title" placeholder="参考视频标题" /></label>
+          <label>链接<input name="source_url" placeholder="https://..." /></label>
+          <label>爆点摘要<textarea name="summary" placeholder="只记录选题结构和爆点，不搬运原文"></textarea></label>
+          <button type="submit">保存参考</button>
+        </form>
+      </section>
+
+      <section class="split">
+        <div class="panel wide">
+          <h2>爆款参考库</h2>
+          <div id="trendingVideoList" class="list"></div>
+        </div>
+        <div class="panel">
+          <h2>采集任务</h2>
+          <div id="trendingSearchList" class="list"></div>
+        </div>
+      </section>
+
+      <section id="settings" class="split">
+        <form id="modelConfigForm" class="panel">
+          <h2>AI 模型入口维护</h2>
+          <label>名称<input name="name" value="脚本生成模型" /></label>
+          <label>用途
+            <select name="purpose">
+              <option value="script">脚本生成</option>
+              <option value="tts">语音合成</option>
+              <option value="video">视频生成</option>
+              <option value="compliance">合规检查</option>
+            </select>
+          </label>
+          <label>供应商<input name="provider" value="openai-compatible" /></label>
+          <label>接口地址<input name="api_base" placeholder="https://api.example.com/v1" /></label>
+          <label>模型名<input name="model_name" placeholder="gpt-4.1-mini / deepseek-chat" /></label>
+          <label>API Key<input name="api_key" type="password" placeholder="保存后不会展示明文" /></label>
+          <label class="checkLine"><input name="is_active" type="checkbox" checked /> 设为启用</label>
+          <button type="submit">保存模型配置</button>
+        </form>
+        <div class="panel">
+          <h2>模型配置列表</h2>
+          <div id="modelConfigList" class="list"></div>
         </div>
       </section>
 

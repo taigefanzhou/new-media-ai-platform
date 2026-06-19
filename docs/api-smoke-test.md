@@ -11,6 +11,26 @@ curl http://localhost:8000/api/dashboard
 ```
 
 ```bash
+TOKEN=$(curl -s -X POST http://localhost:8000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin123456"}' | python -c "import sys,json; print(json.load(sys.stdin)['token'])")
+```
+
+```bash
+curl -X POST http://localhost:8000/api/settings/models \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"name":"Script model","provider":"openai-compatible","purpose":"script","api_base":"https://api.example.com/v1","api_key":"test","model_name":"demo","is_active":true}'
+```
+
+```bash
+curl -X POST http://localhost:8000/api/trending/searches \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"platform":"douyin","keyword":"数字人获客","category":"企业服务"}'
+```
+
+```bash
 printf "demo" > /tmp/demo-portrait.txt
 curl -X POST http://localhost:8000/api/materials/upload \
   -F "file=@/tmp/demo-portrait.txt" \

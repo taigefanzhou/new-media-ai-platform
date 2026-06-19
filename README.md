@@ -33,6 +33,20 @@ Open:
 The admin console can already create topics, generate scripts, create digital humans, create video tasks, run mock generation, and inspect task status.
 It also supports uploading local image/video assets, including portrait photos for digital human creation.
 
+Default admin login:
+
+```text
+username: admin
+password: admin123456
+```
+
+Change these in `backend/.env` before production:
+
+```bash
+ADMIN_USERNAME="admin"
+ADMIN_PASSWORD="replace-with-a-strong-password"
+```
+
 ## Script Model Setup
 
 By default, the platform uses a stub script generator so the product flow works without paid services.
@@ -47,6 +61,19 @@ LLM_MODEL="gpt-4.1-mini"
 ```
 
 For DeepSeek, Tongyi, Doubao, or a self-hosted vLLM server, keep `LLM_PROVIDER="openai-compatible"` and replace `LLM_API_BASE`, `LLM_API_KEY`, and `LLM_MODEL` with that provider's values.
+
+You can also maintain model entries in the admin console under system settings. The active `script` model takes priority when generating scripts.
+
+## Trending Video Collection
+
+The admin console includes a trending-video collection area:
+
+- Create platform + keyword collection tasks.
+- Run mock collection to populate structured references.
+- Manually save reference video links.
+- Store hook, summary, tags, and metrics as inspiration.
+
+This module is designed for compliant ideation. Reference videos should be used for topic and structure analysis only, not for copying footage, captions, or scripts.
 
 ## Docker Start
 

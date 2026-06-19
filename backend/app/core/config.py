@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     app_name: str = "New Media AI Platform"
     database_url: str = "sqlite:///./data/platform.db"
     storage_dir: str = "./data/storage"
+    admin_username: str = "admin"
+    admin_password: str = "admin123456"
 
     llm_provider: str = "stub"
     llm_api_base: Optional[str] = None
@@ -32,6 +34,10 @@ class Settings(BaseSettings):
 
     composition_provider: str = "mock"
     ffmpeg_binary: str = "ffmpeg"
+
+    trending_search_provider: str = "mock"
+    trending_search_api_base: Optional[str] = None
+    trending_search_api_key: Optional[str] = None
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

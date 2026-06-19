@@ -6,8 +6,12 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlmodel import Session, func, select
 from app.core.config import get_settings
+from app.core.auth import current_user
 from app.core.db import get_session
+from app.core.security import create_token, hash_password
 from app.models.entities import (
+    AIModelConfig,
+    AuthSession,
     CopyrightStatus,
     DigitalHuman,
     Material,
@@ -16,14 +20,22 @@ from app.models.entities import (
     Script,
     TaskStatus,
     Topic,
+    TrendingSearch,
+    TrendingVideo,
+    User,
     VideoTask,
 )
 from app.schemas.requests import (
+    AIModelConfigCreate,
+    AIModelConfigUpdate,
     DigitalHumanCreate,
+    LoginRequest,
     MaterialCreate,
     PublishPrepareRequest,
     ScriptGenerateRequest,
     TopicCreate,
+    TrendingSearchCreate,
+    TrendingVideoCreate,
     VideoTaskCreate,
 )
 from app.services.ai_clients import ScriptGenerator
@@ -38,6 +50,26 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@router.post("/auth/login")
+def login(payload: LoginRequest, session: Session = Depends(get_session)) -> dict[str, object]:
+    user = session.exec(select(User).where(User.username == payload.username)).first()
+    if user is None or user.password_hash != hash_password(payload.password) or not user.is_active:
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    token = create_token()
+    auth_session = AuthSession(user_id=user.id, token=token)
+    session.add(auth_session)
+    session.commit()
+    return {
+        "token": token,
+        "user": {"id": user.id, "username": user.username, "role": user.role},
+    }
+
+
+@router.get("/auth/me")
+def me(user: User = Depends(current_user)) -> dict[str, object]:
+    return {"id": user.id, "username": user.username, "role": user.role}
+
+
 @router.get("/dashboard")
 def dashboard(session: Session = Depends(get_session)) -> dict[str, object]:
     counts = {
@@ -47,10 +79,79 @@ def dashboard(session: Session = Depends(get_session)) -> dict[str, object]:
         "digital_humans": session.exec(select(func.count()).select_from(DigitalHuman)).one(),
         "video_tasks": session.exec(select(func.count()).select_from(VideoTask)).one(),
         "publish_records": session.exec(select(func.count()).select_from(PublishRecord)).one(),
+        "trending_videos": session.exec(select(func.count()).select_from(TrendingVideo)).one(),
     }
     recent_tasks = session.exec(select(VideoTask).order_by(VideoTask.created_at.desc()).limit(5)).all()
     recent_scripts = session.exec(select(Script).order_by(Script.created_at.desc()).limit(5)).all()
     return {"counts": counts, "recent_tasks": recent_tasks, "recent_scripts": recent_scripts}
+
+
+@router.get("/settings/models", response_model=list[AIModelConfig])
+def list_model_configs(
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> list[AIModelConfig]:
+    return list(session.exec(select(AIModelConfig).order_by(AIModelConfig.created_at.desc())).all())
+
+
+@router.post("/settings/models", response_model=AIModelConfig)
+def create_model_config(
+    payload: AIModelConfigCreate,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> AIModelConfig:
+    if payload.is_active:
+        _deactivate_models(session, payload.purpose)
+    config = AIModelConfig.model_validate(payload)
+    session.add(config)
+    session.commit()
+    session.refresh(config)
+    return config
+
+
+@router.patch("/settings/models/{model_id}", response_model=AIModelConfig)
+def update_model_config(
+    model_id: int,
+    payload: AIModelConfigUpdate,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> AIModelConfig:
+    config = session.get(AIModelConfig, model_id)
+    if config is None:
+        raise HTTPException(status_code=404, detail="Model config not found")
+    update_data = payload.model_dump(exclude_unset=True)
+    if update_data.get("is_active") is True:
+        _deactivate_models(session, update_data.get("purpose", config.purpose))
+    for key, value in update_data.items():
+        setattr(config, key, value)
+    session.add(config)
+    session.commit()
+    session.refresh(config)
+    return config
+
+
+@router.post("/settings/models/{model_id}/activate", response_model=AIModelConfig)
+def activate_model_config(
+    model_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> AIModelConfig:
+    config = session.get(AIModelConfig, model_id)
+    if config is None:
+        raise HTTPException(status_code=404, detail="Model config not found")
+    _deactivate_models(session, config.purpose)
+    config.is_active = True
+    session.add(config)
+    session.commit()
+    session.refresh(config)
+    return config
+
+
+def _deactivate_models(session: Session, purpose: str) -> None:
+    configs = session.exec(select(AIModelConfig).where(AIModelConfig.purpose == purpose)).all()
+    for item in configs:
+        item.is_active = False
+        session.add(item)
 
 
 @router.get("/integrations/status")
@@ -147,7 +248,10 @@ def list_topics(session: Session = Depends(get_session)) -> list[Topic]:
 
 @router.post("/scripts/generate", response_model=Script)
 async def generate_script(payload: ScriptGenerateRequest, session: Session = Depends(get_session)) -> Script:
-    generated = await ScriptGenerator().generate(
+    active_model = session.exec(
+        select(AIModelConfig).where(AIModelConfig.purpose == "script", AIModelConfig.is_active == True)
+    ).first()
+    generated = await ScriptGenerator(active_model).generate(
         topic=payload.topic,
         brand_voice=payload.brand_voice,
         duration_seconds=payload.duration_seconds,
@@ -223,6 +327,91 @@ def approve_video_task(task_id: int, session: Session = Depends(get_session)) ->
 @router.get("/video-tasks", response_model=list[VideoTask])
 def list_video_tasks(session: Session = Depends(get_session)) -> list[VideoTask]:
     return list(session.exec(select(VideoTask).order_by(VideoTask.created_at.desc())).all())
+
+
+@router.post("/trending/searches", response_model=TrendingSearch)
+def create_trending_search(
+    payload: TrendingSearchCreate,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> TrendingSearch:
+    search = TrendingSearch.model_validate(payload)
+    session.add(search)
+    session.commit()
+    session.refresh(search)
+    return search
+
+
+@router.post("/trending/searches/{search_id}/run", response_model=TrendingSearch)
+def run_trending_search(
+    search_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> TrendingSearch:
+    search = session.get(TrendingSearch, search_id)
+    if search is None:
+        raise HTTPException(status_code=404, detail="Trending search not found")
+    search.status = TaskStatus.running
+    session.add(search)
+    session.commit()
+
+    examples = [
+        ("3秒讲清楚客户为什么不下单", "开头直接抛出反常识问题，再给出一个可执行判断标准。"),
+        ("老板最关心的短视频获客闭环", "用痛点、流程、结果三段式拆解，适合企业服务账号复用。"),
+        ("数字人不是替代员工，而是放大内容产能", "先化解误区，再展示团队如何用数字人稳定生产内容。"),
+    ]
+    for index, (title, summary) in enumerate(examples, start=1):
+        video = TrendingVideo(
+            search_id=search.id,
+            platform=search.platform,
+            title=f"{search.keyword}｜{title}",
+            source_url=f"mock://{search.platform}/trending/{search.id}/{index}",
+            author="mock-trend-source",
+            play_count=100000 + index * 23000,
+            like_count=8000 + index * 1200,
+            comment_count=600 + index * 80,
+            share_count=900 + index * 120,
+            duration_seconds=30 + index * 5,
+            hook=title,
+            summary=summary,
+            tags=f"{search.keyword},爆款结构,选题参考",
+        )
+        session.add(video)
+    search.status = TaskStatus.needs_review
+    search.result_count = len(examples)
+    session.add(search)
+    session.commit()
+    session.refresh(search)
+    return search
+
+
+@router.get("/trending/searches", response_model=list[TrendingSearch])
+def list_trending_searches(
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> list[TrendingSearch]:
+    return list(session.exec(select(TrendingSearch).order_by(TrendingSearch.created_at.desc())).all())
+
+
+@router.get("/trending/videos", response_model=list[TrendingVideo])
+def list_trending_videos(
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> list[TrendingVideo]:
+    return list(session.exec(select(TrendingVideo).order_by(TrendingVideo.created_at.desc())).all())
+
+
+@router.post("/trending/videos", response_model=TrendingVideo)
+def create_trending_video(
+    payload: TrendingVideoCreate,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> TrendingVideo:
+    video = TrendingVideo.model_validate(payload)
+    session.add(video)
+    session.commit()
+    session.refresh(video)
+    return video
 
 
 @router.post("/publish-records", response_model=PublishRecord)

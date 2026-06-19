@@ -22,8 +22,9 @@ class GeneratedScript:
 
 
 class ScriptGenerator:
-    def __init__(self) -> None:
+    def __init__(self, model_config=None) -> None:
         self.settings = get_settings()
+        self.model_config = model_config
 
     async def generate(
         self,
@@ -45,7 +46,10 @@ class ScriptGenerator:
         duration_seconds: int,
         target_platform: str,
     ) -> GeneratedScript:
-        if not self.settings.llm_api_base or not self.settings.llm_api_key:
+        api_base = self.model_config.api_base if self.model_config else self.settings.llm_api_base
+        api_key = self.model_config.api_key if self.model_config else self.settings.llm_api_key
+        model_name = self.model_config.model_name if self.model_config else self.settings.llm_model
+        if not api_base or not api_key:
             return self._stub(topic, brand_voice, duration_seconds, target_platform)
 
         prompt = {
@@ -71,7 +75,7 @@ class ScriptGenerator:
             },
         }
         payload = {
-            "model": self.settings.llm_model,
+            "model": model_name,
             "messages": [
                 {
                     "role": "system",
@@ -82,8 +86,8 @@ class ScriptGenerator:
             "temperature": 0.7,
             "response_format": {"type": "json_object"},
         }
-        headers = {"Authorization": f"Bearer {self.settings.llm_api_key}"}
-        url = self.settings.llm_api_base.rstrip("/") + "/chat/completions"
+        headers = {"Authorization": f"Bearer {api_key}"}
+        url = api_base.rstrip("/") + "/chat/completions"
 
         async with httpx.AsyncClient(timeout=60) as client:
             response = await client.post(url, headers=headers, json=payload)
