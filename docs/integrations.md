@@ -221,3 +221,42 @@ Each item can use common field names:
 ```
 
 This module is for compliant topic research. Do not copy footage, captions, or scripts from unlicensed videos.
+
+## ASR / Reference Video Transcription
+
+Mock mode:
+
+```bash
+ASR_PROVIDER="mock"
+```
+
+Volcengine/Doubao ASR adapter mode:
+
+```bash
+ASR_PROVIDER="volcengine"
+ASR_API_BASE="https://your-asr-adapter.example.com"
+ASR_API_KEY="..."
+ASR_MODEL="volcengine-asr"
+```
+
+The backend calls:
+
+```text
+POST {ASR_API_BASE}/asr/transcriptions
+```
+
+Payload:
+
+```json
+{
+  "model": "volcengine-asr",
+  "language": "zh-CN",
+  "file_path": "./data/storage/materials/.../source.mp4",
+  "source_url": null,
+  "material_name": "参考视频"
+}
+```
+
+Expected response can include `text`, `transcript`, `result`, `content`, `segments`, or `utterances`.
+
+The Volcengine document the user shared is useful for this module: it turns reference audio/video speech into text, which can then be analyzed and rewritten into original company scripts.

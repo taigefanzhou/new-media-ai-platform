@@ -115,6 +115,20 @@ class TrendingVideo(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+class TranscriptionTask(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    material_id: int
+    provider: str = "mock"
+    status: TaskStatus = TaskStatus.queued
+    language: str = "zh-CN"
+    transcript: str = ""
+    summary: str = ""
+    hook_analysis: str = ""
+    error_message: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 class Topic(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str

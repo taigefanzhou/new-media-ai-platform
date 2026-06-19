@@ -19,6 +19,7 @@
         <button class="navItem active" data-page="overview">总览</button>
         <button class="navItem" data-page="materials">素材库</button>
         <button class="navItem" data-page="creation">内容创作</button>
+        <button class="navItem" data-page="analysis">参考解析</button>
         <button class="navItem" data-page="humans">数字人</button>
         <button class="navItem" data-page="tasks">视频任务</button>
         <button class="navItem" data-page="trending">爆款采集</button>
@@ -121,6 +122,37 @@
         <section class="panel footerPanel">
           <h2>脚本预览</h2>
           <div id="scriptPreviewCreation" class="preview empty">还没有脚本</div>
+        </section>
+      </section>
+
+      <section id="page-analysis" class="page">
+        <section class="split">
+          <form id="transcriptionForm" class="panel">
+            <h2>参考视频/音频转写</h2>
+            <label>素材 ID<input name="material_id" type="number" min="1" placeholder="上传参考视频后填写素材 ID" /></label>
+            <label>语言
+              <select name="language">
+                <option value="zh-CN">中文</option>
+                <option value="en-US">英文</option>
+              </select>
+            </label>
+            <div class="actions">
+              <button type="submit">创建转写</button>
+              <button id="runTranscriptionBtn" type="button" class="secondary">运行转写</button>
+            </div>
+          </form>
+          <div class="panel">
+            <h2>解析流程</h2>
+            <div class="list">
+              <div class="item">上传参考视频或音频素材。</div>
+              <div class="item">创建 ASR 转写任务，得到口播文本。</div>
+              <div class="item">提炼开头钩子、内容结构和可改写方向。</div>
+            </div>
+          </div>
+        </section>
+        <section class="panel footerPanel">
+          <h2>转写结果</h2>
+          <div id="transcriptionList" class="list"></div>
         </section>
       </section>
 
@@ -241,10 +273,13 @@
                 <option value="script">脚本生成</option>
                 <option value="tts">语音合成</option>
                 <option value="video">视频生成</option>
+                <option value="asr">语音识别</option>
                 <option value="compliance">合规检查</option>
               </select>
             </label>
-            <label>供应商<input name="provider" value="openai-compatible" /></label>
+            <label>供应商
+              <select name="provider" id="providerSelect"></select>
+            </label>
             <label>接口地址<input name="api_base" placeholder="https://api.example.com/v1" /></label>
             <label>模型名<input name="model_name" placeholder="gpt-4.1-mini / deepseek-chat" /></label>
             <label>API Key<input name="api_key" type="password" placeholder="保存后不会展示明文" /></label>

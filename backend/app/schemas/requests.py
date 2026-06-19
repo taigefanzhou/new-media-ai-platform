@@ -49,6 +49,11 @@ class TrendingVideoCreate(BaseModel):
     tags: str = ""
 
 
+class TranscriptionTaskCreate(BaseModel):
+    material_id: int
+    language: str = "zh-CN"
+
+
 class MaterialCreate(BaseModel):
     name: str
     kind: MaterialKind

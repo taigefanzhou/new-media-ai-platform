@@ -74,6 +74,26 @@ The admin console includes a trending-video collection area:
 - Store hook, summary, tags, and metrics as inspiration.
 - Connect a real HTTP JSON data source with `TRENDING_SEARCH_PROVIDER="http-json"`.
 
+## Reference Video Analysis
+
+The admin console includes a reference analysis module:
+
+- Upload reference audio/video as a material.
+- Create an ASR transcription task with the material ID.
+- Run transcription to get transcript, summary, and hook analysis.
+- Use the transcript as input for original topic and script generation.
+
+Volcengine/Doubao ASR can be connected through:
+
+```bash
+ASR_PROVIDER="volcengine"
+ASR_API_BASE="https://your-asr-adapter.example.com"
+ASR_API_KEY="..."
+ASR_MODEL="volcengine-asr"
+```
+
+The app calls `{ASR_API_BASE}/asr/transcriptions`. For production, wrap the official Volcengine ASR API behind this adapter shape.
+
 This module is designed for compliant ideation. Reference videos should be used for topic and structure analysis only, not for copying footage, captions, or scripts.
 
 ## Docker Start

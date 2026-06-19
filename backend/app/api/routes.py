@@ -22,6 +22,7 @@ from app.models.entities import (
     Topic,
     TrendingSearch,
     TrendingVideo,
+    TranscriptionTask,
     User,
     VideoTask,
 )
@@ -36,9 +37,11 @@ from app.schemas.requests import (
     TopicCreate,
     TrendingSearchCreate,
     TrendingVideoCreate,
+    TranscriptionTaskCreate,
     VideoTaskCreate,
 )
 from app.services.ai_clients import ScriptGenerator
+from app.services.asr import ASRClient
 from app.services.pipeline import VideoPipeline
 from app.services.trending import TrendingCollector
 
@@ -81,6 +84,7 @@ def dashboard(session: Session = Depends(get_session)) -> dict[str, object]:
         "video_tasks": session.exec(select(func.count()).select_from(VideoTask)).one(),
         "publish_records": session.exec(select(func.count()).select_from(PublishRecord)).one(),
         "trending_videos": session.exec(select(func.count()).select_from(TrendingVideo)).one(),
+        "transcriptions": session.exec(select(func.count()).select_from(TranscriptionTask)).one(),
     }
     recent_tasks = session.exec(select(VideoTask).order_by(VideoTask.created_at.desc()).limit(5)).all()
     recent_scripts = session.exec(select(Script).order_by(Script.created_at.desc()).limit(5)).all()
@@ -190,6 +194,11 @@ def integrations_status() -> dict[str, dict[str, object]]:
             "provider": settings.trending_search_provider,
             "configured": settings.trending_search_provider == "mock" or bool(settings.trending_search_api_base),
         },
+        "asr": {
+            "provider": settings.asr_provider,
+            "configured": settings.asr_provider == "mock" or bool(settings.asr_api_base),
+            "model": settings.asr_model,
+        },
     }
 
 
@@ -235,6 +244,64 @@ async def upload_material(
 @router.get("/materials", response_model=list[Material])
 def list_materials(session: Session = Depends(get_session)) -> list[Material]:
     return list(session.exec(select(Material).order_by(Material.created_at.desc())).all())
+
+
+@router.post("/transcriptions", response_model=TranscriptionTask)
+def create_transcription_task(
+    payload: TranscriptionTaskCreate,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> TranscriptionTask:
+    if session.get(Material, payload.material_id) is None:
+        raise HTTPException(status_code=404, detail="Material not found")
+    task = TranscriptionTask(
+        material_id=payload.material_id,
+        language=payload.language,
+        provider=get_settings().asr_provider,
+        status=TaskStatus.queued,
+    )
+    session.add(task)
+    session.commit()
+    session.refresh(task)
+    return task
+
+
+@router.post("/transcriptions/{task_id}/run", response_model=TranscriptionTask)
+async def run_transcription_task(
+    task_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> TranscriptionTask:
+    task = session.get(TranscriptionTask, task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Transcription task not found")
+    material = session.get(Material, task.material_id)
+    if material is None:
+        raise HTTPException(status_code=404, detail="Material not found")
+    task.status = TaskStatus.running
+    session.add(task)
+    session.commit()
+    try:
+        result = await ASRClient().transcribe(task, material)
+        task.transcript = result.transcript
+        task.summary = result.summary
+        task.hook_analysis = result.hook_analysis
+        task.status = TaskStatus.needs_review
+    except Exception as exc:
+        task.status = TaskStatus.failed
+        task.error_message = str(exc)
+    session.add(task)
+    session.commit()
+    session.refresh(task)
+    return task
+
+
+@router.get("/transcriptions", response_model=list[TranscriptionTask])
+def list_transcription_tasks(
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> list[TranscriptionTask]:
+    return list(session.exec(select(TranscriptionTask).order_by(TranscriptionTask.created_at.desc())).all())
 
 
 @router.post("/topics", response_model=Topic)

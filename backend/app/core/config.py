@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     trending_search_api_base: Optional[str] = None
     trending_search_api_key: Optional[str] = None
 
+    asr_provider: str = "mock"
+    asr_api_base: Optional[str] = None
+    asr_api_key: Optional[str] = None
+    asr_model: str = "volcengine-asr"
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 

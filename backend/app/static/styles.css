@@ -312,6 +312,16 @@ button:hover {
   font-weight: 800;
 }
 
+.transcript {
+  margin-top: 8px;
+  padding: 10px;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #344054;
+  white-space: pre-wrap;
+  line-height: 1.55;
+}
+
 .footerPanel {
   margin-top: 14px;
 }

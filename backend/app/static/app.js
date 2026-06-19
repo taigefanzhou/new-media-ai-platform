@@ -31,6 +31,7 @@ const state = {
   latestTaskId: null,
   latestPortraitId: null,
   latestTrendingSearchId: null,
+  latestTranscriptionId: null,
   currentPage: "overview",
 };
 
@@ -38,11 +39,49 @@ const pages = {
   overview: { title: "运营总览", eyebrow: "Overview" },
   materials: { title: "素材库", eyebrow: "Assets" },
   creation: { title: "内容创作", eyebrow: "Creation" },
+  analysis: { title: "参考解析", eyebrow: "ASR Analysis" },
   humans: { title: "数字人", eyebrow: "Digital Human" },
   tasks: { title: "视频任务", eyebrow: "Video Tasks" },
   trending: { title: "爆款采集", eyebrow: "Trending" },
   publish: { title: "发布中心", eyebrow: "Publishing" },
   settings: { title: "系统设置", eyebrow: "Settings" },
+};
+
+const providerOptions = {
+  script: [
+    { value: "openai-compatible", label: "OpenAI 兼容接口", model: "gpt-4.1-mini" },
+    { value: "deepseek", label: "DeepSeek", model: "deepseek-chat" },
+    { value: "doubao", label: "豆包 / 火山方舟", model: "doubao-seed-1-6" },
+    { value: "tongyi", label: "通义千问", model: "qwen-plus" },
+    { value: "qwen-local", label: "Qwen 本地模型", model: "Qwen3-Instruct" },
+    { value: "vllm", label: "vLLM 自建服务", model: "Qwen/Qwen3-30B-A3B-Instruct-2507" },
+  ],
+  tts: [
+    { value: "cosyvoice", label: "CosyVoice", model: "cosyvoice-v2" },
+    { value: "fish-speech", label: "Fish Speech", model: "fish-speech" },
+    { value: "volcengine-tts", label: "火山语音", model: "volcano-tts" },
+    { value: "aliyun-tts", label: "阿里云语音", model: "cosyvoice-v1" },
+    { value: "mock", label: "Mock 测试", model: "mock-tts" },
+  ],
+  video: [
+    { value: "seedance", label: "Seedance", model: "seedance" },
+    { value: "comfyui", label: "ComfyUI", model: "wan2.1-workflow" },
+    { value: "wan", label: "Wan2.1", model: "wan2.1-t2v-1.3b" },
+    { value: "hunyuan-video", label: "HunyuanVideo", model: "hunyuan-video" },
+    { value: "mock", label: "Mock 测试", model: "mock-video" },
+  ],
+  asr: [
+    { value: "volcengine", label: "火山引擎 / 豆包 ASR", model: "volcengine-asr" },
+    { value: "openai-compatible", label: "OpenAI 兼容转写", model: "whisper-1" },
+    { value: "whisperx", label: "WhisperX 本地服务", model: "whisperx-large-v3" },
+    { value: "mock", label: "Mock 测试", model: "mock-asr" },
+  ],
+  compliance: [
+    { value: "openai-compatible", label: "OpenAI 兼容接口", model: "gpt-4.1-mini" },
+    { value: "deepseek", label: "DeepSeek", model: "deepseek-chat" },
+    { value: "doubao", label: "豆包 / 火山方舟", model: "doubao-seed-1-6" },
+    { value: "tongyi", label: "通义千问", model: "qwen-plus" },
+  ],
 };
 
 function authHeaders() {
@@ -70,6 +109,31 @@ function switchPage(page) {
   window.location.hash = page;
 }
 
+function syncProviderOptions() {
+  const form = document.querySelector("#modelConfigForm");
+  const purpose = form.querySelector("[name='purpose']").value;
+  const provider = form.querySelector("[name='provider']");
+  const model = form.querySelector("[name='model_name']");
+  const options = providerOptions[purpose] || providerOptions.script;
+  provider.innerHTML = options.map((item) => `<option value="${item.value}">${item.label}</option>`).join("");
+  if (!model.value || model.dataset.autofilled === "true") {
+    model.value = options[0].model;
+    model.dataset.autofilled = "true";
+  }
+}
+
+function applyProviderDefaultModel() {
+  const form = document.querySelector("#modelConfigForm");
+  const purpose = form.querySelector("[name='purpose']").value;
+  const provider = form.querySelector("[name='provider']").value;
+  const model = form.querySelector("[name='model_name']");
+  const selected = (providerOptions[purpose] || []).find((item) => item.value === provider);
+  if (selected) {
+    model.value = selected.model;
+    model.dataset.autofilled = "true";
+  }
+}
+
 function renderMetrics(counts) {
   const labels = {
     materials: "素材",
@@ -79,6 +143,7 @@ function renderMetrics(counts) {
     video_tasks: "视频任务",
     publish_records: "发布记录",
     trending_videos: "爆款参考",
+    transcriptions: "转写任务",
   };
   document.querySelector("#overview").innerHTML = Object.entries(labels)
     .map(([key, label]) => `<div class="metric"><strong>${counts[key] ?? 0}</strong><span>${label}</span></div>`)
@@ -160,6 +225,7 @@ function renderIntegrations(status) {
     video_generation: "视频生成",
     composition: "视频合成",
     trending_search: "爆款采集",
+    asr: "语音识别",
   };
   document.querySelector("#integrationStatus").innerHTML = Object.entries(labels)
     .map(([key, label]) => {
@@ -181,13 +247,28 @@ function renderModels(models) {
       (model) => `
         <div class="item">
           <strong>${model.name}</strong>
-          <div>${model.provider} · ${model.purpose}</div>
+          <div>${providerLabel(model.purpose, model.provider)} · ${purposeLabel(model.purpose)}</div>
           <div>${model.model_name}</div>
           <span class="status">${model.is_active ? "启用" : "停用"}</span>
         </div>
       `,
     )
     .join("");
+}
+
+function providerLabel(purpose, value) {
+  const option = (providerOptions[purpose] || []).find((item) => item.value === value);
+  return option ? option.label : value;
+}
+
+function purposeLabel(value) {
+  return {
+    script: "脚本生成",
+    tts: "语音合成",
+    video: "视频生成",
+    asr: "语音识别",
+    compliance: "合规检查",
+  }[value] || value;
 }
 
 function renderTrending(searches, videos) {
@@ -228,6 +309,29 @@ function renderTrending(searches, videos) {
     : `<div class="item">还没有爆款参考</div>`;
 }
 
+function renderTranscriptions(tasks) {
+  const target = document.querySelector("#transcriptionList");
+  if (!target) return;
+  if (!tasks.length) {
+    target.innerHTML = `<div class="item">还没有转写任务</div>`;
+    return;
+  }
+  state.latestTranscriptionId = tasks[0].id;
+  target.innerHTML = tasks
+    .map(
+      (task) => `
+        <div class="item">
+          <strong>转写 #${task.id} · 素材 #${task.material_id}</strong>
+          <span class="status">${task.status}</span>
+          <div>${task.summary || ""}</div>
+          <div>${task.hook_analysis || ""}</div>
+          <div class="transcript">${task.transcript || task.error_message || ""}</div>
+        </div>
+      `,
+    )
+    .join("");
+}
+
 function setLoginState(user) {
   const label = document.querySelector("#loginState");
   if (user) {
@@ -249,13 +353,15 @@ async function refresh() {
   renderScripts(dashboard.recent_scripts);
   renderTasks(dashboard.recent_tasks);
   if (api.token) {
-    const [models, searches, videos] = await Promise.all([
+    const [models, searches, videos, transcriptions] = await Promise.all([
       api.get("/settings/models"),
       api.get("/trending/searches"),
       api.get("/trending/videos"),
+      api.get("/transcriptions"),
     ]);
     renderModels(models);
     renderTrending(searches, videos);
+    renderTranscriptions(transcriptions);
   }
 }
 
@@ -357,6 +463,19 @@ document.querySelector("#modelConfigForm").addEventListener("submit", async (eve
   await refresh();
 });
 
+document.querySelector("#modelConfigForm [name='purpose']").addEventListener("change", () => {
+  const model = document.querySelector("#modelConfigForm [name='model_name']");
+  model.value = "";
+  model.dataset.autofilled = "true";
+  syncProviderOptions();
+});
+
+document.querySelector("#providerSelect").addEventListener("change", applyProviderDefaultModel);
+
+document.querySelector("#modelConfigForm [name='model_name']").addEventListener("input", (event) => {
+  event.currentTarget.dataset.autofilled = "false";
+});
+
 document.querySelector("#trendingSearchForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const search = await api.post("/trending/searches", formData(event.currentTarget));
@@ -383,6 +502,26 @@ document.querySelector("#trendingManualForm").addEventListener("submit", async (
   await refresh();
 });
 
+document.querySelector("#transcriptionForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const payload = formData(event.currentTarget);
+  payload.material_id = Number(payload.material_id);
+  const task = await api.post("/transcriptions", payload);
+  state.latestTranscriptionId = task.id;
+  toast(`转写任务已创建 #${task.id}`);
+  await refresh();
+});
+
+document.querySelector("#runTranscriptionBtn").addEventListener("click", async () => {
+  if (!state.latestTranscriptionId) {
+    toast("请先创建转写任务");
+    return;
+  }
+  const task = await api.post(`/transcriptions/${state.latestTranscriptionId}/run`);
+  toast(`转写完成：${task.status}`);
+  await refresh();
+});
+
 if (api.token) {
   api.get("/auth/me")
     .then(setLoginState)
@@ -401,3 +540,5 @@ const initialPage = window.location.hash.replace("#", "") || "overview";
 if (pages[initialPage]) {
   switchPage(initialPage);
 }
+
+syncProviderOptions();

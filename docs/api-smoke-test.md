@@ -31,6 +31,13 @@ curl -X POST http://localhost:8000/api/trending/searches \
 ```
 
 ```bash
+curl -X POST http://localhost:8000/api/transcriptions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"material_id":1,"language":"zh-CN"}'
+```
+
+```bash
 printf "demo" > /tmp/demo-portrait.txt
 curl -X POST http://localhost:8000/api/materials/upload \
   -F "file=@/tmp/demo-portrait.txt" \
