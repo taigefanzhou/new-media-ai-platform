@@ -636,6 +636,17 @@ def list_video_tasks(session: Session = Depends(get_session)) -> list[VideoTask]
     return list(session.exec(select(VideoTask).order_by(VideoTask.created_at.desc())).all())
 
 
+@router.get("/video-tasks/{task_id}/output")
+def preview_video_task_output(task_id: int, session: Session = Depends(get_session)) -> FileResponse:
+    task = session.get(VideoTask, task_id)
+    if task is None or not task.output_path:
+        raise HTTPException(status_code=404, detail="Video output not found")
+    path = Path(task.output_path)
+    if not path.exists() or not path.is_file():
+        raise HTTPException(status_code=404, detail="Video file not found")
+    return FileResponse(path, media_type="video/mp4")
+
+
 @router.post("/video-tasks/{task_id}/publish-record", response_model=PublishRecord)
 def prepare_publish_record_from_video_task(
     task_id: int,

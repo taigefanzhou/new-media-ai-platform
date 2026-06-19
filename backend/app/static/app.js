@@ -35,6 +35,8 @@ const state = {
   latestTranscriptionId: null,
   currentPage: "overview",
   materials: [],
+  scripts: [],
+  videoTasks: [],
   platformAccounts: [],
   publishRecords: [],
   platformCredentials: [],
@@ -205,11 +207,14 @@ function renderMetrics(counts) {
 }
 
 function renderScripts(scripts) {
+  state.scripts = scripts;
+  renderScriptSelects(scripts);
   const targets = [
     document.querySelector("#scriptPreview"),
     document.querySelector("#scriptPreviewCreation"),
   ].filter(Boolean);
   if (!scripts.length) {
+    renderTitleSuggestions(null);
     targets.forEach((target) => {
       target.className = "preview empty";
       target.textContent = "还没有脚本";
@@ -219,6 +224,7 @@ function renderScripts(scripts) {
   const script = scripts[0];
   state.latestScriptId = script.id;
   document.querySelector("[name='script_id']").value = script.id;
+  renderTitleSuggestions(script);
   const content = [
     `脚本 ID: ${script.id}`,
     `开头: ${script.hook}`,
@@ -241,39 +247,164 @@ function renderScripts(scripts) {
   });
 }
 
-function renderTasks(tasks) {
-  const targets = [
-    document.querySelector("#taskList"),
-    document.querySelector("#taskListTasks"),
-  ].filter(Boolean);
-  if (!tasks.length) {
-    targets.forEach((target) => {
-      target.innerHTML = `<div class="item">还没有视频任务</div>`;
-    });
+function renderScriptSelects(scripts) {
+  const select = document.querySelector("#taskScriptSelect");
+  if (!select) return;
+  const current = select.value;
+  select.innerHTML = `<option value="">先生成脚本</option>${scripts
+    .map((script) => `<option value="${script.id}">#${script.id} ${escapeHtml(script.hook || "未命名脚本").slice(0, 44)}</option>`)
+    .join("")}`;
+  select.value = current || state.latestScriptId || "";
+}
+
+function renderTitleSuggestions(script) {
+  const target = document.querySelector("#titleSuggestionList");
+  if (!target) return;
+  if (!script || !script.title_options) {
+    target.innerHTML = `<div class="item">生成脚本后会显示 AI 标题建议</div>`;
     return;
   }
-  state.latestTaskId = tasks[0].id;
-  const html = tasks
+  const titles = script.title_options
+    .split(/\n+/)
+    .map((item) => item.replace(/^\d+[.、]\s*/, "").trim())
+    .filter(Boolean);
+  target.innerHTML = titles.length
+    ? titles
+        .map((title, index) => `
+          <button type="button" class="titleOption" data-title="${escapeHtml(title)}">
+            <span>标题 ${index + 1}</span>
+            <strong>${escapeHtml(title)}</strong>
+          </button>
+        `)
+        .join("")
+    : `<div class="item">这次脚本没有返回标题建议</div>`;
+}
+
+function taskStatusLabel(status) {
+  return {
+    draft: "草稿",
+    queued: "已创建",
+    running: "生成中",
+    needs_review: "待审核",
+    approved: "已通过",
+    rejected: "已驳回",
+    failed: "失败",
+  }[status] || status;
+}
+
+function taskProgress(status) {
+  return {
+    draft: 8,
+    queued: 25,
+    running: 60,
+    needs_review: 85,
+    approved: 100,
+    rejected: 100,
+    failed: 100,
+  }[status] || 0;
+}
+
+function humanName(id) {
+  if (!id) return "不露脸";
+  const human = state.digitalHumans.find((item) => item.id === id);
+  return human ? human.name : `#${id}`;
+}
+
+function scriptName(id) {
+  const script = state.scripts.find((item) => item.id === id);
+  return script ? script.hook : `脚本 #${id}`;
+}
+
+function taskVideoSrc(task) {
+  if (!task.output_path || task.output_path.startsWith("mock://")) return "";
+  if (task.output_path.startsWith("http")) return task.output_path;
+  return `/api/video-tasks/${task.id}/output`;
+}
+
+function renderTaskCompact(tasks) {
+  const target = document.querySelector("#taskList");
+  if (!target) return;
+  if (!tasks.length) {
+    target.innerHTML = `<div class="item">还没有视频任务</div>`;
+    return;
+  }
+  target.innerHTML = tasks
+    .slice(0, 5)
     .map(
       (task) => `
         <div class="item">
           <strong>任务 #${task.id}</strong>
-          <div>脚本 ID: ${task.script_id}</div>
-          <div>数字人 ID: ${task.digital_human_id ?? "-"}</div>
-          <span class="status">${task.status}</span>
-          ${task.output_path ? `<div>${task.output_path}</div>` : ""}
-          <div class="itemActions">
-            <button type="button" data-action="run-video-task" data-id="${task.id}">运行</button>
-            <button type="button" class="secondary" data-action="approve-video-task" data-id="${task.id}">审核通过</button>
-            <button type="button" class="secondary" data-action="prepare-publish" data-id="${task.id}">准备发布</button>
-          </div>
+          <div>${escapeHtml(scriptName(task.script_id)).slice(0, 54)}</div>
+          <span class="status">${taskStatusLabel(task.status)}</span>
         </div>
       `,
     )
     .join("");
-  targets.forEach((target) => {
-    target.innerHTML = html;
-  });
+}
+
+function renderTaskTable(tasks) {
+  const target = document.querySelector("#taskListTasks");
+  if (!target) return;
+  if (!tasks.length) {
+    target.innerHTML = `<div class="item">还没有视频任务</div>`;
+    return;
+  }
+  target.innerHTML = `
+    <table class="taskTable">
+      <thead>
+        <tr>
+          <th>任务</th>
+          <th>脚本</th>
+          <th>数字人</th>
+          <th>进度</th>
+          <th>成片预览</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${tasks
+          .map((task) => {
+            const progress = taskProgress(task.status);
+            const videoSrc = taskVideoSrc(task);
+            return `
+              <tr>
+                <td>
+                  <strong>#${task.id}</strong>
+                  <span class="status">${taskStatusLabel(task.status)}</span>
+                </td>
+                <td>${escapeHtml(scriptName(task.script_id)).slice(0, 72)}</td>
+                <td>${escapeHtml(humanName(task.digital_human_id))}</td>
+                <td>
+                  <div class="progressBar"><span style="width:${progress}%"></span></div>
+                  <div class="recordMeta">${progress}% · ${taskStatusLabel(task.status)}</div>
+                  ${task.error_message ? `<div class="errorText">${escapeHtml(task.error_message)}</div>` : ""}
+                </td>
+                <td>
+                  ${videoSrc ? `<video class="taskVideoPreview" src="${videoSrc}" controls preload="metadata"></video>` : `<span class="recordMeta">生成后显示视频</span>`}
+                </td>
+                <td>
+                  <div class="tableActions">
+                    <button type="button" data-action="run-video-task" data-id="${task.id}">${task.status === "running" ? "生成中" : "开始生成"}</button>
+                    <button type="button" class="secondary" data-action="approve-video-task" data-id="${task.id}">审核通过</button>
+                    <button type="button" class="secondary" data-action="prepare-publish" data-id="${task.id}">准备发布</button>
+                  </div>
+                </td>
+              </tr>
+            `;
+          })
+          .join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+function renderTasks(tasks) {
+  state.videoTasks = tasks;
+  if (tasks.length) {
+    state.latestTaskId = tasks[0].id;
+  }
+  renderTaskCompact(tasks);
+  renderTaskTable(tasks);
 }
 
 function renderPublishRecords(records) {
@@ -696,7 +827,18 @@ async function refresh() {
   renderScripts(dashboard.recent_scripts);
   renderTasks(dashboard.recent_tasks);
   if (api.token) {
-    const [models, platformCredentials, searches, videos, transcriptions, publishRecords, platformAccounts, digitalHumans] = await Promise.all([
+    const [
+      models,
+      platformCredentials,
+      searches,
+      videos,
+      transcriptions,
+      publishRecords,
+      platformAccounts,
+      digitalHumans,
+      scripts,
+      videoTasks,
+    ] = await Promise.all([
       api.get("/settings/models"),
       api.get("/settings/platform-credentials"),
       api.get("/trending/searches"),
@@ -705,6 +847,8 @@ async function refresh() {
       api.get("/publish-records"),
       api.get("/platform-accounts"),
       api.get("/digital-humans"),
+      api.get("/scripts"),
+      api.get("/video-tasks"),
     ]);
     state.platformCredentials = platformCredentials;
     state.platformAccounts = platformAccounts;
@@ -716,7 +860,9 @@ async function refresh() {
     renderTranscriptions(transcriptions);
     renderPublishRecords(publishRecords);
     renderPlatformAccounts(platformAccounts);
+    renderScripts(scripts);
     renderDigitalHumans(digitalHumans);
+    renderTasks(videoTasks);
   }
 }
 
@@ -836,6 +982,28 @@ document.querySelector("#createTaskFromScriptBtn").addEventListener("click", asy
 
 document.querySelector("#goTaskPageBtn").addEventListener("click", () => switchPage("tasks"));
 
+document.querySelector("#regenerateScriptBtn").addEventListener("click", () => {
+  document.querySelector("#scriptForm").requestSubmit();
+});
+
+document.querySelector("#titleSuggestionList").addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-title]");
+  if (!button) return;
+  const title = button.dataset.title;
+  document.querySelectorAll(".titleOption").forEach((item) => item.classList.remove("selectedTitle"));
+  button.classList.add("selectedTitle");
+  try {
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(title);
+      toast("标题已复制");
+      return;
+    }
+    toast("标题已选中");
+  } catch {
+    toast("标题已选中");
+  }
+});
+
 document.querySelector("#runTaskBtn").addEventListener("click", async () => {
   if (!state.latestTaskId) {
     toast("请先创建视频任务");
@@ -851,6 +1019,8 @@ document.querySelectorAll("#taskListTasks, #taskList").forEach((list) => list.ad
   if (!button) return;
   const id = button.dataset.id;
   if (button.dataset.action === "run-video-task") {
+    button.textContent = "生成中";
+    button.disabled = true;
     const task = await api.post(`/video-tasks/${id}/run`);
     toast(`任务已运行：${task.status}`);
   }

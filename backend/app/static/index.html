@@ -112,8 +112,9 @@
           </form>
 
           <form id="scriptForm" class="panel">
-            <h2>生成脚本</h2>
-            <label>选题内容<textarea name="topic">企业短视频数字人获客</textarea></label>
+            <h2>AI 生成标题和脚本</h2>
+            <label>创作目标<textarea name="topic">企业短视频数字人获客</textarea></label>
+            <label>品牌语气<textarea name="brand_voice">专业、可信、适合公司负责人口播，减少 AI 味，接近真实实拍表达</textarea></label>
             <label>平台
               <select name="target_platform">
                 <option value="douyin">抖音</option>
@@ -128,13 +129,18 @@
               </select>
             </label>
             <label>时长<input name="duration_seconds" type="number" min="15" max="120" value="30" /></label>
-            <button type="submit">生成脚本</button>
+            <button type="submit">AI 生成标题和脚本</button>
           </form>
+        </section>
+        <section class="panel footerPanel">
+          <h2>AI 标题建议</h2>
+          <div id="titleSuggestionList" class="titleGrid"></div>
         </section>
         <section class="panel footerPanel">
           <h2>脚本预览</h2>
           <div id="scriptPreviewCreation" class="preview empty">还没有脚本</div>
           <div class="itemActions">
+            <button id="regenerateScriptBtn" type="button" class="secondary">重新生成脚本</button>
             <button id="createTaskFromScriptBtn" type="button">用当前脚本创建视频任务</button>
             <button id="goTaskPageBtn" type="button" class="secondary">查看视频任务</button>
           </div>
@@ -218,7 +224,11 @@
         <section class="split">
           <form id="taskForm" class="panel">
             <h2>创建视频任务</h2>
-            <label>脚本 ID<input name="script_id" type="number" min="1" placeholder="生成脚本后自动填入" /></label>
+            <label>脚本
+              <select name="script_id" id="taskScriptSelect">
+                <option value="">先生成脚本</option>
+              </select>
+            </label>
             <label>数字人
               <select name="digital_human_id" id="taskHumanSelect">
                 <option value="">不使用数字人露脸</option>
@@ -230,9 +240,18 @@
             </div>
           </form>
           <div class="panel">
-            <h2>任务列表</h2>
-            <div id="taskListTasks" class="list"></div>
+            <h2>生成流程</h2>
+            <div class="workflowSteps">
+              <span>已创建</span>
+              <span>生成中</span>
+              <span>待审核</span>
+              <span>可发布</span>
+            </div>
           </div>
+        </section>
+        <section class="panel footerPanel">
+          <h2>视频任务列表</h2>
+          <div id="taskListTasks" class="taskTableWrap"></div>
         </section>
       </section>
 

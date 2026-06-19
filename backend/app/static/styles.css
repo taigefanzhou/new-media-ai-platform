@@ -228,6 +228,11 @@ button:hover {
   filter: brightness(0.96);
 }
 
+button:disabled {
+  cursor: progress;
+  opacity: 0.72;
+}
+
 .secondary {
   background: #e8eef7;
   color: #1d4ed8;
@@ -408,6 +413,124 @@ button:hover {
   grid-template-columns: 1fr;
 }
 
+.titleGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.titleOption {
+  display: grid;
+  gap: 8px;
+  min-height: 108px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  background: #fbfcfd;
+  color: var(--ink);
+  text-align: left;
+}
+
+.titleOption span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.titleOption strong {
+  line-height: 1.45;
+}
+
+.selectedTitle {
+  border-color: var(--accent);
+  background: #f0fdfa;
+}
+
+.workflowSteps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.workflowSteps span {
+  display: grid;
+  place-items: center;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fbfcfd;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.taskTableWrap {
+  overflow-x: auto;
+}
+
+.taskTable {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: collapse;
+}
+
+.taskTable th,
+.taskTable td {
+  border-bottom: 1px solid var(--line);
+  padding: 12px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.taskTable th {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  background: #f8fafc;
+}
+
+.progressBar {
+  width: 150px;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e5e7eb;
+}
+
+.progressBar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+
+.taskVideoPreview {
+  display: block;
+  width: 150px;
+  aspect-ratio: 9 / 16;
+  border-radius: 6px;
+  background: #eef2f7;
+  object-fit: cover;
+}
+
+.tableActions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 7px;
+  min-width: 112px;
+}
+
+.tableActions button {
+  min-height: 34px;
+}
+
+.errorText {
+  max-width: 240px;
+  margin-top: 6px;
+  color: #b42318;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .materialGrid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -566,6 +689,7 @@ button:hover {
 
   .statusBoard,
   .publishActions,
+  .titleGrid,
   .materialGrid,
   .humanGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -600,6 +724,8 @@ button:hover {
   .formGrid,
   .statusBoard,
   .publishActions,
+  .titleGrid,
+  .workflowSteps,
   .materialGrid,
   .humanGrid {
     grid-template-columns: 1fr;
