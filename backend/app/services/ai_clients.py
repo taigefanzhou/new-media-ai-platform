@@ -203,14 +203,21 @@ class MediaGenerationClient:
         output_path.write_bytes(data)
         return str(output_path)
 
-    async def generate_talking_avatar(self, portrait_path: Optional[str], audio_path: str) -> str:
+    async def generate_talking_avatar(
+        self,
+        portrait_path: Optional[str],
+        audio_path: str,
+        source_video_path: Optional[str] = None,
+    ) -> str:
         if self.settings.digital_human_provider == "mock" or not self.settings.digital_human_api_base:
             if portrait_path and self._is_local_path(audio_path):
                 return self._local_talking_avatar_preview(portrait_path, audio_path)
             return self._mock_asset("digital-human", "talking-avatar.mp4")
 
-        if self._is_local_path(portrait_path or "") and self._is_local_path(audio_path):
-            result = await self._post_digital_human_media(portrait_path or "", audio_path)
+        if self._is_local_path(audio_path) and (
+            self._is_local_path(portrait_path or "") or self._is_local_path(source_video_path or "")
+        ):
+            result = await self._post_digital_human_media(portrait_path, audio_path, source_video_path)
             media_url = self._extract_media_url(result, "digital_human_video")
             if media_url.startswith("http"):
                 return await self._download_media(media_url, "digital-human", "talking-avatar.mp4")
@@ -220,6 +227,7 @@ class MediaGenerationClient:
             "provider": self.settings.digital_human_provider,
             "portrait_path": portrait_path,
             "audio_path": audio_path,
+            "source_video_path": source_video_path,
             "format": "mp4",
         }
         result = await self._post_media(
@@ -283,7 +291,12 @@ class MediaGenerationClient:
         subprocess.run(command, check=True, capture_output=True)
         return str(output_path)
 
-    async def _post_digital_human_media(self, portrait_path: str, audio_path: str) -> dict[str, object]:
+    async def _post_digital_human_media(
+        self,
+        portrait_path: Optional[str],
+        audio_path: str,
+        source_video_path: Optional[str] = None,
+    ) -> dict[str, object]:
         headers = {}
         if self.settings.digital_human_api_key:
             headers["Authorization"] = f"Bearer {self.settings.digital_human_api_key}"
@@ -292,19 +305,39 @@ class MediaGenerationClient:
             "provider": self.settings.digital_human_provider,
             "format": "mp4",
         }
-        with open(portrait_path, "rb") as portrait_file, open(audio_path, "rb") as audio_file:
+        with open(audio_path, "rb") as audio_file:
             files = {
-                "portrait": (Path(portrait_path).name, portrait_file, "image/jpeg"),
                 "audio": (Path(audio_path).name, audio_file, "audio/wav"),
             }
-            async with httpx.AsyncClient(timeout=900) as client:
-                response = await client.post(url, data=data, files=files, headers=headers)
-                response.raise_for_status()
-                if response.headers.get("content-type", "").startswith("video/"):
-                    output_path = self._asset_path("digital-human", "talking-avatar.mp4")
-                    output_path.write_bytes(response.content)
-                    return {"path": str(output_path)}
-                return response.json()
+            if portrait_path and self._is_local_path(portrait_path):
+                with open(portrait_path, "rb") as portrait_file:
+                    files["portrait"] = (Path(portrait_path).name, portrait_file, "image/jpeg")
+                    if source_video_path and self._is_local_path(source_video_path):
+                        with open(source_video_path, "rb") as source_video_file:
+                            files["source_video"] = (Path(source_video_path).name, source_video_file, "video/mp4")
+                            return await self._submit_digital_human_request(url, data, files, headers)
+                    return await self._submit_digital_human_request(url, data, files, headers)
+            if source_video_path and self._is_local_path(source_video_path):
+                with open(source_video_path, "rb") as source_video_file:
+                    files["source_video"] = (Path(source_video_path).name, source_video_file, "video/mp4")
+                    return await self._submit_digital_human_request(url, data, files, headers)
+            return await self._submit_digital_human_request(url, data, files, headers)
+
+    async def _submit_digital_human_request(
+        self,
+        url: str,
+        data: dict[str, object],
+        files: dict[str, object],
+        headers: dict[str, str],
+    ) -> dict[str, object]:
+        async with httpx.AsyncClient(timeout=900) as client:
+            response = await client.post(url, data=data, files=files, headers=headers)
+            response.raise_for_status()
+            if response.headers.get("content-type", "").startswith("video/"):
+                output_path = self._asset_path("digital-human", "talking-avatar.mp4")
+                output_path.write_bytes(response.content)
+                return {"path": str(output_path)}
+            return response.json()
 
     async def _post_media(
         self,

@@ -76,6 +76,7 @@
             <label>类型
               <select name="kind">
                 <option value="portrait">数字人头像</option>
+                <option value="avatar_source">数字人口播视频源</option>
                 <option value="product">产品素材</option>
                 <option value="image">图片</option>
                 <option value="video">视频</option>
@@ -87,11 +88,16 @@
           <div class="panel">
             <h2>素材使用说明</h2>
             <div class="list">
-              <div class="item">头像素材用于创建数字人资产。</div>
+              <div class="item">头像素材用于创建数字人形象。</div>
+              <div class="item">数字人口播视频源用于提取声音、动作和口型参考。</div>
               <div class="item">产品图和视频素材用于后续镜头生成与成片合成。</div>
               <div class="item">参考素材只用于选题和结构分析，不直接搬运。</div>
             </div>
           </div>
+        </section>
+        <section class="panel footerPanel">
+          <h2>素材预览</h2>
+          <div id="materialList" class="materialGrid"></div>
         </section>
       </section>
 
@@ -172,10 +178,21 @@
             <h2>创建数字人</h2>
             <label>名称<input name="name" value="公司讲解员A" /></label>
             <label>角色<input name="role" value="品牌顾问" /></label>
-            <label>头像素材 ID<input name="portrait_material_id" type="number" min="1" placeholder="上传头像后自动填入" /></label>
+            <label>头像素材
+              <select name="portrait_material_id" id="portraitMaterialSelect">
+                <option value="">先上传头像素材</option>
+              </select>
+            </label>
+            <label>口播视频源
+              <select name="source_video_material_id" id="sourceVideoMaterialSelect">
+                <option value="">可选，先上传带语音的视频源</option>
+              </select>
+            </label>
             <label>风格
               <select name="style">
                 <option value="business">商务</option>
+                <option value="realistic">实拍真实感</option>
+                <option value="ai_recommended">AI 推荐</option>
                 <option value="consultant">顾问</option>
                 <option value="cartoon">卡通</option>
               </select>
@@ -185,9 +202,9 @@
           <div class="panel">
             <h2>数字人流程</h2>
             <div class="list">
-              <div class="item">先在素材库上传授权头像。</div>
-              <div class="item">创建数字人并绑定头像素材 ID。</div>
-              <div class="item">视频任务运行时会把头像传给数字人适配器。</div>
+              <div class="item">先在素材库上传授权头像和带语音的视频源。</div>
+              <div class="item">创建数字人时绑定头像和口播视频源。</div>
+              <div class="item">视频任务运行时会把头像、源视频和新音频一起交给数字人适配器。</div>
             </div>
           </div>
         </section>
@@ -202,7 +219,11 @@
           <form id="taskForm" class="panel">
             <h2>创建视频任务</h2>
             <label>脚本 ID<input name="script_id" type="number" min="1" placeholder="生成脚本后自动填入" /></label>
-            <label>数字人 ID<input name="digital_human_id" type="number" min="1" placeholder="创建数字人后自动填入" /></label>
+            <label>数字人
+              <select name="digital_human_id" id="taskHumanSelect">
+                <option value="">不使用数字人露脸</option>
+              </select>
+            </label>
             <div class="actions">
               <button type="submit">创建任务</button>
               <button id="runTaskBtn" type="button" class="secondary">运行任务</button>

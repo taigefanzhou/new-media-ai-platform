@@ -408,6 +408,43 @@ button:hover {
   grid-template-columns: 1fr;
 }
 
+.materialGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.materialCard {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+  background: #fbfcfd;
+}
+
+.materialThumb {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  background: #eef2f7;
+}
+
+.materialFile {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.materialBody {
+  padding: 10px;
+}
+
+.materialBody strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
 .humanGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -450,6 +487,17 @@ button:hover {
   color: var(--muted);
   font-size: 13px;
   font-weight: 800;
+}
+
+.humanSourceVideo {
+  display: block;
+  width: 100%;
+  max-width: 280px;
+  aspect-ratio: 16 / 9;
+  margin-top: 8px;
+  border-radius: 6px;
+  background: #eef2f7;
+  object-fit: cover;
 }
 
 .transcript {
@@ -518,6 +566,7 @@ button:hover {
 
   .statusBoard,
   .publishActions,
+  .materialGrid,
   .humanGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -551,6 +600,7 @@ button:hover {
   .formGrid,
   .statusBoard,
   .publishActions,
+  .materialGrid,
   .humanGrid {
     grid-template-columns: 1fr;
   }

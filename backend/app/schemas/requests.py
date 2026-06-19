@@ -85,6 +85,7 @@ class DigitalHumanCreate(BaseModel):
     role: Optional[str] = None
     style: str = "business"
     portrait_material_id: Optional[int] = None
+    source_video_material_id: Optional[int] = None
     default_voice: Optional[str] = None
     authorization_scope: str = "internal_marketing"
 

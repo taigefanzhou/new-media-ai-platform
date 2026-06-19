@@ -578,6 +578,14 @@ def create_video_task_from_script(
 
 @router.post("/digital-humans", response_model=DigitalHuman)
 def create_digital_human(payload: DigitalHumanCreate, session: Session = Depends(get_session)) -> DigitalHuman:
+    if payload.portrait_material_id is not None and session.get(Material, payload.portrait_material_id) is None:
+        raise HTTPException(status_code=404, detail="Portrait material not found")
+    if payload.source_video_material_id is not None:
+        source_material = session.get(Material, payload.source_video_material_id)
+        if source_material is None:
+            raise HTTPException(status_code=404, detail="Source video material not found")
+        if source_material.kind not in (MaterialKind.avatar_source, MaterialKind.video):
+            raise HTTPException(status_code=400, detail="Source video material must be a video source")
     human = DigitalHuman.model_validate(payload)
     session.add(human)
     session.commit()
@@ -594,6 +602,8 @@ def list_digital_humans(session: Session = Depends(get_session)) -> list[Digital
 def create_video_task(payload: VideoTaskCreate, session: Session = Depends(get_session)) -> VideoTask:
     if session.get(Script, payload.script_id) is None:
         raise HTTPException(status_code=404, detail="Script not found")
+    if payload.digital_human_id is not None and session.get(DigitalHuman, payload.digital_human_id) is None:
+        raise HTTPException(status_code=404, detail="Digital human not found")
     task = VideoTask(script_id=payload.script_id, digital_human_id=payload.digital_human_id, status=TaskStatus.queued)
     session.add(task)
     session.commit()

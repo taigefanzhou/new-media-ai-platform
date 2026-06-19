@@ -11,6 +11,7 @@ class MaterialKind(str, Enum):
     image = "image"
     product = "product"
     portrait = "portrait"
+    avatar_source = "avatar_source"
     reference = "reference"
 
 
@@ -168,6 +169,7 @@ class DigitalHuman(SQLModel, table=True):
     role: Optional[str] = None
     style: str = "business"
     portrait_material_id: Optional[int] = None
+    source_video_material_id: Optional[int] = None
     default_voice: Optional[str] = None
     authorization_scope: str = "internal_marketing"
     created_at: datetime = Field(default_factory=datetime.utcnow)

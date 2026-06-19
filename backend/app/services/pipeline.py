@@ -30,8 +30,9 @@ class VideoPipeline:
         try:
             human = self.session.get(DigitalHuman, task.digital_human_id) if task.digital_human_id else None
             portrait = self._portrait_path(human)
+            source_video = self._source_video_path(human)
             audio = await self.media.synthesize_voice(script.voiceover, human.default_voice if human else None)
-            avatar = await self.media.generate_talking_avatar(portrait, audio)
+            avatar = await self.media.generate_talking_avatar(portrait, audio, source_video)
             clips = await self.media.generate_seedance_clips(script.seedance_prompt)
             task.output_path = await self.media.compose_final_video(clips, avatar)
             task.status = TaskStatus.needs_review
@@ -53,6 +54,14 @@ class VideoPipeline:
         if human is None or human.portrait_material_id is None:
             return None
         material = self.session.get(Material, human.portrait_material_id)
+        if material is None:
+            return None
+        return material.file_path
+
+    def _source_video_path(self, human: DigitalHuman | None) -> str | None:
+        if human is None or human.source_video_material_id is None:
+            return None
+        material = self.session.get(Material, human.source_video_material_id)
         if material is None:
             return None
         return material.file_path

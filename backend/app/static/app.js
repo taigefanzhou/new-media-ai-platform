@@ -30,9 +30,11 @@ const state = {
   latestHumanId: null,
   latestTaskId: null,
   latestPortraitId: null,
+  latestSourceVideoId: null,
   latestTrendingSearchId: null,
   latestTranscriptionId: null,
   currentPage: "overview",
+  materials: [],
   platformAccounts: [],
   publishRecords: [],
   platformCredentials: [],
@@ -380,9 +382,98 @@ function renderPlatformAccounts(accounts) {
     .join("");
 }
 
+function materialKindLabel(kind) {
+  return {
+    portrait: "数字人头像",
+    avatar_source: "数字人口播视频源",
+    product: "产品素材",
+    image: "图片",
+    video: "视频",
+    reference: "参考素材",
+  }[kind] || kind;
+}
+
+function isImageMaterial(material) {
+  return ["portrait", "product", "image"].includes(material.kind);
+}
+
+function isVideoMaterial(material) {
+  return ["avatar_source", "video"].includes(material.kind);
+}
+
+function renderMaterialPreview(material, className = "materialThumb") {
+  const src = `/api/materials/${material.id}/preview`;
+  if (isImageMaterial(material)) {
+    return `<img class="${className}" src="${src}" alt="${escapeHtml(material.name)}" />`;
+  }
+  if (isVideoMaterial(material)) {
+    return `<video class="${className}" src="${src}" controls preload="metadata"></video>`;
+  }
+  return `<div class="${className} materialFile">文件</div>`;
+}
+
+function renderMaterials(materials) {
+  const target = document.querySelector("#materialList");
+  if (!target) return;
+  renderMaterialSelects(materials);
+  if (!materials.length) {
+    target.innerHTML = `<div class="item">还没有上传素材</div>`;
+    return;
+  }
+  target.innerHTML = materials
+    .map((material) => `
+      <div class="materialCard">
+        ${renderMaterialPreview(material)}
+        <div class="materialBody">
+          <strong>#${material.id} ${escapeHtml(material.name)}</strong>
+          <span class="status">${materialKindLabel(material.kind)}</span>
+          <div class="recordMeta">${escapeHtml(material.copyright_status)} · ${escapeHtml(material.tags || "未打标签")}</div>
+        </div>
+      </div>
+    `)
+    .join("");
+}
+
+function renderMaterialSelects(materials) {
+  const portraitSelect = document.querySelector("#portraitMaterialSelect");
+  const sourceVideoSelect = document.querySelector("#sourceVideoMaterialSelect");
+  const transcriptionInput = document.querySelector("#transcriptionForm [name='material_id']");
+  if (portraitSelect) {
+    const current = portraitSelect.value;
+    const portraits = materials.filter((item) => item.kind === "portrait" || item.kind === "image");
+    portraitSelect.innerHTML = `<option value="">先上传头像素材</option>${portraits
+      .map((item) => `<option value="${item.id}">#${item.id} ${escapeHtml(item.name)}</option>`)
+      .join("")}`;
+    portraitSelect.value = current || state.latestPortraitId || "";
+  }
+  if (sourceVideoSelect) {
+    const current = sourceVideoSelect.value;
+    const sources = materials.filter((item) => ["avatar_source", "video"].includes(item.kind));
+    sourceVideoSelect.innerHTML = `<option value="">可选，先上传带语音的视频源</option>${sources
+      .map((item) => `<option value="${item.id}">#${item.id} ${escapeHtml(item.name)} · ${materialKindLabel(item.kind)}</option>`)
+      .join("")}`;
+    sourceVideoSelect.value = current || state.latestSourceVideoId || "";
+  }
+  if (transcriptionInput && !transcriptionInput.value) {
+    const latestReference = materials.find((item) => ["avatar_source", "video", "reference"].includes(item.kind));
+    if (latestReference) transcriptionInput.value = latestReference.id;
+  }
+}
+
+function renderHumanSelects(humans) {
+  const select = document.querySelector("#taskHumanSelect");
+  if (!select) return;
+  const current = select.value;
+  select.innerHTML = `<option value="">不使用数字人露脸</option>${humans
+    .map((human) => `<option value="${human.id}">#${human.id} ${escapeHtml(human.name)}</option>`)
+    .join("")}`;
+  select.value = current || state.latestHumanId || "";
+}
+
 function renderDigitalHumans(humans) {
   const target = document.querySelector("#humanList");
   if (!target) return;
+  renderHumanSelects(humans);
   if (!humans.length) {
     target.innerHTML = `<div class="item">还没有数字人形象</div>`;
     return;
@@ -392,6 +483,9 @@ function renderDigitalHumans(humans) {
       const preview = human.portrait_material_id
         ? `<img src="/api/materials/${human.portrait_material_id}/preview" alt="${escapeHtml(human.name)}" />`
         : `<div class="portraitPlaceholder">无头像</div>`;
+      const sourceVideo = human.source_video_material_id
+        ? `<video class="humanSourceVideo" src="/api/materials/${human.source_video_material_id}/preview" controls preload="metadata"></video>`
+        : `<div class="recordMeta">未绑定口播视频源</div>`;
       return `
         <div class="humanCard">
           <div class="portraitPreview">${preview}</div>
@@ -400,6 +494,8 @@ function renderDigitalHumans(humans) {
             <div>${escapeHtml(human.role || "未设置角色")}</div>
             <span class="status">${escapeHtml(human.style)}</span>
             <div class="recordMeta">头像素材 ID：${human.portrait_material_id || "-"}</div>
+            <div class="recordMeta">口播源视频 ID：${human.source_video_material_id || "-"}</div>
+            ${sourceVideo}
           </div>
         </div>
       `;
@@ -588,12 +684,15 @@ function setLoginState(user) {
 }
 
 async function refresh() {
-  const [dashboard, integrations] = await Promise.all([
+  const [dashboard, integrations, materials] = await Promise.all([
     api.get("/dashboard"),
     api.get("/integrations/status"),
+    api.get("/materials"),
   ]);
+  state.materials = materials;
   renderMetrics(dashboard.counts);
   renderIntegrations(integrations);
+  renderMaterials(materials);
   renderScripts(dashboard.recent_scripts);
   renderTasks(dashboard.recent_tasks);
   if (api.token) {
@@ -651,6 +750,11 @@ document.querySelector("#uploadForm").addEventListener("submit", async (event) =
     state.latestPortraitId = material.id;
     document.querySelector("[name='portrait_material_id']").value = material.id;
   }
+  if (material.kind === "avatar_source" || material.kind === "video") {
+    state.latestSourceVideoId = material.id;
+    const sourceSelect = document.querySelector("[name='source_video_material_id']");
+    if (sourceSelect) sourceSelect.value = material.id;
+  }
   toast(`素材已上传 #${material.id}`);
   form.reset();
   await refresh();
@@ -682,6 +786,15 @@ document.querySelector("#humanForm").addEventListener("submit", async (event) =>
   payload.portrait_material_id = payload.portrait_material_id
     ? Number(payload.portrait_material_id)
     : state.latestPortraitId;
+  payload.source_video_material_id = payload.source_video_material_id
+    ? Number(payload.source_video_material_id)
+    : state.latestSourceVideoId;
+  if (!payload.portrait_material_id) {
+    delete payload.portrait_material_id;
+  }
+  if (!payload.source_video_material_id) {
+    delete payload.source_video_material_id;
+  }
   const human = await api.post("/digital-humans", payload);
   state.latestHumanId = human.id;
   document.querySelector("[name='digital_human_id']").value = human.id;
@@ -693,7 +806,7 @@ document.querySelector("#taskForm").addEventListener("submit", async (event) => 
   event.preventDefault();
   const payload = formData(event.currentTarget);
   payload.script_id = Number(payload.script_id || state.latestScriptId);
-  payload.digital_human_id = payload.digital_human_id ? Number(payload.digital_human_id) : state.latestHumanId;
+  payload.digital_human_id = payload.digital_human_id ? Number(payload.digital_human_id) : null;
   const task = await api.post("/video-tasks", payload);
   state.latestTaskId = task.id;
   toast(`视频任务已创建 #${task.id}`);
@@ -706,9 +819,10 @@ document.querySelector("#createTaskFromScriptBtn").addEventListener("click", asy
     return;
   }
   const humanInput = document.querySelector("#taskForm [name='digital_human_id']");
-  const payload = {
-    digital_human_id: humanInput.value ? Number(humanInput.value) : state.latestHumanId,
-  };
+  const payload = {};
+  if (humanInput.value) {
+    payload.digital_human_id = Number(humanInput.value);
+  }
   const task = await api.post(`/scripts/${state.latestScriptId}/video-task`, payload);
   state.latestTaskId = task.id;
   document.querySelector("#taskForm [name='script_id']").value = task.script_id;
