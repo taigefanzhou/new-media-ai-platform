@@ -304,6 +304,86 @@ def list_transcription_tasks(
     return list(session.exec(select(TranscriptionTask).order_by(TranscriptionTask.created_at.desc())).all())
 
 
+@router.post("/transcriptions/{task_id}/create-topic", response_model=Topic)
+def create_topic_from_transcription(
+    task_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> Topic:
+    task = session.get(TranscriptionTask, task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Transcription task not found")
+    if not task.transcript:
+        raise HTTPException(status_code=400, detail="Transcription has no transcript")
+    material = session.get(Material, task.material_id)
+    title_seed = task.hook_analysis or task.summary or task.transcript[:80]
+    topic = Topic(
+        title=_topic_title_from_text(title_seed),
+        industry="待补充",
+        audience="目标客户",
+        reference_material_id=task.material_id,
+        notes=(
+            f"来源素材：{material.name if material else task.material_id}\n"
+            f"摘要：{task.summary}\n"
+            f"钩子分析：{task.hook_analysis}"
+        ),
+    )
+    session.add(topic)
+    session.commit()
+    session.refresh(topic)
+    return topic
+
+
+@router.post("/transcriptions/{task_id}/generate-script", response_model=Script)
+async def generate_script_from_transcription(
+    task_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> Script:
+    task = session.get(TranscriptionTask, task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Transcription task not found")
+    if not task.transcript:
+        raise HTTPException(status_code=400, detail="Transcription has no transcript")
+    topic = (
+        "基于参考视频结构，生成原创公司短视频脚本。"
+        f"参考摘要：{task.summary}。"
+        f"开头钩子分析：{task.hook_analysis}。"
+        "要求只借鉴结构和选题，不复制原文。"
+    )
+    active_model = session.exec(
+        select(AIModelConfig).where(AIModelConfig.purpose == "script", AIModelConfig.is_active == True)
+    ).first()
+    generated = await ScriptGenerator(active_model).generate(
+        topic=topic,
+        brand_voice="专业、可信、原创、适合公司数字人口播",
+        duration_seconds=30,
+        target_platform="douyin",
+    )
+    script = Script(
+        topic_id=None,
+        duration_seconds=30,
+        hook=generated.hook,
+        voiceover=generated.voiceover,
+        storyboard=generated.storyboard,
+        seedance_prompt=generated.seedance_prompt,
+        title_options=generated.title_options,
+        hashtags=generated.hashtags,
+        compliance_notes=f"{generated.compliance_notes}\n基于转写任务 #{task.id} 生成，仅借鉴结构，不搬运原文。",
+    )
+    session.add(script)
+    session.commit()
+    session.refresh(script)
+    return script
+
+
+def _topic_title_from_text(text: str) -> str:
+    cleaned = " ".join(text.replace("\n", " ").split())
+    if not cleaned:
+        return "参考视频改写选题"
+    return cleaned[:48]
+
+
 @router.post("/topics", response_model=Topic)
 def create_topic(payload: TopicCreate, session: Session = Depends(get_session)) -> Topic:
     topic = Topic.model_validate(payload)

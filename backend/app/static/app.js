@@ -326,6 +326,10 @@ function renderTranscriptions(tasks) {
           <div>${task.summary || ""}</div>
           <div>${task.hook_analysis || ""}</div>
           <div class="transcript">${task.transcript || task.error_message || ""}</div>
+          <div class="itemActions">
+            <button type="button" data-action="topic-from-transcription" data-id="${task.id}">生成选题</button>
+            <button type="button" class="secondary" data-action="script-from-transcription" data-id="${task.id}">生成脚本</button>
+          </div>
         </div>
       `,
     )
@@ -520,6 +524,26 @@ document.querySelector("#runTranscriptionBtn").addEventListener("click", async (
   const task = await api.post(`/transcriptions/${state.latestTranscriptionId}/run`);
   toast(`转写完成：${task.status}`);
   await refresh();
+});
+
+document.querySelector("#transcriptionList").addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-action]");
+  if (!button) return;
+  const id = button.dataset.id;
+  if (button.dataset.action === "topic-from-transcription") {
+    const topic = await api.post(`/transcriptions/${id}/create-topic`);
+    document.querySelector("#scriptForm textarea[name='topic']").value = topic.title;
+    toast(`已生成选题 #${topic.id}`);
+    switchPage("creation");
+  }
+  if (button.dataset.action === "script-from-transcription") {
+    const script = await api.post(`/transcriptions/${id}/generate-script`);
+    state.latestScriptId = script.id;
+    document.querySelector("[name='script_id']").value = script.id;
+    toast(`已生成脚本 #${script.id}`);
+    await refresh();
+    switchPage("creation");
+  }
 });
 
 if (api.token) {

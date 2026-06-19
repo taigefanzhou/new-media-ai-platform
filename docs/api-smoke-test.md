@@ -38,6 +38,13 @@ curl -X POST http://localhost:8000/api/transcriptions \
 ```
 
 ```bash
+curl -X POST http://localhost:8000/api/transcriptions/1/create-topic \
+  -H "Authorization: Bearer $TOKEN"
+curl -X POST http://localhost:8000/api/transcriptions/1/generate-script \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+```bash
 printf "demo" > /tmp/demo-portrait.txt
 curl -X POST http://localhost:8000/api/materials/upload \
   -F "file=@/tmp/demo-portrait.txt" \

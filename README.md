@@ -82,6 +82,7 @@ The admin console includes a reference analysis module:
 - Create an ASR transcription task with the material ID.
 - Run transcription to get transcript, summary, and hook analysis.
 - Use the transcript as input for original topic and script generation.
+- Generate a topic or an original script directly from the transcription result.
 
 Volcengine/Doubao ASR can be connected through:
 
