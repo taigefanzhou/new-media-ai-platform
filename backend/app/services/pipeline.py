@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from sqlmodel import Session
-from app.models.entities import Script, TaskStatus, VideoTask
+from app.models.entities import DigitalHuman, Material, Script, TaskStatus, VideoTask
 from app.services.ai_clients import MediaGenerationClient
 
 
@@ -27,8 +27,10 @@ class VideoPipeline:
             return task
 
         try:
-            audio = await self.media.synthesize_voice(script.voiceover)
-            avatar = await self.media.generate_talking_avatar(None, audio)
+            human = self.session.get(DigitalHuman, task.digital_human_id) if task.digital_human_id else None
+            portrait = self._portrait_path(human)
+            audio = await self.media.synthesize_voice(script.voiceover, human.default_voice if human else None)
+            avatar = await self.media.generate_talking_avatar(portrait, audio)
             clips = await self.media.generate_seedance_clips(script.seedance_prompt)
             task.output_path = await self.media.compose_final_video(clips, avatar)
             task.status = TaskStatus.needs_review
@@ -45,3 +47,11 @@ class VideoPipeline:
             self.session.commit()
             self.session.refresh(task)
             return task
+
+    def _portrait_path(self, human: DigitalHuman | None) -> str | None:
+        if human is None or human.portrait_material_id is None:
+            return None
+        material = self.session.get(Material, human.portrait_material_id)
+        if material is None:
+            return None
+        return material.file_path

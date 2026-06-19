@@ -19,6 +19,7 @@ const state = {
   latestScriptId: null,
   latestHumanId: null,
   latestTaskId: null,
+  latestPortraitId: null,
 };
 
 function formData(form) {
@@ -127,6 +128,25 @@ async function refresh() {
 
 document.querySelector("#refreshBtn").addEventListener("click", () => refresh().then(() => toast("已刷新")));
 
+document.querySelector("#uploadForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const payload = new FormData(form);
+  const res = await fetch("/api/materials/upload", {
+    method: "POST",
+    body: payload,
+  });
+  if (!res.ok) throw new Error(await res.text());
+  const material = await res.json();
+  if (material.kind === "portrait") {
+    state.latestPortraitId = material.id;
+    document.querySelector("[name='portrait_material_id']").value = material.id;
+  }
+  toast(`素材已上传 #${material.id}`);
+  form.reset();
+  await refresh();
+});
+
 document.querySelector("#topicForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const payload = formData(event.currentTarget);
@@ -149,7 +169,11 @@ document.querySelector("#scriptForm").addEventListener("submit", async (event) =
 
 document.querySelector("#humanForm").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const human = await api.post("/digital-humans", formData(event.currentTarget));
+  const payload = formData(event.currentTarget);
+  payload.portrait_material_id = payload.portrait_material_id
+    ? Number(payload.portrait_material_id)
+    : state.latestPortraitId;
+  const human = await api.post("/digital-humans", payload);
   state.latestHumanId = human.id;
   document.querySelector("[name='digital_human_id']").value = human.id;
   toast(`数字人已创建 #${human.id}`);

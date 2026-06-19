@@ -31,6 +31,7 @@ Open:
 - API docs: `http://localhost:8000/docs`
 
 The admin console can already create topics, generate scripts, create digital humans, create video tasks, run mock generation, and inspect task status.
+It also supports uploading local image/video assets, including portrait photos for digital human creation.
 
 ## Script Model Setup
 
@@ -70,9 +71,10 @@ docker compose --profile gpu up --build
 ## MVP Flow
 
 1. Create a material.
+   - Or upload a file through `/api/materials/upload`.
 2. Create a topic.
 3. Generate a script.
-4. Create a digital human.
+4. Create a digital human and optionally bind a portrait material.
 5. Create a video task.
 6. Run the video task.
 7. Approve the result.

@@ -1,12 +1,17 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from pathlib import Path
+from typing import Optional
+from uuid import uuid4
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlmodel import Session, func, select
 from app.core.config import get_settings
 from app.core.db import get_session
 from app.models.entities import (
+    CopyrightStatus,
     DigitalHuman,
     Material,
+    MaterialKind,
     PublishRecord,
     Script,
     TaskStatus,
@@ -85,6 +90,36 @@ def integrations_status() -> dict[str, dict[str, object]]:
 @router.post("/materials", response_model=Material)
 def create_material(payload: MaterialCreate, session: Session = Depends(get_session)) -> Material:
     material = Material.model_validate(payload)
+    session.add(material)
+    session.commit()
+    session.refresh(material)
+    return material
+
+
+@router.post("/materials/upload", response_model=Material)
+async def upload_material(
+    file: UploadFile = File(...),
+    name: Optional[str] = Form(default=None),
+    kind: MaterialKind = Form(default=MaterialKind.image),
+    copyright_status: CopyrightStatus = Form(default=CopyrightStatus.owned),
+    tags: str = Form(default=""),
+    session: Session = Depends(get_session),
+) -> Material:
+    settings = get_settings()
+    original_name = file.filename or "upload.bin"
+    suffix = Path(original_name).suffix
+    storage_dir = Path(settings.storage_dir) / "materials" / uuid4().hex
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    file_path = storage_dir / f"source{suffix}"
+    file_path.write_bytes(await file.read())
+
+    material = Material(
+        name=name or original_name,
+        kind=kind,
+        copyright_status=copyright_status,
+        file_path=str(file_path),
+        tags=tags,
+    )
     session.add(material)
     session.commit()
     session.refresh(material)
