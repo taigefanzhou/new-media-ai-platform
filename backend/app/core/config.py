@@ -15,11 +15,23 @@ class Settings(BaseSettings):
     llm_api_key: Optional[str] = None
     llm_model: str = "qwen3-or-deepseek"
 
+    tts_provider: str = "mock"
+    tts_api_base: Optional[str] = None
+    tts_api_key: Optional[str] = None
+    tts_voice: str = "default"
+
     seedance_api_base: Optional[str] = None
     seedance_api_key: Optional[str] = None
+    seedance_model: str = "seedance"
     comfyui_api_base: Optional[str] = None
-    cosyvoice_api_base: Optional[str] = None
+    video_generation_provider: str = "mock"
+
     digital_human_provider: str = "sadtalker"
+    digital_human_api_base: Optional[str] = None
+    digital_human_api_key: Optional[str] = None
+
+    composition_provider: str = "mock"
+    ffmpeg_binary: str = "ffmpeg"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

@@ -259,6 +259,10 @@ button:hover {
   margin-top: 14px;
 }
 
+.integrationPanel {
+  margin-bottom: 18px;
+}
+
 .roadmap {
   display: flex;
   flex-wrap: wrap;

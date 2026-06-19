@@ -85,4 +85,7 @@ The current media generation implementation returns mock URLs so the business fl
 ```bash
 curl http://localhost:8000/api/health
 curl http://localhost:8000/api/dashboard
+curl http://localhost:8000/api/integrations/status
 ```
+
+More integration details are in `docs/integrations.md`.

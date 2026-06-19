@@ -97,9 +97,30 @@ function renderTasks(tasks) {
     .join("");
 }
 
+function renderIntegrations(status) {
+  const labels = {
+    script_model: "脚本模型",
+    tts: "语音合成",
+    digital_human: "数字人",
+    video_generation: "视频生成",
+    composition: "视频合成",
+  };
+  document.querySelector("#integrationStatus").innerHTML = Object.entries(labels)
+    .map(([key, label]) => {
+      const item = status[key] || {};
+      const configured = item.configured ? "已配置" : "待配置";
+      return `<span>${label}: ${item.provider || "-"} · ${configured}</span>`;
+    })
+    .join("");
+}
+
 async function refresh() {
-  const dashboard = await api.get("/dashboard");
+  const [dashboard, integrations] = await Promise.all([
+    api.get("/dashboard"),
+    api.get("/integrations/status"),
+  ]);
   renderMetrics(dashboard.counts);
+  renderIntegrations(integrations);
   renderScripts(dashboard.recent_scripts);
   renderTasks(dashboard.recent_tasks);
 }

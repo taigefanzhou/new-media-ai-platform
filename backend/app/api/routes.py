@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, func, select
+from app.core.config import get_settings
 from app.core.db import get_session
 from app.models.entities import (
     DigitalHuman,
@@ -45,6 +46,40 @@ def dashboard(session: Session = Depends(get_session)) -> dict[str, object]:
     recent_tasks = session.exec(select(VideoTask).order_by(VideoTask.created_at.desc()).limit(5)).all()
     recent_scripts = session.exec(select(Script).order_by(Script.created_at.desc()).limit(5)).all()
     return {"counts": counts, "recent_tasks": recent_tasks, "recent_scripts": recent_scripts}
+
+
+@router.get("/integrations/status")
+def integrations_status() -> dict[str, dict[str, object]]:
+    settings = get_settings()
+    return {
+        "script_model": {
+            "provider": settings.llm_provider,
+            "configured": bool(settings.llm_api_base and settings.llm_api_key) or settings.llm_provider == "stub",
+            "model": settings.llm_model,
+        },
+        "tts": {
+            "provider": settings.tts_provider,
+            "configured": bool(settings.tts_api_base) or settings.tts_provider == "mock",
+            "voice": settings.tts_voice,
+        },
+        "digital_human": {
+            "provider": settings.digital_human_provider,
+            "configured": bool(settings.digital_human_api_base) or settings.digital_human_provider == "mock",
+        },
+        "video_generation": {
+            "provider": settings.video_generation_provider,
+            "configured": (
+                settings.video_generation_provider == "mock"
+                or bool(settings.seedance_api_base)
+                or bool(settings.comfyui_api_base)
+            ),
+            "model": settings.seedance_model,
+        },
+        "composition": {
+            "provider": settings.composition_provider,
+            "configured": settings.composition_provider in ("mock", "ffmpeg"),
+        },
+    }
 
 
 @router.post("/materials", response_model=Material)

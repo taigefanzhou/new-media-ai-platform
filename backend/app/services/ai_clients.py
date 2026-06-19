@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import json
+import subprocess
+from pathlib import Path
 from dataclasses import dataclass
 from typing import Optional
+from uuid import uuid4
 import httpx
 from app.core.config import get_settings
 
@@ -134,14 +137,156 @@ class ScriptGenerator:
 
 
 class MediaGenerationClient:
+    def __init__(self) -> None:
+        self.settings = get_settings()
+        self.storage_dir = Path(self.settings.storage_dir)
+        self.storage_dir.mkdir(parents=True, exist_ok=True)
+
     async def synthesize_voice(self, text: str, voice: Optional[str] = None) -> str:
-        return "mock://voice/voiceover.wav"
+        if self.settings.tts_provider == "mock" or not self.settings.tts_api_base:
+            return self._mock_asset("voice", "voiceover.wav")
+
+        payload = {
+            "text": text,
+            "voice": voice or self.settings.tts_voice,
+            "format": "wav",
+        }
+        data = await self._post_media(
+            self.settings.tts_api_base,
+            "/synthesize",
+            payload,
+            api_key=self.settings.tts_api_key,
+            binary=True,
+        )
+        output_path = self._asset_path("voice", "voiceover.wav")
+        output_path.write_bytes(data)
+        return str(output_path)
 
     async def generate_talking_avatar(self, portrait_path: Optional[str], audio_path: str) -> str:
-        return "mock://digital-human/talking-avatar.mp4"
+        if self.settings.digital_human_provider == "mock" or not self.settings.digital_human_api_base:
+            return self._mock_asset("digital-human", "talking-avatar.mp4")
+
+        payload = {
+            "provider": self.settings.digital_human_provider,
+            "portrait_path": portrait_path,
+            "audio_path": audio_path,
+            "format": "mp4",
+        }
+        result = await self._post_media(
+            self.settings.digital_human_api_base,
+            "/generate",
+            payload,
+            api_key=self.settings.digital_human_api_key,
+        )
+        return self._extract_media_url(result, "digital_human_video")
 
     async def generate_seedance_clips(self, prompt: str) -> list[str]:
-        return ["mock://seedance/clip-1.mp4", "mock://seedance/clip-2.mp4"]
+        provider = self.settings.video_generation_provider
+        if provider == "seedance" and self.settings.seedance_api_base:
+            payload = {
+                "model": self.settings.seedance_model,
+                "prompt": prompt,
+                "aspect_ratio": "9:16",
+                "duration": 5,
+            }
+            result = await self._post_media(
+                self.settings.seedance_api_base,
+                "/videos/generations",
+                payload,
+                api_key=self.settings.seedance_api_key,
+            )
+            return self._extract_clip_list(result)
+
+        if provider == "comfyui" and self.settings.comfyui_api_base:
+            payload = {"prompt": prompt, "workflow": "default-video-generation"}
+            result = await self._post_media(self.settings.comfyui_api_base, "/prompt", payload)
+            return [self._extract_media_url(result, "comfyui_job")]
+
+        return [
+            self._mock_asset("seedance", "clip-1.mp4"),
+            self._mock_asset("seedance", "clip-2.mp4"),
+        ]
 
     async def compose_final_video(self, clips: list[str], avatar_clip: str) -> str:
-        return "mock://final/final-video.mp4"
+        if self.settings.composition_provider != "ffmpeg":
+            return self._mock_asset("final", "final-video.mp4")
+
+        local_inputs = [item for item in [avatar_clip, *clips] if self._is_local_path(item)]
+        if not local_inputs:
+            return self._mock_asset("final", "final-video.mp4")
+
+        list_path = self._asset_path("composition", "inputs.txt")
+        output_path = self._asset_path("final", "final-video.mp4")
+        list_path.write_text(
+            "\n".join(f"file '{Path(path).resolve()}'" for path in local_inputs),
+            encoding="utf-8",
+        )
+        command = [
+            self.settings.ffmpeg_binary,
+            "-y",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            str(list_path),
+            "-c",
+            "copy",
+            str(output_path),
+        ]
+        subprocess.run(command, check=True, capture_output=True)
+        return str(output_path)
+
+    async def _post_media(
+        self,
+        base_url: str,
+        path: str,
+        payload: dict[str, object],
+        api_key: Optional[str] = None,
+        binary: bool = False,
+    ):
+        headers = {}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+        url = base_url.rstrip("/") + path
+        async with httpx.AsyncClient(timeout=180) as client:
+            response = await client.post(url, json=payload, headers=headers)
+            response.raise_for_status()
+            if binary:
+                return response.content
+            return response.json()
+
+    def _asset_path(self, category: str, filename: str) -> Path:
+        folder = self.storage_dir / category / uuid4().hex
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder / filename
+
+    def _mock_asset(self, category: str, filename: str) -> str:
+        return f"mock://{category}/{filename}"
+
+    def _extract_media_url(self, result: dict[str, object], fallback_key: str) -> str:
+        for key in ("url", "video_url", "audio_url", "output_url", "path", "output_path"):
+            value = result.get(key)
+            if isinstance(value, str) and value:
+                return value
+        data = result.get("data")
+        if isinstance(data, dict):
+            return self._extract_media_url(data, fallback_key)
+        return f"mock://{fallback_key}/{uuid4().hex}"
+
+    def _extract_clip_list(self, result: dict[str, object]) -> list[str]:
+        for key in ("clips", "videos", "outputs", "data"):
+            value = result.get(key)
+            if isinstance(value, list):
+                clips = []
+                for item in value:
+                    if isinstance(item, str):
+                        clips.append(item)
+                    elif isinstance(item, dict):
+                        clips.append(self._extract_media_url(item, "seedance"))
+                if clips:
+                    return clips
+        return [self._extract_media_url(result, "seedance")]
+
+    def _is_local_path(self, value: str) -> bool:
+        return bool(value) and not value.startswith("mock://") and not value.startswith("http")

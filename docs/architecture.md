@@ -25,6 +25,8 @@ The backend intentionally keeps AI vendors behind adapters:
 
 Replace these implementations when a real service is ready.
 
+The current adapter layer already supports configurable real-service endpoints for OpenAI-compatible script models, generic TTS, SadTalker/MuseTalk-style digital human services, Seedance-style video generation, ComfyUI, and FFmpeg composition. See `docs/integrations.md`.
+
 ## Recommended Production Order
 
 1. Connect a strong LLM for scripts first.
