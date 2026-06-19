@@ -33,14 +33,15 @@ class ScriptGenerator:
         brand_voice: str,
         duration_seconds: int,
         target_platform: str,
+        output_language: str = "zh-CN",
     ) -> GeneratedScript:
         if self.model_config and self.model_config.api_base and self.model_config.api_key:
-            return await self._openai_compatible(topic, brand_voice, duration_seconds, target_platform)
+            return await self._openai_compatible(topic, brand_voice, duration_seconds, target_platform, output_language)
         if self.settings.llm_provider == "stub":
-            return self._stub(topic, brand_voice, duration_seconds, target_platform)
+            return self._stub(topic, brand_voice, duration_seconds, target_platform, output_language)
         if self.settings.llm_provider == "openai-compatible":
-            return await self._openai_compatible(topic, brand_voice, duration_seconds, target_platform)
-        return self._stub(topic, brand_voice, duration_seconds, target_platform)
+            return await self._openai_compatible(topic, brand_voice, duration_seconds, target_platform, output_language)
+        return self._stub(topic, brand_voice, duration_seconds, target_platform, output_language)
 
     async def _openai_compatible(
         self,
@@ -48,6 +49,7 @@ class ScriptGenerator:
         brand_voice: str,
         duration_seconds: int,
         target_platform: str,
+        output_language: str = "zh-CN",
     ) -> GeneratedScript:
         api_base = self.model_config.api_base if self.model_config else self.settings.llm_api_base
         api_key = self.model_config.api_key if self.model_config else self.settings.llm_api_key
@@ -60,11 +62,12 @@ class ScriptGenerator:
             "brand_voice": brand_voice,
             "duration_seconds": duration_seconds,
             "target_platform": target_platform,
+            "output_language": output_language,
             "requirements": [
-                "输出中文短视频内容方案",
+                "如果 output_language 是 en-US，所有 hook、voiceover、title_options、hashtags、compliance_notes 必须使用英文；否则使用中文",
                 "不要复刻或搬运任何参考视频原文",
                 "适合公司新媒体账号和数字人口播",
-                "分镜要能转成 Seedance 视频提示词",
+                "分镜要能转成 Seedance 视频提示词；seedance_prompt 始终使用英文",
                 "必须输出严格 JSON",
             ],
             "json_schema": {
@@ -115,7 +118,36 @@ class ScriptGenerator:
         brand_voice: str,
         duration_seconds: int,
         target_platform: str,
+        output_language: str = "zh-CN",
     ) -> GeneratedScript:
+        if output_language == "en-US":
+            return GeneratedScript(
+                hook=f"The real value of {topic} is not convenience alone, but smarter hotel operations.",
+                voiceover=(
+                    f"In {duration_seconds} seconds, here is why a smart no-card power solution matters for hotels. "
+                    "Guests no longer need to insert a room card to use electricity, so the check-in experience feels smoother. "
+                    "When guests leave the room, the system can automatically reduce unnecessary power consumption from lights and air conditioning. "
+                    "It also connects room status, energy data, and hotel operations, helping hotels improve guest experience while lowering operating costs."
+                ),
+                storyboard=(
+                    "Shot 1: A premium hotel room entrance with a smart power control panel.\n"
+                    "Shot 2: Warm lights turn on automatically as the guest enters.\n"
+                    "Shot 3: Energy usage dashboard shows reduced waste after checkout.\n"
+                    "Shot 4: Clean hotel room atmosphere with a concise business-style ending."
+                ),
+                seedance_prompt=(
+                    "Vertical 9:16 modern business hotel technology video, smart no-card power control panel, "
+                    "warm lights turning on automatically, premium hotel room, close-up shot, slow cinematic camera movement, "
+                    "no people, no logos, no readable text."
+                ),
+                title_options=(
+                    "1. Smarter Hotel Energy Control\n"
+                    "2. No-Card Power Solution for Modern Hotels\n"
+                    "3. Better Guest Experience, Lower Energy Waste"
+                ),
+                hashtags="#HotelTech #SmartHotel #EnergySaving #Hospitality",
+                compliance_notes="Use only licensed visuals and verify that all product claims are accurate before publishing.",
+            )
         return GeneratedScript(
             hook=f"你有没有发现，{topic}真正影响结果的不是选择多，而是判断标准。",
             voiceover=(

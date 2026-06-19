@@ -77,6 +77,7 @@ class ScriptGenerateRequest(BaseModel):
     brand_voice: str = "专业、可信、短视频口播风格"
     duration_seconds: int = 30
     target_platform: str = "douyin"
+    output_language: str = "zh-CN"
 
 
 class DigitalHumanCreate(BaseModel):

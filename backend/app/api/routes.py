@@ -522,6 +522,7 @@ async def generate_script(payload: ScriptGenerateRequest, session: Session = Dep
         brand_voice=payload.brand_voice,
         duration_seconds=payload.duration_seconds,
         target_platform=payload.target_platform,
+        output_language=payload.output_language,
     )
     script = Script(
         topic_id=payload.topic_id,
