@@ -4,3 +4,7 @@ sqlmodel==0.0.22
 pydantic-settings==2.7.0
 python-multipart==0.0.19
 httpx==0.28.1
+moviepy==1.0.3
+pillow==10.4.0
+numpy==1.26.4
+imageio-ffmpeg==0.6.0

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import subprocess
 import asyncio
+import wave
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Optional
@@ -184,7 +185,7 @@ class MediaGenerationClient:
 
     async def synthesize_voice(self, text: str, voice: Optional[str] = None) -> str:
         if self.settings.tts_provider == "mock" or not self.settings.tts_api_base:
-            return self._mock_asset("voice", "voiceover.wav")
+            return self._local_voiceover(text, voice)
 
         payload = {
             "text": text,
@@ -204,7 +205,16 @@ class MediaGenerationClient:
 
     async def generate_talking_avatar(self, portrait_path: Optional[str], audio_path: str) -> str:
         if self.settings.digital_human_provider == "mock" or not self.settings.digital_human_api_base:
+            if portrait_path and self._is_local_path(audio_path):
+                return self._local_talking_avatar_preview(portrait_path, audio_path)
             return self._mock_asset("digital-human", "talking-avatar.mp4")
+
+        if self._is_local_path(portrait_path or "") and self._is_local_path(audio_path):
+            result = await self._post_digital_human_media(portrait_path or "", audio_path)
+            media_url = self._extract_media_url(result, "digital_human_video")
+            if media_url.startswith("http"):
+                return await self._download_media(media_url, "digital-human", "talking-avatar.mp4")
+            return media_url
 
         payload = {
             "provider": self.settings.digital_human_provider,
@@ -240,6 +250,8 @@ class MediaGenerationClient:
 
     async def compose_final_video(self, clips: list[str], avatar_clip: str) -> str:
         if self.settings.composition_provider != "ffmpeg":
+            if self._is_local_path(avatar_clip):
+                return avatar_clip
             local_clip = next((item for item in clips if self._is_local_path(item)), None)
             if local_clip:
                 return local_clip
@@ -270,6 +282,29 @@ class MediaGenerationClient:
         ]
         subprocess.run(command, check=True, capture_output=True)
         return str(output_path)
+
+    async def _post_digital_human_media(self, portrait_path: str, audio_path: str) -> dict[str, object]:
+        headers = {}
+        if self.settings.digital_human_api_key:
+            headers["Authorization"] = f"Bearer {self.settings.digital_human_api_key}"
+        url = self.settings.digital_human_api_base.rstrip("/") + "/generate"
+        data = {
+            "provider": self.settings.digital_human_provider,
+            "format": "mp4",
+        }
+        with open(portrait_path, "rb") as portrait_file, open(audio_path, "rb") as audio_file:
+            files = {
+                "portrait": (Path(portrait_path).name, portrait_file, "image/jpeg"),
+                "audio": (Path(audio_path).name, audio_file, "audio/wav"),
+            }
+            async with httpx.AsyncClient(timeout=900) as client:
+                response = await client.post(url, data=data, files=files, headers=headers)
+                response.raise_for_status()
+                if response.headers.get("content-type", "").startswith("video/"):
+                    output_path = self._asset_path("digital-human", "talking-avatar.mp4")
+                    output_path.write_bytes(response.content)
+                    return {"path": str(output_path)}
+                return response.json()
 
     async def _post_media(
         self,
@@ -340,6 +375,120 @@ class MediaGenerationClient:
         output_path = self._asset_path("seedance", f"{task_id}.mp4")
         output_path.write_bytes(video_response.content)
         return str(output_path)
+
+    async def _download_media(self, url: str, category: str, filename: str) -> str:
+        async with httpx.AsyncClient(timeout=300) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+        output_path = self._asset_path(category, filename)
+        output_path.write_bytes(response.content)
+        return str(output_path)
+
+    def _local_voiceover(self, text: str, voice: Optional[str] = None) -> str:
+        output_path = self._asset_path("voice", "voiceover.aiff")
+        say_binary = "/usr/bin/say"
+        if Path(say_binary).exists():
+            command = [say_binary, "-o", str(output_path)]
+            if voice and voice != "default":
+                command.extend(["-v", voice])
+            command.append(text)
+            subprocess.run(command, check=True, capture_output=True)
+            return str(output_path)
+
+        wav_path = output_path.with_suffix(".wav")
+        with wave.open(str(wav_path), "wb") as wav_file:
+            wav_file.setnchannels(1)
+            wav_file.setsampwidth(2)
+            wav_file.setframerate(22050)
+            wav_file.writeframes(b"\x00\x00" * 22050 * max(8, min(60, len(text) // 6)))
+        return str(wav_path)
+
+    def _local_talking_avatar_preview(self, portrait_path: str, audio_path: str) -> str:
+        from moviepy.editor import AudioFileClip, VideoClip
+        from PIL import Image, ImageDraw, ImageFont
+        import numpy as np
+
+        audio = AudioFileClip(audio_path)
+        duration = min(max(audio.duration, 6), 75)
+        output_path = self._asset_path("digital-human", "talking-avatar-preview.mp4")
+        portrait = Image.open(portrait_path).convert("RGB")
+        frame_size = (1080, 1920)
+        font = self._load_font(38)
+        small_font = self._load_font(28)
+
+        def make_frame(t: float):
+            scale = max(frame_size[0] / portrait.width, frame_size[1] / portrait.height) * (1.0 + 0.025 * t / duration)
+            resized = portrait.resize((int(portrait.width * scale), int(portrait.height * scale)), Image.Resampling.LANCZOS)
+            x = (resized.width - frame_size[0]) // 2
+            y = min((resized.height - frame_size[1]) // 2, 0)
+            frame = resized.crop((x, y, x + frame_size[0], y + frame_size[1]))
+
+            overlay = Image.new("RGBA", frame_size, (0, 0, 0, 0))
+            draw = ImageDraw.Draw(overlay)
+            draw.rectangle((0, 1540, 1080, 1920), fill=(9, 17, 31, 152))
+            draw.text((62, 1570), "李明亮｜重庆苏适酒店开发副总裁", fill=(255, 255, 255, 238), font=small_font)
+            subtitle = self._subtitle_for_time(t, duration)
+            self._draw_multiline_center(draw, subtitle, font, y=1642, max_width=930)
+            frame = Image.alpha_composite(frame.convert("RGBA"), overlay)
+            return np.array(frame.convert("RGB"))
+
+        clip = VideoClip(make_frame, duration=duration).set_audio(audio.subclip(0, duration))
+        clip.write_videofile(
+            str(output_path),
+            fps=24,
+            codec="libx264",
+            audio_codec="aac",
+            preset="medium",
+            bitrate="4500k",
+            verbose=False,
+            logger=None,
+        )
+        audio.close()
+        clip.close()
+        return str(output_path)
+
+    def _subtitle_for_time(self, t: float, duration: float) -> str:
+        lines = [
+            "大家好，我是李明亮。",
+            "重庆苏适酒店把江景旅居和智慧体验结合起来。",
+            "自助入住、智能客控、机器人服务，让住客少等待、少打扰。",
+            "对酒店来说，服务响应、能耗和运营都能被系统化管理。",
+            "科技不该冰冷，而要更安静、更高效、更有温度。",
+        ]
+        index = min(len(lines) - 1, int((t / max(duration, 1)) * len(lines)))
+        return lines[index]
+
+    def _load_font(self, size: int):
+        from PIL import ImageFont
+
+        for path in (
+            "/System/Library/Fonts/PingFang.ttc",
+            "/System/Library/Fonts/STHeiti Light.ttc",
+            "/Library/Fonts/Arial Unicode.ttf",
+        ):
+            if Path(path).exists():
+                return ImageFont.truetype(path, size=size)
+        return ImageFont.load_default()
+
+    def _draw_multiline_center(self, draw, text: str, font, y: int, max_width: int) -> None:
+        words = list(text)
+        lines: list[str] = []
+        current = ""
+        for word in words:
+            candidate = current + word
+            if draw.textbbox((0, 0), candidate, font=font)[2] <= max_width:
+                current = candidate
+            else:
+                if current:
+                    lines.append(current)
+                current = word
+        if current:
+            lines.append(current)
+        for line in lines[:3]:
+            bbox = draw.textbbox((0, 0), line, font=font)
+            x = (1080 - (bbox[2] - bbox[0])) // 2
+            draw.text((x, y), line, fill=(255, 255, 255, 245), font=font)
+            y += 58
 
     def _asset_path(self, category: str, filename: str) -> Path:
         folder = self.storage_dir / category / uuid4().hex
