@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 from uuid import uuid4
@@ -33,8 +34,10 @@ from app.schemas.requests import (
     DigitalHumanCreate,
     LoginRequest,
     MaterialCreate,
-    PublishPrepareRequest,
     PlatformAccountCreate,
+    PlatformAccountUpdate,
+    PublishPrepareRequest,
+    PublishRecordUpdate,
     ScriptGenerateRequest,
     ScriptVideoTaskCreate,
     TopicCreate,
@@ -516,7 +519,7 @@ def prepare_publish_record_from_video_task(
     if task.status != TaskStatus.approved:
         raise HTTPException(status_code=400, detail="Video task must be approved before publishing")
     script = session.get(Script, task.script_id)
-    account = session.get(PlatformAccount, payload.platform_account_id) if payload.platform_account_id else None
+    account = _resolve_publish_account(session, payload.platform_account_id, payload.platform)
     title = payload.title or _publish_title_from_script(script)
     record = PublishRecord(
         video_task_id=task.id,
@@ -555,9 +558,34 @@ def _caption_from_script(script: Optional[Script]) -> str:
 def _parse_optional_datetime(value: Optional[str]):
     if not value:
         return None
-    from datetime import datetime
-
     return datetime.fromisoformat(value)
+
+
+def _resolve_publish_account(
+    session: Session,
+    account_id: Optional[int],
+    platform: Optional[str],
+) -> Optional[PlatformAccount]:
+    if account_id is not None:
+        account = session.get(PlatformAccount, account_id)
+        if account is None:
+            raise HTTPException(status_code=404, detail="Platform account not found")
+        return account
+    if platform is None:
+        return None
+    return session.exec(
+        select(PlatformAccount).where(
+            PlatformAccount.platform == platform,
+            PlatformAccount.is_default == True,
+        )
+    ).first()
+
+
+def _clear_default_account(session: Session, platform: str) -> None:
+    accounts = session.exec(select(PlatformAccount).where(PlatformAccount.platform == platform)).all()
+    for account in accounts:
+        account.is_default = False
+        session.add(account)
 
 
 @router.post("/trending/searches", response_model=TrendingSearch)
@@ -627,10 +655,14 @@ def create_trending_video(
 
 
 @router.post("/publish-records", response_model=PublishRecord)
-def prepare_publish_record(payload: PublishPrepareRequest, session: Session = Depends(get_session)) -> PublishRecord:
+def prepare_publish_record(
+    payload: PublishPrepareRequest,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> PublishRecord:
     if session.get(VideoTask, payload.video_task_id) is None:
         raise HTTPException(status_code=404, detail="Video task not found")
-    account = session.get(PlatformAccount, payload.platform_account_id) if payload.platform_account_id else None
+    account = _resolve_publish_account(session, payload.platform_account_id, payload.platform)
     record = PublishRecord(
         video_task_id=payload.video_task_id,
         platform=account.platform if account else payload.platform,
@@ -649,8 +681,90 @@ def prepare_publish_record(payload: PublishPrepareRequest, session: Session = De
 
 
 @router.get("/publish-records", response_model=list[PublishRecord])
-def list_publish_records(session: Session = Depends(get_session)) -> list[PublishRecord]:
+def list_publish_records(
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> list[PublishRecord]:
     return list(session.exec(select(PublishRecord).order_by(PublishRecord.created_at.desc())).all())
+
+
+@router.patch("/publish-records/{record_id}", response_model=PublishRecord)
+def update_publish_record(
+    record_id: int,
+    payload: PublishRecordUpdate,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> PublishRecord:
+    record = session.get(PublishRecord, record_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Publish record not found")
+    update_data = payload.model_dump(exclude_unset=True)
+    if "platform_account_id" in update_data:
+        account_id = update_data.pop("platform_account_id")
+        if account_id is None:
+            record.platform_account_id = None
+            if "account_name" not in update_data:
+                record.account_name = None
+        else:
+            account = _resolve_publish_account(session, account_id, update_data.get("platform"))
+            if account is not None:
+                record.platform = account.platform
+                record.platform_account_id = account.id
+                record.account_name = account.account_name
+    for key in ("scheduled_at", "published_at"):
+        if key in update_data:
+            update_data[key] = _parse_optional_datetime(update_data[key])
+    for key, value in update_data.items():
+        setattr(record, key, value)
+    session.add(record)
+    session.commit()
+    session.refresh(record)
+    return record
+
+
+@router.post("/publish-records/{record_id}/mark-published", response_model=PublishRecord)
+def mark_publish_record_published(
+    record_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> PublishRecord:
+    return _set_publish_status(session, record_id, "published", datetime.utcnow())
+
+
+@router.post("/publish-records/{record_id}/fail", response_model=PublishRecord)
+def mark_publish_record_failed(
+    record_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> PublishRecord:
+    return _set_publish_status(session, record_id, "failed")
+
+
+@router.post("/publish-records/{record_id}/cancel", response_model=PublishRecord)
+def cancel_publish_record(
+    record_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> PublishRecord:
+    return _set_publish_status(session, record_id, "canceled")
+
+
+def _set_publish_status(
+    session: Session,
+    record_id: int,
+    status: str,
+    published_at: Optional[datetime] = None,
+) -> PublishRecord:
+    record = session.get(PublishRecord, record_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Publish record not found")
+    record.publish_status = status
+    if published_at is not None:
+        record.published_at = published_at
+    session.add(record)
+    session.commit()
+    session.refresh(record)
+    return record
 
 
 @router.post("/platform-accounts", response_model=PlatformAccount)
@@ -659,6 +773,8 @@ def create_platform_account(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
 ) -> PlatformAccount:
+    if payload.is_default:
+        _clear_default_account(session, payload.platform)
     account = PlatformAccount.model_validate(payload)
     session.add(account)
     session.commit()
@@ -671,4 +787,50 @@ def list_platform_accounts(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
 ) -> list[PlatformAccount]:
-    return list(session.exec(select(PlatformAccount).order_by(PlatformAccount.created_at.desc())).all())
+    return list(
+        session.exec(
+            select(PlatformAccount).order_by(
+                PlatformAccount.is_default.desc(),
+                PlatformAccount.created_at.desc(),
+            )
+        ).all()
+    )
+
+
+@router.patch("/platform-accounts/{account_id}", response_model=PlatformAccount)
+def update_platform_account(
+    account_id: int,
+    payload: PlatformAccountUpdate,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> PlatformAccount:
+    account = session.get(PlatformAccount, account_id)
+    if account is None:
+        raise HTTPException(status_code=404, detail="Platform account not found")
+    update_data = payload.model_dump(exclude_unset=True)
+    next_platform = update_data.get("platform", account.platform)
+    if update_data.get("is_default") is True:
+        _clear_default_account(session, next_platform)
+    for key, value in update_data.items():
+        setattr(account, key, value)
+    session.add(account)
+    session.commit()
+    session.refresh(account)
+    return account
+
+
+@router.post("/platform-accounts/{account_id}/set-default", response_model=PlatformAccount)
+def set_default_platform_account(
+    account_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> PlatformAccount:
+    account = session.get(PlatformAccount, account_id)
+    if account is None:
+        raise HTTPException(status_code=404, detail="Platform account not found")
+    _clear_default_account(session, account.platform)
+    account.is_default = True
+    session.add(account)
+    session.commit()
+    session.refresh(account)
+    return account

@@ -33,6 +33,8 @@ const state = {
   latestTrendingSearchId: null,
   latestTranscriptionId: null,
   currentPage: "overview",
+  platformAccounts: [],
+  publishRecords: [],
 };
 
 const pages = {
@@ -90,6 +92,27 @@ function authHeaders() {
 
 function formData(form) {
   return Object.fromEntries(new FormData(form).entries());
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function toDateTimeInput(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (number) => String(number).padStart(2, "0");
+  return [
+    date.getFullYear(),
+    pad(date.getMonth() + 1),
+    pad(date.getDate()),
+  ].join("-") + `T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 function toast(message) {
@@ -225,24 +248,82 @@ function renderTasks(tasks) {
 function renderPublishRecords(records) {
   const target = document.querySelector("#publishRecordList");
   if (!target) return;
+  renderPublishStatusBoard(records);
   if (!records.length) {
     target.innerHTML = `<div class="item">还没有发布记录</div>`;
     return;
   }
   target.innerHTML = records
-    .map(
-      (record) => `
-        <div class="item">
-          <strong>${record.title}</strong>
-          <div>视频任务 #${record.video_task_id}</div>
-          <div>${record.platform} · ${record.account_name || "未指定账号"}</div>
-          <div>${record.hashtags || ""}</div>
-          <div>${record.caption || ""}</div>
-          <span class="status">${record.publish_status}</span>
+    .map((record) => {
+      const accountOptions = state.platformAccounts
+        .map((account) => {
+          const selected = account.id === record.platform_account_id ? "selected" : "";
+          const defaultText = account.is_default ? " · 默认" : "";
+          return `<option value="${account.id}" ${selected}>${escapeHtml(account.platform)} · ${escapeHtml(account.account_name)}${defaultText}</option>`;
+        })
+        .join("");
+      return `
+        <div class="item publishRecord">
+          <div class="itemHeader">
+            <strong>发布 #${record.id} · 视频任务 #${record.video_task_id}</strong>
+            <span class="status">${publishStatusLabel(record.publish_status)}</span>
+          </div>
+          <form class="publishEditForm" data-id="${record.id}">
+            <div class="formGrid">
+              <label>标题<input name="title" value="${escapeHtml(record.title)}" /></label>
+              <label>平台账号
+                <select name="platform_account_id">
+                  <option value="">不指定账号</option>
+                  ${accountOptions}
+                </select>
+              </label>
+              <label>话题标签<input name="hashtags" value="${escapeHtml(record.hashtags || "")}" /></label>
+              <label>计划发布时间<input name="scheduled_at" type="datetime-local" value="${toDateTimeInput(record.scheduled_at)}" /></label>
+            </div>
+            <label>发布文案<textarea name="caption">${escapeHtml(record.caption || "")}</textarea></label>
+            <div class="recordMeta">
+              <span>${escapeHtml(record.platform)} · ${escapeHtml(record.account_name || "未指定账号")}</span>
+              <span>${record.published_at ? `已发布：${escapeHtml(record.published_at)}` : "待发布"}</span>
+            </div>
+            <div class="itemActions publishActions">
+              <button type="button" data-action="save-publish" data-id="${record.id}">保存修改</button>
+              <button type="button" class="secondary" data-action="mark-published" data-id="${record.id}">标记已发布</button>
+              <button type="button" class="secondary" data-action="fail-publish" data-id="${record.id}">标记失败</button>
+              <button type="button" class="secondary" data-action="cancel-publish" data-id="${record.id}">取消发布</button>
+            </div>
+          </form>
         </div>
-      `,
-    )
+      `;
+    })
     .join("");
+}
+
+function renderPublishStatusBoard(records) {
+  const target = document.querySelector("#publishStatusBoard");
+  if (!target) return;
+  const groups = {
+    prepared: records.filter((item) => item.publish_status === "prepared").length,
+    published: records.filter((item) => item.publish_status === "published").length,
+    failed: records.filter((item) => item.publish_status === "failed").length,
+    canceled: records.filter((item) => item.publish_status === "canceled").length,
+  };
+  target.innerHTML = Object.entries(groups)
+    .map(([status, count]) => `
+      <div class="statusCard">
+        <strong>${count}</strong>
+        <span>${publishStatusLabel(status)}</span>
+      </div>
+    `)
+    .join("");
+}
+
+function publishStatusLabel(status) {
+  return {
+    prepared: "待发布",
+    published: "已发布",
+    failed: "发布失败",
+    canceled: "已取消",
+  }[status] || status;
 }
 
 function renderPlatformAccounts(accounts) {
@@ -256,9 +337,14 @@ function renderPlatformAccounts(accounts) {
     .map(
       (account) => `
         <div class="item">
-          <strong>#${account.id} ${account.account_name}</strong>
-          <div>${account.platform} · ${account.owner || "未指定负责人"}</div>
-          <span class="status">${account.status}</span>
+          <div class="itemHeader">
+            <strong>#${account.id} ${escapeHtml(account.account_name)}</strong>
+            <span class="status">${account.is_default ? "默认账号" : escapeHtml(account.status)}</span>
+          </div>
+          <div>${escapeHtml(account.platform)} · ${escapeHtml(account.owner || "未指定负责人")}</div>
+          <div class="itemActions accountActions">
+            <button type="button" class="secondary" data-action="set-default-account" data-id="${account.id}">设为默认</button>
+          </div>
         </div>
       `,
     )
@@ -413,6 +499,8 @@ async function refresh() {
       api.get("/publish-records"),
       api.get("/platform-accounts"),
     ]);
+    state.platformAccounts = platformAccounts;
+    state.publishRecords = publishRecords;
     renderModels(models);
     renderTrending(searches, videos);
     renderTranscriptions(transcriptions);
@@ -546,7 +634,7 @@ document.querySelectorAll("#taskListTasks, #taskList").forEach((list) => list.ad
   }
   if (button.dataset.action === "prepare-publish") {
     const accounts = await api.get("/platform-accounts");
-    const account = accounts[0] || null;
+    const account = accounts.find((item) => item.is_default) || accounts[0] || null;
     const record = await api.post(`/video-tasks/${id}/publish-record`, {
       platform: account ? account.platform : "douyin",
       platform_account_id: account ? account.id : null,
@@ -560,9 +648,48 @@ document.querySelectorAll("#taskListTasks, #taskList").forEach((list) => list.ad
 
 document.querySelector("#platformAccountForm").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const account = await api.post("/platform-accounts", formData(event.currentTarget));
+  const payload = formData(event.currentTarget);
+  payload.is_default = Boolean(event.currentTarget.querySelector("[name='is_default']").checked);
+  const account = await api.post("/platform-accounts", payload);
   toast(`平台账号已保存 #${account.id}`);
   event.currentTarget.reset();
+  event.currentTarget.querySelector("[name='is_default']").checked = true;
+  await refresh();
+});
+
+document.querySelector("#platformAccountList").addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-action]");
+  if (!button) return;
+  if (button.dataset.action === "set-default-account") {
+    const account = await api.post(`/platform-accounts/${button.dataset.id}/set-default`);
+    toast(`默认账号已切换为 ${account.account_name}`);
+    await refresh();
+  }
+});
+
+document.querySelector("#publishRecordList").addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-action]");
+  if (!button) return;
+  const id = button.dataset.id;
+  if (button.dataset.action === "save-publish") {
+    const form = button.closest(".publishEditForm");
+    const payload = formData(form);
+    payload.platform_account_id = payload.platform_account_id ? Number(payload.platform_account_id) : null;
+    const record = await api.patch(`/publish-records/${id}`, payload);
+    toast(`发布记录已保存 #${record.id}`);
+  }
+  if (button.dataset.action === "mark-published") {
+    const record = await api.post(`/publish-records/${id}/mark-published`);
+    toast(`已标记发布 #${record.id}`);
+  }
+  if (button.dataset.action === "fail-publish") {
+    const record = await api.post(`/publish-records/${id}/fail`);
+    toast(`已标记失败 #${record.id}`);
+  }
+  if (button.dataset.action === "cancel-publish") {
+    const record = await api.post(`/publish-records/${id}/cancel`);
+    toast(`已取消发布 #${record.id}`);
+  }
   await refresh();
 });
 

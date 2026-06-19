@@ -267,16 +267,25 @@
             </label>
             <label>账号名称<input name="account_name" placeholder="公司官方号" /></label>
             <label>负责人<input name="owner" placeholder="运营负责人" /></label>
+            <label class="checkLine"><input name="is_default" type="checkbox" checked /> 设为该平台默认账号</label>
             <button type="submit">保存平台账号</button>
           </form>
           <div class="panel">
-            <h2>发布记录</h2>
-            <div id="publishRecordList" class="list"></div>
+            <h2>发布工作台</h2>
+            <div id="publishStatusBoard" class="statusBoard"></div>
+            <div class="publishTips">
+              <div>从视频任务审核通过后创建发布记录。</div>
+              <div>在这里调整标题、话题、文案、账号和发布时间。</div>
+            </div>
           </div>
         </section>
         <section class="panel footerPanel">
           <h2>平台账号列表</h2>
           <div id="platformAccountList" class="list"></div>
+        </section>
+        <section class="panel footerPanel">
+          <h2>发布记录</h2>
+          <div id="publishRecordList" class="list"></div>
         </section>
       </section>
 

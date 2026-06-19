@@ -102,7 +102,17 @@ class PlatformAccountCreate(BaseModel):
     account_name: str
     owner: Optional[str] = None
     status: str = "active"
+    is_default: bool = False
     notes: str = ""
+
+
+class PlatformAccountUpdate(BaseModel):
+    platform: Optional[PublishPlatform] = None
+    account_name: Optional[str] = None
+    owner: Optional[str] = None
+    status: Optional[str] = None
+    is_default: Optional[bool] = None
+    notes: Optional[str] = None
 
 
 class PublishPrepareRequest(BaseModel):
@@ -124,3 +134,15 @@ class VideoTaskPublishPrepareRequest(BaseModel):
     hashtags: str = ""
     caption: str = ""
     scheduled_at: Optional[str] = None
+
+
+class PublishRecordUpdate(BaseModel):
+    platform: Optional[str] = None
+    platform_account_id: Optional[int] = None
+    account_name: Optional[str] = None
+    title: Optional[str] = None
+    hashtags: Optional[str] = None
+    caption: Optional[str] = None
+    scheduled_at: Optional[str] = None
+    publish_status: Optional[str] = None
+    published_at: Optional[str] = None

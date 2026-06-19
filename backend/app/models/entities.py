@@ -191,6 +191,7 @@ class PlatformAccount(SQLModel, table=True):
     account_name: str
     owner: Optional[str] = None
     status: str = "active"
+    is_default: bool = False
     notes: str = ""
     created_at: datetime = Field(default_factory=datetime.utcnow)
 

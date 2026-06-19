@@ -308,6 +308,18 @@ button:hover {
   margin-bottom: 4px;
 }
 
+.itemHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.itemHeader .status {
+  margin-top: 0;
+  white-space: nowrap;
+}
+
 .status {
   display: inline-block;
   margin-top: 6px;
@@ -317,6 +329,67 @@ button:hover {
   color: #075985;
   font-size: 12px;
   font-weight: 800;
+}
+
+.statusBoard {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.statusCard {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 12px;
+  background: #fbfcfd;
+}
+
+.statusCard strong {
+  display: block;
+  font-size: 24px;
+}
+
+.statusCard span,
+.recordMeta,
+.publishTips {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.publishTips {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+  line-height: 1.55;
+}
+
+.publishRecord {
+  padding: 14px;
+}
+
+.publishEditForm {
+  margin-top: 12px;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+
+.recordMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.publishActions {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.accountActions {
+  grid-template-columns: 1fr;
 }
 
 .transcript {
@@ -382,6 +455,11 @@ button:hover {
   .split {
     grid-template-columns: 1fr;
   }
+
+  .statusBoard,
+  .publishActions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 760px) {
@@ -407,5 +485,15 @@ button:hover {
 
   .inlineForm {
     grid-template-columns: 1fr;
+  }
+
+  .formGrid,
+  .statusBoard,
+  .publishActions {
+    grid-template-columns: 1fr;
+  }
+
+  .itemHeader {
+    display: grid;
   }
 }

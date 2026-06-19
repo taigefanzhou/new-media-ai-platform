@@ -86,6 +86,8 @@ The admin console includes a reference analysis module:
 - Create a video task directly from a generated script.
 - Run, approve, and prepare publishing records from video tasks.
 - Maintain platform accounts for Douyin, WeChat Channels, Xiaohongshu, and Kuaishou.
+- Mark a default platform account for each publishing platform.
+- Edit publish titles, hashtags, captions, account selection, schedules, and publishing status.
 
 Volcengine/Doubao ASR can be connected through:
 
@@ -131,6 +133,7 @@ docker compose --profile gpu up --build
 6. Run the video task.
 7. Approve the result.
 8. Prepare a publish record.
+9. Review the publish workbench, adjust title/caption/schedule/account, and mark the record as published, failed, or canceled.
 
 The current media generation implementation returns mock URLs so the business flow can be tested before connecting paid or GPU services.
 

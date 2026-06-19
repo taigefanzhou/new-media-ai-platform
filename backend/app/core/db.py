@@ -32,6 +32,11 @@ def apply_sqlite_migrations() -> None:
             if column not in columns:
                 connection.execute(text(statement))
 
+        account_rows = connection.execute(text("PRAGMA table_info(platformaccount)")).fetchall()
+        account_columns = {row[1] for row in account_rows}
+        if account_rows and "is_default" not in account_columns:
+            connection.execute(text("ALTER TABLE platformaccount ADD COLUMN is_default BOOLEAN DEFAULT 0"))
+
 
 def seed_admin_user() -> None:
     with Session(engine) as session:

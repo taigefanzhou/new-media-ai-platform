@@ -64,8 +64,17 @@ curl -X POST http://localhost:8000/api/video-tasks/1/publish-record \
 curl -X POST http://localhost:8000/api/platform-accounts \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
-  -d '{"platform":"douyin","account_name":"公司官方号","owner":"运营"}'
+  -d '{"platform":"douyin","account_name":"公司官方号","owner":"运营","is_default":true}'
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/platform-accounts
+```
+
+```bash
+curl -X PATCH http://localhost:8000/api/publish-records/1 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"title":"发布工作台测试标题","hashtags":"#数字人 #企业获客","caption":"这是一条发布前可编辑文案。","scheduled_at":"2026-06-20T10:00:00"}'
+curl -X POST http://localhost:8000/api/publish-records/1/mark-published \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ```bash
