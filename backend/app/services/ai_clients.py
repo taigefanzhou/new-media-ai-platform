@@ -28,6 +28,32 @@ class GeneratedScript:
     total_tokens: int = 0
 
 
+SCRIPT_REALISM_PRESET = {
+    "script_style": [
+        "少用空泛口号和连续排比，不写明显 AI 腔的万能句",
+        "用短句和自然连接词，像公司负责人对镜头讲给客户听",
+        "每 12-18 秒必须给一个具体场景、数字、动作或客户问题",
+        "避免夸大承诺；收益、成本、效率相关表达必须有条件边界",
+    ],
+    "talking_head_motion": [
+        "natural half-body business talking-head, steady eye contact, relaxed shoulders",
+        "small hand gestures only when emphasizing numbers or steps",
+        "subtle head movement, occasional blink, natural breathing rhythm",
+        "avoid stiff robotic pose, frozen face, exaggerated mouth movement",
+    ],
+    "face_skin": [
+        "realistic facial skin texture, visible pores, natural skin tone",
+        "soft office lighting, slight under-eye detail, natural nasolabial folds",
+        "not plastic skin, not wax figure, not over-smoothed beauty filter",
+    ],
+    "voice_style": [
+        "Mandarin business speech, calm and credible, medium pace",
+        "short pause after key numbers and before conclusions",
+        "natural sentence ending, no announcer tone, no mechanical reading",
+    ],
+}
+
+
 class ScriptGenerator:
     def __init__(self, model_config=None) -> None:
         self.settings = get_settings()
@@ -69,16 +95,21 @@ class ScriptGenerator:
             "duration_seconds": duration_seconds,
             "target_platform": target_platform,
             "output_language": output_language,
+            "built_in_realism_preset": SCRIPT_REALISM_PRESET,
             "requirements": [
                 "如果 output_language 是 en-US，所有 hook、voiceover、title_options、hashtags、compliance_notes 必须使用英文；否则使用中文",
                 "不要复刻或搬运任何参考视频原文",
                 "适合公司新媒体账号和数字人口播",
+                "默认套用 built_in_realism_preset，让脚本、分镜、口播动作、声音语气和画面提示词都更接近真实实拍",
+                "口播稿要像真实负责人表达：先给结论，再讲场景，再讲方案，最后给行动建议",
+                "不要使用“赋能、闭环、降本增效、领先、首选”等空泛词，除非能接具体场景或数据边界",
                 "严格按 duration_seconds 控制口播长度：30秒约120字中文，60秒约220字中文，180秒约650字中文，360秒约1200字中文",
                 "如果 duration_seconds 大于等于60秒，脚本必须是完整连贯结构，不能重复堆砌；按问题、误区、方案、案例、总结推进",
                 "storyboard_plan 必须是数组，每段 10-20 秒，180秒至少9段，360秒至少18段",
                 "storyboard_plan 每项必须包含：start_second,end_second,shot_type,visual,person_action,screen_text,asset_or_background,ai_prompt,needs_lip_sync",
                 "分镜要能真正执行：说明镜头如何动、画面元素如何变化、屏幕文字如何出现；不能只写“继续讲解”",
-                "ai_prompt 始终使用英文，适合 Seedance 或其他视频模型；seedance_prompt 始终使用英文",
+                "ai_prompt 始终使用英文，适合 Seedance 或其他视频模型；必须包含自然皮肤、真实灯光、非塑料感、非机械感等真实口播要求",
+                "seedance_prompt 始终使用英文，必须包含 realistic live-action talking-head style、natural skin texture、natural speech rhythm、no watermark",
                 "必须输出严格 JSON",
             ],
             "json_schema": {
@@ -161,8 +192,9 @@ class ScriptGenerator:
                 storyboard_plan=storyboard_plan,
                 seedance_prompt=(
                     "Vertical 9:16 long-form business explainer video, consistent modern hotel lobby and guest room, "
-                    "smart operations dashboard, natural talking-head pacing, smooth transitions, professional lighting, "
-                    "continuity across segments, no watermark, no third-party logos."
+                    "smart operations dashboard, realistic live-action talking-head style, natural skin texture, "
+                    "relaxed facial expression, natural speech rhythm, smooth transitions, professional lighting, "
+                    "continuity across segments, no plastic skin, no robotic pose, no watermark, no third-party logos."
                 ),
                 title_options=(
                     "1. Smarter Hotel Energy Control\n"
@@ -182,8 +214,9 @@ class ScriptGenerator:
             storyboard_plan=storyboard_plan,
             seedance_prompt=(
                 "Vertical 9:16 long-form corporate explainer video, consistent presenter and modern business hotel scenes, "
-                "clear chapter-like progression, smart operations interface, smooth transitions, professional lighting, "
-                "realistic live-action style, no third-party logos, no watermark."
+                "clear chapter-like progression, smart operations interface, realistic live-action talking-head style, "
+                "natural skin texture, relaxed facial expression, medium speech pace, smooth transitions, professional lighting, "
+                "no plastic skin, no robotic pose, no third-party logos, no watermark."
             ),
             title_options=(
                 f"1. {topic}怎么选？看这3点\n"
@@ -290,7 +323,8 @@ class ScriptGenerator:
                     "asset_or_background": "modern business hotel, guest room, smart room control dashboard",
                     "ai_prompt": (
                         f"Vertical 9:16 realistic business hotel video, {shot_type}, {visual}, "
-                        f"topic: {topic}, smooth motion, clean subtitles, professional lighting, no watermark"
+                        f"topic: {topic}, natural skin texture, relaxed facial expression, medium speech pace, "
+                        "smooth motion, clean subtitles, professional lighting, no plastic skin, no robotic pose, no watermark"
                     ),
                     "needs_lip_sync": shot_type == "talking_head",
                 }
@@ -429,6 +463,7 @@ class MediaGenerationClient:
         portrait_path: Optional[str],
         audio_path: str,
         source_video_path: Optional[str] = None,
+        style_prompt: str = "",
     ) -> str:
         api_base = (
             self.digital_human_model_config.api_base
@@ -460,6 +495,7 @@ class MediaGenerationClient:
                 api_base,
                 api_key,
                 provider,
+                style_prompt,
             )
             media_url = self._extract_media_url(result, "digital_human_video")
             if media_url.startswith("http"):
@@ -472,6 +508,9 @@ class MediaGenerationClient:
             "audio_path": audio_path,
             "source_video_path": source_video_path,
             "format": "mp4",
+            "style_prompt": style_prompt,
+            "motion_prompt": ", ".join(SCRIPT_REALISM_PRESET["talking_head_motion"]),
+            "voice_style": ", ".join(SCRIPT_REALISM_PRESET["voice_style"]),
         }
         result = await self._post_media(
             api_base,
@@ -1046,6 +1085,7 @@ class MediaGenerationClient:
         api_base: Optional[str] = None,
         api_key: Optional[str] = None,
         provider: Optional[str] = None,
+        style_prompt: str = "",
     ) -> dict[str, object]:
         headers = {}
         if api_key:
@@ -1056,6 +1096,10 @@ class MediaGenerationClient:
         data = {
             "provider": provider or self.settings.digital_human_provider,
             "format": "mp4",
+            "style_prompt": style_prompt,
+            "motion_prompt": ", ".join(SCRIPT_REALISM_PRESET["talking_head_motion"]),
+            "face_skin_prompt": ", ".join(SCRIPT_REALISM_PRESET["face_skin"]),
+            "voice_style": ", ".join(SCRIPT_REALISM_PRESET["voice_style"]),
         }
         with open(audio_path, "rb") as audio_file:
             files = {

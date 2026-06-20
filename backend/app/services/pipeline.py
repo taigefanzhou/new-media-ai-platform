@@ -66,7 +66,7 @@ class VideoPipeline:
                     raise RuntimeError("数字人口播模板需要选择已绑定口播源视频的数字人。")
                 if not self.media.can_generate_talking_avatar():
                     raise RuntimeError("数字人口播模板需要先配置真实数字人驱动接口，不能使用头像或图文预览代替。")
-                avatar = await self._generate_talking_avatar(portrait, audio, source_video)
+                avatar = await self._generate_talking_avatar(portrait, audio, source_video, script.seedance_prompt)
                 task.output_path = await self.media.compose_talking_head_template(
                     avatar,
                     script.voiceover,
@@ -123,7 +123,7 @@ class VideoPipeline:
                 return task
             if task.production_mode == "digital_human" and not self.media.can_generate_talking_avatar():
                 raise RuntimeError("真人数字人口播需要先配置真实数字人驱动接口。")
-            avatar = await self._generate_talking_avatar(portrait, audio, source_video)
+            avatar = await self._generate_talking_avatar(portrait, audio, source_video, script.seedance_prompt)
             clips = []
             for segment in segments:
                 clip_path = await self._run_segment(segment, task)
@@ -321,9 +321,10 @@ class VideoPipeline:
         portrait_path: str | None,
         audio_path: str,
         source_video_path: str | None,
+        style_prompt: str = "",
     ) -> str:
         try:
-            avatar = await self.media.generate_talking_avatar(portrait_path, audio_path, source_video_path)
+            avatar = await self.media.generate_talking_avatar(portrait_path, audio_path, source_video_path, style_prompt)
             self._record_usage(
                 "digital_human",
                 self.digital_human_model_config,

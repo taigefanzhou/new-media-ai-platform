@@ -217,35 +217,30 @@ h2 {
 }
 
 .creationBrief textarea[name="topic"] {
-  min-height: 78px;
+  min-height: 116px;
 }
 
-.creationBriefGrid {
+.creationPrompt {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
-  gap: 12px;
-}
-
-.creationBriefGrid textarea {
-  min-height: 78px;
+  gap: 8px;
+  margin-bottom: 12px;
 }
 
 .creationParamBar {
   display: grid;
   grid-template-columns:
-    minmax(120px, 0.55fr)
-    minmax(120px, 0.55fr)
-    minmax(110px, 0.45fr)
-    minmax(210px, 0.9fr)
-    minmax(330px, 1.25fr)
-    minmax(210px, 0.75fr);
+    minmax(118px, 0.7fr)
+    minmax(118px, 0.7fr)
+    minmax(270px, 1.35fr)
+    minmax(190px, 1fr)
+    minmax(84px, 0.42fr)
+    minmax(170px, 0.8fr);
   gap: 10px;
-  align-items: end;
+  align-items: start;
   margin-top: 12px;
 }
 
 .creationParamBar label,
-.creationBriefGrid label,
 .creationParamBar .durationField {
   margin-bottom: 0;
 }
@@ -261,6 +256,10 @@ h2 {
   font-size: 13px;
   font-weight: 800;
   line-height: 1.4;
+}
+
+.scriptDetailPanel {
+  min-width: 0;
 }
 
 .durationField {
@@ -282,7 +281,7 @@ h2 {
 }
 
 .durationInputLine input {
-  max-width: 116px;
+  max-width: 86px;
 }
 
 .durationInputLine span {
@@ -326,6 +325,10 @@ h2 {
   align-items: flex-start;
   gap: 12px;
   margin-bottom: 14px;
+}
+
+.sectionHeader h2 {
+  margin-bottom: 0;
 }
 
 .sectionHeader p {
@@ -860,7 +863,6 @@ button:disabled {
 .scriptCandidateList {
   display: grid;
   gap: 8px;
-  margin-bottom: 12px;
 }
 
 .candidateHeader {
@@ -875,33 +877,61 @@ button:disabled {
   color: var(--ink);
 }
 
-.candidateGrid {
+.candidateRows {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 8px;
+  gap: 6px;
 }
 
-.candidateCard {
+.candidateRow {
   display: grid;
-  gap: 5px;
-  min-height: 78px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-height: 72px;
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 9px 10px;
   background: #fbfcfd;
-  color: var(--ink);
-  text-align: left;
 }
 
-.candidateCard span,
-.candidateCard em {
+.candidateMain {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.candidateMain span,
+.candidateMain em {
   color: var(--muted);
   font-size: 12px;
   font-style: normal;
 }
 
-.candidateCard strong {
+.candidateMain strong {
+  overflow: hidden;
+  color: var(--ink);
   line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.candidateMain em {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.candidateActions {
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  gap: 6px;
+}
+
+.candidateActions button {
+  width: auto;
+  min-height: 34px;
+  padding: 0 11px;
+  white-space: nowrap;
 }
 
 .selectedCandidate {
@@ -1159,32 +1189,23 @@ button:disabled {
 }
 
 .creationActions {
+  display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .creationFooterActions {
   display: grid;
-  grid-template-columns: minmax(260px, 0.9fr) minmax(360px, 1.1fr);
+  grid-template-columns: minmax(260px, 0.9fr) minmax(420px, 1.1fr);
   gap: 10px;
   margin-top: 14px;
   align-items: center;
 }
 
-.nextStepBar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.nextStepBar span {
-  display: inline-flex;
-  align-items: center;
-  min-height: 36px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
+.compactButton {
+  width: auto;
+  min-height: 34px;
   padding: 0 12px;
-  background: #fbfcfd;
-  font-weight: 800;
+  white-space: nowrap;
 }
 
 .workflowSteps {
@@ -1573,7 +1594,7 @@ button:disabled {
   opacity: 1;
 }
 
-@media (max-width: 1550px) {
+@media (max-width: 1180px) {
   .creationParamBar {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -1593,7 +1614,6 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
-  .creationBriefGrid,
   .creationFooterActions,
   .creationParamBar,
   .productionModeBar,
@@ -1648,7 +1668,6 @@ button:disabled {
   .formGrid,
   .creationActions,
   .creationFooterActions,
-  .creationBriefGrid,
   .creationParamBar,
   .productionModeBar,
   .storageConfigForm,

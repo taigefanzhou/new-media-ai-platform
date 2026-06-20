@@ -301,6 +301,19 @@ function renderMetrics(counts) {
     .join("");
 }
 
+function hideScriptDetail(clearContent = false) {
+  const panel = document.querySelector("#scriptDetailPanel");
+  if (panel) panel.classList.add("hiddenPanel");
+  if (!clearContent) return;
+  const titleTarget = document.querySelector("#titleSuggestionList");
+  const creationTarget = document.querySelector("#scriptPreviewCreation");
+  if (titleTarget) titleTarget.innerHTML = "";
+  if (creationTarget) {
+    creationTarget.className = "scriptResult empty";
+    creationTarget.textContent = "还没有脚本";
+  }
+}
+
 function renderScripts(scripts) {
   state.scripts = scripts;
   renderScriptSelects(scripts);
@@ -309,7 +322,7 @@ function renderScripts(scripts) {
   const resultStatus = document.querySelector("#scriptResultStatus");
   if (!scripts.length) {
     renderScriptCandidates([]);
-    renderTitleSuggestions(null);
+    hideScriptDetail(true);
     [overviewTarget, creationTarget].filter(Boolean).forEach((target) => {
       target.className = "preview empty";
       target.textContent = "还没有脚本";
@@ -325,7 +338,6 @@ function renderScripts(scripts) {
   const taskScriptSelect = document.querySelector("[name='script_id']");
   if (taskScriptSelect) taskScriptSelect.value = script.id;
   renderScriptCandidates(scripts);
-  renderTitleSuggestions(script);
   const content = [
     `脚本 ID: ${script.id}`,
     `开头: ${script.hook}`,
@@ -346,7 +358,15 @@ function renderScripts(scripts) {
     overviewTarget.className = "preview";
     overviewTarget.textContent = content;
   }
-  renderScriptDetail(script, state.highlightedScriptId === script.id);
+  const detailPanel = document.querySelector("#scriptDetailPanel");
+  const keepDetailOpen = detailPanel && !detailPanel.classList.contains("hiddenPanel");
+  if (keepDetailOpen) {
+    renderTitleSuggestions(script);
+    renderScriptDetail(script, state.highlightedScriptId === script.id);
+  } else if (resultStatus) {
+    resultStatus.textContent = scripts.length ? `已有 ${scripts.length} 条脚本，点详情查看` : "生成后先选择方案";
+    resultStatus.classList.remove("isGenerating");
+  }
 }
 
 function productionModeLabel(mode) {
@@ -434,9 +454,11 @@ function renderStoryboardPlanTable(script) {
 }
 
 function renderScriptDetail(script, isFresh = false) {
+  const panel = document.querySelector("#scriptDetailPanel");
   const creationTarget = document.querySelector("#scriptPreviewCreation");
   const resultStatus = document.querySelector("#scriptResultStatus");
   if (!creationTarget) return;
+  if (panel) panel.classList.remove("hiddenPanel");
   creationTarget.className = `scriptResult${isFresh ? " scriptResultFresh" : ""}`;
   creationTarget.innerHTML = `
     <form id="scriptEditForm" class="scriptEditForm" data-script-id="${script.id}" data-dirty="false">
@@ -467,10 +489,14 @@ function renderScriptDetail(script, isFresh = false) {
 }
 
 function renderScriptLoading(message = "AI 正在生成标题、口播稿、分镜和视频提示词...", keepTitles = false) {
+  const detailPanel = document.querySelector("#scriptDetailPanel");
   const titleTarget = document.querySelector("#titleSuggestionList");
   const candidateTarget = document.querySelector("#scriptCandidateList");
   const creationTarget = document.querySelector("#scriptPreviewCreation");
   const resultStatus = document.querySelector("#scriptResultStatus");
+  if (detailPanel) {
+    detailPanel.classList.toggle("hiddenPanel", !keepTitles);
+  }
   if (candidateTarget && !keepTitles) {
     candidateTarget.innerHTML = `<div class="item">正在生成候选方案...</div>`;
   }
@@ -487,7 +513,7 @@ function renderScriptLoading(message = "AI 正在生成标题、口播稿、分�
   }
 }
 
-function applyGeneratedScript(script) {
+function applyGeneratedScript(script, options = {}) {
   state.latestScriptId = script.id;
   state.highlightedScriptId = script.id;
   state.scripts = [script, ...state.scripts.filter((item) => item.id !== script.id)];
@@ -496,31 +522,46 @@ function applyGeneratedScript(script) {
   renderScriptSelects(state.scripts);
   renderScriptCandidates(state.scripts);
   renderTitleSuggestions(script);
-  renderScriptDetail(script, true);
+  if (options.openDetail) {
+    renderScriptDetail(script, true);
+  } else {
+    hideScriptDetail();
+    const resultStatus = document.querySelector("#scriptResultStatus");
+    if (resultStatus) {
+      resultStatus.textContent = `已生成 ${state.scripts.length} 条候选，点详情查看`;
+      resultStatus.classList.remove("isGenerating");
+    }
+  }
 }
 
 function renderScriptCandidates(scripts) {
   const target = document.querySelector("#scriptCandidateList");
   if (!target) return;
   if (!scripts.length) {
-    target.innerHTML = `<div class="item">生成候选方案后，可在这里选择一版继续优化。</div>`;
+    target.innerHTML = `<div class="item">输入视频内容后，可生成多版候选脚本。</div>`;
     return;
   }
   target.innerHTML = `
     <div class="candidateHeader">
       <strong>候选方案</strong>
-      <span>选择一版后，可在下方直接修改脚本。</span>
+      <span>点详情审核脚本，或直接生成视频任务。</span>
     </div>
-    <div class="candidateGrid">
+    <div class="candidateRows">
       ${scripts
         .slice(0, 6)
         .map(
           (script, index) => `
-            <button type="button" class="candidateCard ${script.id === state.latestScriptId ? "selectedCandidate" : ""}" data-script-id="${script.id}">
-              <span>方案 ${index + 1} · #${script.id}</span>
-              <strong>${escapeHtml(script.hook || "未命名方案")}</strong>
-              <em>${script.duration_seconds || 30}s · ${escapeHtml((script.voiceover || "").slice(0, 48))}</em>
-            </button>
+            <div class="candidateRow ${script.id === state.latestScriptId ? "selectedCandidate" : ""}">
+              <div class="candidateMain">
+                <span>方案 ${index + 1} · #${script.id} · ${script.duration_seconds || 30}s</span>
+                <strong>${escapeHtml(script.hook || "未命名方案")}</strong>
+                <em>${escapeHtml((script.voiceover || "").slice(0, 78))}</em>
+              </div>
+              <div class="candidateActions">
+                <button type="button" class="secondary" data-action="view-script" data-script-id="${script.id}">详情/编辑</button>
+                <button type="button" data-action="auto-video-script" data-script-id="${script.id}">生成视频</button>
+              </div>
+            </div>
           `,
         )
         .join("")}
@@ -1055,6 +1096,7 @@ function renderHumanSelects(humans) {
     target.innerHTML = `<option value="">不使用数字人露脸</option>${options}`;
     target.value = current || state.latestHumanId || "";
   });
+  syncCreationProductionModeWithHuman();
 }
 
 function renderDigitalHumans(humans) {
@@ -1736,6 +1778,29 @@ document.querySelectorAll(".durationPreset").forEach((button) => {
 
 document.querySelector("#scriptForm [name='duration_seconds']").addEventListener("input", syncDurationPreset);
 
+function selectedCreationProductionMode() {
+  const select = document.querySelector("#creationProductionModeSelect");
+  const humanInput = document.querySelector("#creationHumanSelect");
+  const hasHuman = Boolean(humanInput?.value);
+  const selected = select?.value || "";
+  if (!hasHuman && ["talking_head_template", "digital_human"].includes(selected)) {
+    return "seedance_scene";
+  }
+  return selected || (hasHuman ? "talking_head_template" : "seedance_scene");
+}
+
+function syncCreationProductionModeWithHuman() {
+  const select = document.querySelector("#creationProductionModeSelect");
+  const humanInput = document.querySelector("#creationHumanSelect");
+  if (!select || !humanInput) return;
+  if (humanInput.value) {
+    select.value = "talking_head_template";
+  } else if (["talking_head_template", "digital_human"].includes(select.value)) {
+    select.value = "seedance_scene";
+  }
+  syncProductionModeHint();
+}
+
 function syncProductionModeHint() {
   const select = document.querySelector("#creationProductionModeSelect");
   const hint = document.querySelector("#productionModeHint");
@@ -1749,6 +1814,54 @@ function syncProductionModeHint() {
 }
 
 document.querySelector("#creationProductionModeSelect").addEventListener("change", syncProductionModeHint);
+
+document.querySelector("#creationHumanSelect").addEventListener("change", syncCreationProductionModeWithHuman);
+
+async function createVideoFromScript(scriptId, button) {
+  if (!scriptId) {
+    toast("请先生成脚本");
+    return;
+  }
+  const script = state.scripts.find((item) => item.id === Number(scriptId));
+  if (!script) {
+    toast("没有找到这条脚本，请刷新后重试");
+    return;
+  }
+  state.latestScriptId = script.id;
+  state.highlightedScriptId = script.id;
+  renderScriptCandidates(state.scripts);
+  const originalText = button.textContent;
+  const humanInput = document.querySelector("#creationHumanSelect");
+  const productionMode = selectedCreationProductionMode();
+  const payload = { production_mode: productionMode };
+  if (humanInput.value) {
+    payload.digital_human_id = Number(humanInput.value);
+  }
+  if (["digital_human", "talking_head_template"].includes(productionMode) && !payload.digital_human_id) {
+    toast("数字人口播需要先选择有口播源视频的数字人");
+    return;
+  }
+  button.disabled = true;
+  button.textContent = "进入生成队列...";
+  try {
+    await saveCurrentScriptEdits({ silent: true });
+    const task = await api.post(`/scripts/${script.id}/auto-video-task`, payload);
+    state.latestTaskId = task.id;
+    document.querySelector("#taskForm [name='script_id']").value = task.script_id;
+    const taskHumanInput = document.querySelector("#taskForm [name='digital_human_id']");
+    if (task.digital_human_id && taskHumanInput) {
+      taskHumanInput.value = task.digital_human_id;
+    }
+    toast(`已进入自动生成队列 #${task.id}`);
+    await refresh();
+    switchPage("tasks");
+  } catch (error) {
+    toast("自动生成视频失败，请检查视频模型或素材配置");
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
+}
 
 document.querySelector("#scriptCandidateList").addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-script-id]");
@@ -1765,6 +1878,10 @@ document.querySelector("#scriptCandidateList").addEventListener("click", async (
   state.latestScriptId = script.id;
   state.highlightedScriptId = script.id;
   renderScriptCandidates(state.scripts);
+  if (button.dataset.action === "auto-video-script") {
+    await createVideoFromScript(script.id, button);
+    return;
+  }
   renderTitleSuggestions(script);
   renderScriptDetail(script);
 });
@@ -1816,45 +1933,21 @@ document.querySelector("#batchCreateTasksBtn").addEventListener("click", async (
 });
 
 document.querySelector("#createTaskFromScriptBtn").addEventListener("click", async () => {
-  if (!state.latestScriptId) {
-    toast("请先生成脚本");
-    return;
-  }
   const button = document.querySelector("#createTaskFromScriptBtn");
-  const originalText = button.textContent;
-  const humanInput = document.querySelector("#creationHumanSelect");
-  const productionMode = document.querySelector("#creationProductionModeSelect").value;
-  const payload = { production_mode: productionMode };
-  if (humanInput.value) {
-    payload.digital_human_id = Number(humanInput.value);
-  }
-  if (["digital_human", "talking_head_template"].includes(productionMode) && !payload.digital_human_id) {
-    toast("数字人口播需要先选择有口播源视频的数字人");
-    return;
-  }
-  button.disabled = true;
-  button.textContent = "进入生成队列...";
-  try {
-    await saveCurrentScriptEdits({ silent: true });
-    const task = await api.post(`/scripts/${state.latestScriptId}/auto-video-task`, payload);
-    state.latestTaskId = task.id;
-    document.querySelector("#taskForm [name='script_id']").value = task.script_id;
-    const taskHumanInput = document.querySelector("#taskForm [name='digital_human_id']");
-    if (task.digital_human_id && taskHumanInput) {
-      taskHumanInput.value = task.digital_human_id;
-    }
-    toast(`已进入自动生成队列 #${task.id}`);
-    await refresh();
-    switchPage("tasks");
-  } catch (error) {
-    toast("自动生成视频失败，请检查视频模型或素材配置");
-  } finally {
-    button.disabled = false;
-    button.textContent = originalText;
-  }
+  await createVideoFromScript(state.latestScriptId, button);
 });
 
 document.querySelector("#goTaskPageBtn").addEventListener("click", () => switchPage("tasks"));
+
+document.querySelector("#closeScriptDetailBtn").addEventListener("click", async () => {
+  try {
+    await saveCurrentScriptEdits({ silent: true });
+  } catch (error) {
+    toast("脚本保存失败，请先检查内容");
+    return;
+  }
+  hideScriptDetail();
+});
 
 document.querySelector("#regenerateScriptBtn").addEventListener("click", async () => {
   await saveCurrentScriptEdits({ silent: true });
@@ -1890,7 +1983,7 @@ document.querySelector("#titleSuggestionList").addEventListener("click", async (
       }
     }
     const script = await api.post("/scripts/generate", payload);
-    applyGeneratedScript(script);
+    applyGeneratedScript(script, { openDetail: true });
     toast(`已按所选标题重写脚本 #${script.id}`);
     await refresh();
   } catch (error) {
