@@ -183,6 +183,83 @@ h2 {
   margin-top: 14px;
 }
 
+.creationWorkspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(300px, 0.75fr);
+  gap: 14px;
+}
+
+.creationBrief textarea[name="topic"] {
+  min-height: 132px;
+}
+
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.sectionHeader p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.aiBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #075985;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.aiCapabilityPanel {
+  align-self: start;
+}
+
+.aiCapabilityGrid {
+  display: grid;
+  gap: 10px;
+}
+
+.aiCapability {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 12px;
+  background: #fbfcfd;
+}
+
+.aiCapability strong {
+  color: var(--accent);
+}
+
+.aiCapability span,
+.resultHint {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.creationResults {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.85fr) minmax(0, 1.45fr) minmax(260px, 0.75fr);
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.resultPanel {
+  min-width: 0;
+}
+
 .panel {
   padding: 18px;
 }
@@ -448,6 +525,64 @@ button:disabled {
 .selectedTitle {
   border-color: var(--accent);
   background: #f0fdfa;
+}
+
+.scriptResult {
+  display: grid;
+  gap: 12px;
+}
+
+.scriptBlock,
+.scriptMetaGrid > div {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 12px;
+  background: #fbfcfd;
+}
+
+.scriptBlock span,
+.scriptMetaGrid span {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.scriptBlock strong {
+  line-height: 1.55;
+}
+
+.scriptBlock p,
+.scriptMetaGrid p {
+  margin: 0;
+  color: #263241;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+.scriptMetaGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.creationActions {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.nextStepList {
+  display: grid;
+  gap: 10px;
+}
+
+.nextStepList span {
+  display: block;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 12px;
+  background: #fbfcfd;
+  font-weight: 800;
 }
 
 .workflowSteps {
@@ -745,6 +880,12 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
+  .creationWorkspace,
+  .creationResults,
+  .scriptMetaGrid {
+    grid-template-columns: 1fr;
+  }
+
   .statusBoard,
   .publishActions,
   .titleGrid,
@@ -780,6 +921,7 @@ button:disabled {
   }
 
   .formGrid,
+  .creationActions,
   .statusBoard,
   .publishActions,
   .titleGrid,

@@ -224,13 +224,11 @@ function renderMetrics(counts) {
 function renderScripts(scripts) {
   state.scripts = scripts;
   renderScriptSelects(scripts);
-  const targets = [
-    document.querySelector("#scriptPreview"),
-    document.querySelector("#scriptPreviewCreation"),
-  ].filter(Boolean);
+  const overviewTarget = document.querySelector("#scriptPreview");
+  const creationTarget = document.querySelector("#scriptPreviewCreation");
   if (!scripts.length) {
     renderTitleSuggestions(null);
-    targets.forEach((target) => {
+    [overviewTarget, creationTarget].filter(Boolean).forEach((target) => {
       target.className = "preview empty";
       target.textContent = "还没有脚本";
     });
@@ -238,7 +236,8 @@ function renderScripts(scripts) {
   }
   const script = scripts[0];
   state.latestScriptId = script.id;
-  document.querySelector("[name='script_id']").value = script.id;
+  const taskScriptSelect = document.querySelector("[name='script_id']");
+  if (taskScriptSelect) taskScriptSelect.value = script.id;
   renderTitleSuggestions(script);
   const content = [
     `脚本 ID: ${script.id}`,
@@ -256,10 +255,32 @@ function renderScripts(scripts) {
     `标签: ${script.hashtags}`,
     `合规: ${script.compliance_notes}`,
   ].join("\n");
-  targets.forEach((target) => {
-    target.className = "preview";
-    target.textContent = content;
-  });
+  if (overviewTarget) {
+    overviewTarget.className = "preview";
+    overviewTarget.textContent = content;
+  }
+  if (creationTarget) {
+    creationTarget.className = "scriptResult";
+    creationTarget.innerHTML = `
+      <div class="scriptBlock">
+        <span>开头钩子</span>
+        <strong>${escapeHtml(script.hook)}</strong>
+      </div>
+      <div class="scriptBlock">
+        <span>口播稿</span>
+        <p>${escapeHtml(script.voiceover)}</p>
+      </div>
+      <div class="scriptBlock">
+        <span>分镜/画面</span>
+        <p>${escapeHtml(script.storyboard)}</p>
+      </div>
+      <div class="scriptMetaGrid">
+        <div><span>视频提示词</span><p>${escapeHtml(script.seedance_prompt)}</p></div>
+        <div><span>标签</span><p>${escapeHtml(script.hashtags)}</p></div>
+        <div><span>合规提醒</span><p>${escapeHtml(script.compliance_notes)}</p></div>
+      </div>
+    `;
+  }
 }
 
 function renderScriptSelects(scripts) {
@@ -963,15 +984,6 @@ document.querySelector("#humanAssetForm").addEventListener("submit", async (even
   if (taskHumanSelect) taskHumanSelect.value = human.id;
   toast(`数字人资产已创建 #${human.id}`);
   form.reset();
-  await refresh();
-});
-
-document.querySelector("#topicForm").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const payload = formData(event.currentTarget);
-  const topic = await api.post("/topics", payload);
-  document.querySelector("#scriptForm textarea[name='topic']").value = topic.title;
-  toast(`选题已创建 #${topic.id}`);
   await refresh();
 });
 
