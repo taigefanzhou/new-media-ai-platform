@@ -119,7 +119,7 @@ class ScriptGenerator:
         headers = {"Authorization": f"Bearer {api_key}"}
         url = api_base.rstrip("/") + "/chat/completions"
 
-        async with httpx.AsyncClient(timeout=60) as client:
+        async with httpx.AsyncClient(timeout=180) as client:
             response = await client.post(url, headers=headers, json=payload)
             response.raise_for_status()
             data = response.json()
