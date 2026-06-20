@@ -27,6 +27,7 @@
         <div class="subNav" aria-label="系统设置二级菜单">
           <button class="subNavItem" data-page="settings" data-settings-section="usage">模型用量</button>
           <button class="subNavItem" data-page="settings" data-settings-section="models">AI 模型接入</button>
+          <button class="subNavItem" data-page="settings" data-settings-section="storage">视频存储位置</button>
           <button class="subNavItem" data-page="settings" data-settings-section="collectors">短视频采集接入</button>
           <button class="subNavItem" data-page="settings" data-settings-section="accounts">账号管理</button>
         </div>
@@ -434,7 +435,7 @@
             <div class="sectionHeader compactSectionHeader">
               <div>
                 <h2>模型调用明细</h2>
-                <p>统计 AI 生成脚本时的调用次数、输入 token、输出 token 和总消耗。</p>
+                <p>统计脚本、语音、转写、视频和数字人等 AI 调用次数与 token 消耗。</p>
               </div>
             </div>
             <div id="modelUsageList" class="settingsTableWrap"></div>
@@ -471,6 +472,28 @@
               <h2>模型配置列表</h2>
               <div id="modelConfigList" class="list"></div>
             </div>
+          </section>
+        </section>
+
+        <section id="settings-tab-storage" class="settingsPane">
+          <div id="videoStorageSummary" class="statusBoard settingsSummary"></div>
+          <section class="panel storagePanel">
+            <div class="sectionHeader compactSectionHeader">
+              <div>
+                <h2>视频存储位置</h2>
+                <p>查看系统生成的成片、分段视频、数字人口播和音频文件在本机的保存位置。</p>
+              </div>
+            </div>
+            <div id="videoStoragePaths" class="storagePathGrid"></div>
+          </section>
+          <section class="panel footerPanel">
+            <div class="sectionHeader compactSectionHeader">
+              <div>
+                <h2>已生成成片</h2>
+                <p>这里只显示已经有输出文件路径的视频任务。</p>
+              </div>
+            </div>
+            <div id="videoStorageList" class="settingsTableWrap"></div>
           </section>
         </section>
 

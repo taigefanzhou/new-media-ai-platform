@@ -275,6 +275,59 @@ def model_usage_summary(
     }
 
 
+@router.get("/settings/video-storage")
+def video_storage_summary(
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> dict[str, object]:
+    settings = get_settings()
+    storage_root = Path(settings.storage_dir).resolve()
+    tasks = session.exec(select(VideoTask).order_by(VideoTask.created_at.desc())).all()
+    videos = []
+    total_size = 0
+    existing_count = 0
+    for task in tasks:
+        if not task.output_path:
+            continue
+        output_path = task.output_path
+        is_local_path = not output_path.startswith(("http://", "https://", "mock://"))
+        path = Path(output_path) if is_local_path else None
+        exists = bool(path and path.exists() and path.is_file())
+        size_bytes = path.stat().st_size if path and exists else 0
+        total_size += size_bytes
+        existing_count += 1 if exists else 0
+        script = session.get(Script, task.script_id)
+        videos.append(
+            {
+                "task_id": task.id,
+                "script_id": task.script_id,
+                "script_title": script.hook if script else f"脚本 #{task.script_id}",
+                "status": task.status,
+                "output_path": str(path.resolve()) if path else output_path,
+                "exists": exists,
+                "size_bytes": size_bytes,
+                "created_at": task.created_at,
+                "updated_at": task.updated_at,
+            }
+        )
+    return {
+        "storage_root": str(storage_root),
+        "final_video_dir": str(storage_root / "final"),
+        "segment_video_dir": str(storage_root / "seedance"),
+        "digital_human_dir": str(storage_root / "digital-human"),
+        "voice_dir": str(storage_root / "voice"),
+        "configured_by": "STORAGE_DIR",
+        "final_video_pattern": str(storage_root / "final" / "{自动生成ID}" / "final-video.mp4"),
+        "totals": {
+            "video_count": len(videos),
+            "existing_count": existing_count,
+            "missing_count": len(videos) - existing_count,
+            "size_bytes": total_size,
+        },
+        "videos": videos,
+    }
+
+
 @router.post("/settings/models", response_model=AIModelConfig)
 def create_model_config(
     payload: AIModelConfigCreate,
@@ -873,6 +926,15 @@ def _build_video_task(
     )
 
 
+def _ensure_video_task_can_run(task: VideoTask) -> None:
+    if task.status == TaskStatus.running:
+        raise HTTPException(status_code=409, detail="Video task is already generating")
+    if task.output_path or task.status in (TaskStatus.needs_review, TaskStatus.approved):
+        raise HTTPException(status_code=400, detail="Video task already has generated output")
+    if task.status not in (TaskStatus.draft, TaskStatus.queued, TaskStatus.failed):
+        raise HTTPException(status_code=400, detail="Video task is not ready to generate")
+
+
 @router.post("/scripts/{script_id}/video-task", response_model=VideoTask)
 def create_video_task_from_script(
     script_id: int,
@@ -1042,6 +1104,7 @@ async def batch_run_video_tasks(payload: VideoTaskBatchRunRequest, session: Sess
         task = session.get(VideoTask, task_id)
         if task is None:
             raise HTTPException(status_code=404, detail=f"Video task {task_id} not found")
+        _ensure_video_task_can_run(task)
         results.append(await pipeline.run(task))
     return results
 
@@ -1051,6 +1114,7 @@ async def run_video_task(task_id: int, session: Session = Depends(get_session)) 
     task = session.get(VideoTask, task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Video task not found")
+    _ensure_video_task_can_run(task)
     return await VideoPipeline(session).run(task)
 
 
@@ -1059,6 +1123,8 @@ def approve_video_task(task_id: int, session: Session = Depends(get_session)) ->
     task = session.get(VideoTask, task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Video task not found")
+    if task.status != TaskStatus.needs_review or not task.output_path:
+        raise HTTPException(status_code=400, detail="Only generated videos waiting for review can be approved")
     task.status = TaskStatus.approved
     session.add(task)
     session.commit()
@@ -1100,6 +1166,10 @@ def delete_video_task_output(task_id: int, session: Session = Depends(get_sessio
     task = session.get(VideoTask, task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Video task not found")
+    if task.status == TaskStatus.running:
+        raise HTTPException(status_code=409, detail="Cannot delete output while video is generating")
+    if not task.output_path:
+        raise HTTPException(status_code=400, detail="Video task has no generated output")
     _delete_local_file(task.output_path)
     segments = session.exec(select(VideoSegment).where(VideoSegment.video_task_id == task_id)).all()
     for segment in segments:
@@ -1123,6 +1193,8 @@ def delete_video_task(task_id: int, session: Session = Depends(get_session)) -> 
     task = session.get(VideoTask, task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Video task not found")
+    if task.status == TaskStatus.running:
+        raise HTTPException(status_code=409, detail="Cannot delete a video task while it is generating")
     records = session.exec(select(PublishRecord).where(PublishRecord.video_task_id == task_id)).all()
     for record in records:
         session.delete(record)
@@ -1148,6 +1220,8 @@ def prepare_publish_record_from_video_task(
         raise HTTPException(status_code=404, detail="Video task not found")
     if task.status != TaskStatus.approved:
         raise HTTPException(status_code=400, detail="Video task must be approved before publishing")
+    if not task.output_path:
+        raise HTTPException(status_code=400, detail="Video task has no generated output")
     script = session.get(Script, task.script_id)
     account = _resolve_publish_account(session, payload.platform_account_id, payload.platform)
     title = payload.title or _publish_title_from_script(script)

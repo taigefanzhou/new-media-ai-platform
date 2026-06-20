@@ -51,6 +51,7 @@ const state = {
   platformCredentials: [],
   digitalHumans: [],
   modelUsage: null,
+  videoStorage: null,
   users: [],
   currentUser: null,
   currentSettingsSection: "usage",
@@ -60,6 +61,7 @@ const state = {
 const settingsSections = {
   usage: { title: "模型用量", eyebrow: "Settings / Usage" },
   models: { title: "AI 模型接入", eyebrow: "Settings / AI Models" },
+  storage: { title: "视频存储位置", eyebrow: "Settings / Video Storage" },
   collectors: { title: "短视频采集接入", eyebrow: "Settings / Collectors" },
   accounts: { title: "账号管理", eyebrow: "Settings / Accounts" },
 };
@@ -170,6 +172,15 @@ function toDateTimeInput(value) {
 
 function formatNumber(value) {
   return Number(value || 0).toLocaleString("zh-CN");
+}
+
+function formatBytes(value) {
+  const bytes = Number(value || 0);
+  if (bytes <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const index = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
+  const size = bytes / 1024 ** index;
+  return `${size >= 10 || index === 0 ? size.toFixed(0) : size.toFixed(1)} ${units[index]}`;
 }
 
 function formatDateTime(value) {
@@ -467,6 +478,18 @@ function taskStatusLabel(status) {
   }[status] || status;
 }
 
+function taskStatusClass(status) {
+  return {
+    draft: "taskStatusDraft",
+    queued: "taskStatusQueued",
+    running: "taskStatusRunning",
+    needs_review: "taskStatusReview",
+    approved: "taskStatusApproved",
+    rejected: "taskStatusRejected",
+    failed: "taskStatusFailed",
+  }[status] || "";
+}
+
 function taskProgress(task) {
   if (task.status === "running" && Number(task.segment_count || 0) > 1) {
     const completed = Number(task.completed_segments || 0);
@@ -509,6 +532,51 @@ function taskVideoSrc(task) {
   return `/api/video-tasks/${task.id}/output`;
 }
 
+function taskActionState(task) {
+  const hasOutput = Boolean(task.output_path);
+  const isRunning = task.status === "running";
+  return {
+    canSelectForRun: !hasOutput && ["draft", "queued", "failed"].includes(task.status),
+    canPreview: Boolean(taskVideoSrc(task)),
+    canRun: !hasOutput && ["draft", "queued", "failed"].includes(task.status),
+    canApprove: task.status === "needs_review" && hasOutput,
+    canPublish: task.status === "approved" && hasOutput,
+    canDeleteOutput: hasOutput && !isRunning,
+    canDeleteTask: !isRunning,
+    runLabel: isRunning ? "生成中" : hasOutput ? "已生成" : "开始生成",
+    previewLabel: hasOutput ? (taskVideoSrc(task) ? "成片预览" : "不可预览") : "暂无成片",
+  };
+}
+
+function actionErrorMessage(action) {
+  return {
+    "run-video-task": "这个任务当前不能开始生成，请先删除成片或检查任务状态",
+    "approve-video-task": "只有待审核且已生成成片的任务才能审核通过",
+    "prepare-publish": "只有已审核通过的成片才能准备发布",
+    "delete-task-output": "当前不能删除成片，可能任务正在生成或还没有成片",
+    "delete-video-task": "当前不能删除任务，可能任务正在生成",
+  }[action] || "操作失败，请刷新后再试";
+}
+
+function taskActionButtons(task) {
+  const actions = taskActionState(task);
+  const button = (action, label, className = "secondary", disabled = false) => (
+    `<button type="button" class="${className}" data-action="${action}" data-id="${task.id}" ${disabled ? "disabled aria-disabled=\"true\"" : ""}>${label}</button>`
+  );
+  const buttons = [];
+  if (actions.canPreview) buttons.push(button("preview-video-task", "预览"));
+  if (task.status === "running") {
+    buttons.push(button("run-video-task", "生成中", "", true));
+  } else if (actions.canRun) {
+    buttons.push(button("run-video-task", "生成"));
+  }
+  if (actions.canApprove) buttons.push(button("approve-video-task", "审核通过"));
+  if (actions.canPublish) buttons.push(button("prepare-publish", "准备发布"));
+  if (actions.canDeleteOutput) buttons.push(button("delete-task-output", "删除成片"));
+  if (actions.canDeleteTask) buttons.push(button("delete-video-task", "删除任务", "danger"));
+  return buttons.join("");
+}
+
 function renderTaskOutputPreview(task) {
   const panel = document.querySelector("#taskPreviewPanel");
   const meta = document.querySelector("#taskPreviewMeta");
@@ -541,7 +609,7 @@ function renderTaskCompact(tasks) {
         <div class="item">
           <strong>任务 #${task.id}</strong>
           <div>${escapeHtml(scriptName(task.script_id)).slice(0, 54)}</div>
-          <span class="status">${taskStatusLabel(task.status)}</span>
+          <span class="status taskStatus ${taskStatusClass(task.status)}">${taskStatusLabel(task.status)}</span>
           <div class="recordMeta">${taskSegmentMeta(task)}</div>
         </div>
       `,
@@ -557,7 +625,7 @@ function renderTaskTable(tasks) {
     return;
   }
   target.innerHTML = `
-    <table class="taskTable">
+    <table class="taskTable compactTable">
       <thead>
         <tr>
           <th>选择</th>
@@ -573,12 +641,13 @@ function renderTaskTable(tasks) {
           .map((task) => {
             const progress = taskProgress(task);
             const videoSrc = taskVideoSrc(task);
+            const actions = taskActionState(task);
             return `
               <tr>
-                <td><input type="checkbox" class="taskSelectCheckbox" value="${task.id}" /></td>
+                <td><input type="checkbox" class="taskSelectCheckbox" value="${task.id}" ${actions.canSelectForRun ? "" : "disabled"} /></td>
                 <td>
                   <strong>#${task.id}</strong>
-                  <span class="status">${taskStatusLabel(task.status)}</span>
+                  <span class="status taskStatus ${taskStatusClass(task.status)}">${taskStatusLabel(task.status)}</span>
                 </td>
                 <td>${escapeHtml(scriptName(task.script_id)).slice(0, 72)}</td>
                 <td>${escapeHtml(humanName(task.digital_human_id))}</td>
@@ -590,12 +659,7 @@ function renderTaskTable(tasks) {
                 </td>
                 <td>
                   <div class="tableActions">
-                    <button type="button" class="secondary" data-action="preview-video-task" data-id="${task.id}" ${videoSrc ? "" : "disabled"}>${videoSrc ? "成片预览" : "暂无成片"}</button>
-                    <button type="button" data-action="run-video-task" data-id="${task.id}">${task.status === "running" ? "生成中" : "开始生成"}</button>
-                    <button type="button" class="secondary" data-action="approve-video-task" data-id="${task.id}">审核通过</button>
-                    <button type="button" class="secondary" data-action="prepare-publish" data-id="${task.id}">准备发布</button>
-                    <button type="button" class="secondary" data-action="delete-task-output" data-id="${task.id}">删除成片</button>
-                    <button type="button" class="danger" data-action="delete-video-task" data-id="${task.id}">删除任务</button>
+                    ${taskActionButtons(task)}
                   </div>
                 </td>
               </tr>
@@ -965,7 +1029,7 @@ function renderModelUsage(report) {
     return;
   }
   listTarget.innerHTML = `
-    <table class="settingsTable">
+    <table class="settingsTable usageTable compactTable">
       <thead>
         <tr>
           <th>用途</th>
@@ -991,6 +1055,88 @@ function renderModelUsage(report) {
                 <td>${formatNumber(item.completion_tokens)}</td>
                 <td>${formatNumber(item.total_tokens)}</td>
                 <td>${formatDateTime(item.last_used_at)}</td>
+              </tr>
+            `,
+          )
+          .join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+function renderVideoStorage(report) {
+  const summaryTarget = document.querySelector("#videoStorageSummary");
+  const pathsTarget = document.querySelector("#videoStoragePaths");
+  const listTarget = document.querySelector("#videoStorageList");
+  if (!summaryTarget || !pathsTarget || !listTarget) return;
+  const totals = report?.totals || {};
+  const cards = [
+    ["成片记录", totals.video_count],
+    ["文件存在", totals.existing_count],
+    ["文件缺失", totals.missing_count],
+    ["占用空间", formatBytes(totals.size_bytes)],
+  ];
+  summaryTarget.innerHTML = cards
+    .map(
+      ([label, value]) => `
+        <div class="statusCard">
+          <strong>${typeof value === "number" ? formatNumber(value) : escapeHtml(value)}</strong>
+          <span>${label}</span>
+        </div>
+      `,
+    )
+    .join("");
+
+  const pathRows = [
+    ["存储根目录", report.storage_root],
+    ["最终成片目录", report.final_video_dir],
+    ["分段视频目录", report.segment_video_dir],
+    ["数字人口播目录", report.digital_human_dir],
+    ["音频目录", report.voice_dir],
+    ["成片保存规则", report.final_video_pattern],
+  ];
+  pathsTarget.innerHTML = pathRows
+    .map(
+      ([label, value]) => `
+        <div class="storagePathRow">
+          <span>${label}</span>
+          <code title="${escapeHtml(value || "")}">${escapeHtml(value || "-")}</code>
+          <button type="button" class="secondary" data-action="copy-storage-path" data-path="${escapeHtml(value || "")}">复制</button>
+        </div>
+      `,
+    )
+    .join("");
+
+  const videos = report?.videos || [];
+  if (!videos.length) {
+    listTarget.innerHTML = `<div class="item">还没有生成成片。视频任务生成完成后，这里会显示实际文件路径。</div>`;
+    return;
+  }
+  listTarget.innerHTML = `
+    <table class="settingsTable storageTable compactTable">
+      <thead>
+        <tr>
+          <th>任务</th>
+          <th>脚本</th>
+          <th>状态</th>
+          <th>文件</th>
+          <th>大小</th>
+          <th>保存路径</th>
+          <th>更新时间</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${videos
+          .map(
+            (video) => `
+              <tr>
+                <td>#${video.task_id}</td>
+                <td>${escapeHtml(video.script_title || `脚本 #${video.script_id}`).slice(0, 40)}</td>
+                <td><span class="status taskStatus ${taskStatusClass(video.status)}">${taskStatusLabel(video.status)}</span></td>
+                <td><span class="storageFileState ${video.exists ? "storageFileOk" : "storageFileMissing"}">${video.exists ? "存在" : "缺失"}</span></td>
+                <td>${formatBytes(video.size_bytes)}</td>
+                <td><code class="pathCode" title="${escapeHtml(video.output_path)}">${escapeHtml(video.output_path)}</code></td>
+                <td>${formatDateTime(video.updated_at || video.created_at)}</td>
               </tr>
             `,
           )
@@ -1225,6 +1371,7 @@ async function refresh() {
       scripts,
       videoTasks,
       modelUsage,
+      videoStorage,
       users,
     ] = await Promise.all([
       api.get("/settings/models"),
@@ -1238,6 +1385,7 @@ async function refresh() {
       api.get("/scripts"),
       api.get("/video-tasks"),
       api.get("/settings/model-usage"),
+      api.get("/settings/video-storage"),
       api.get("/settings/users").catch(() => []),
     ]);
     state.platformCredentials = platformCredentials;
@@ -1245,10 +1393,12 @@ async function refresh() {
     state.publishRecords = publishRecords;
     state.digitalHumans = digitalHumans;
     state.modelUsage = modelUsage;
+    state.videoStorage = videoStorage;
     state.users = users;
     renderModels(models);
     renderPlatformCredentials(platformCredentials);
     renderModelUsage(modelUsage);
+    renderVideoStorage(videoStorage);
     renderSystemUsers(users);
     renderTrending(searches, videos);
     renderTranscriptions(transcriptions);
@@ -1261,6 +1411,19 @@ async function refresh() {
 }
 
 document.querySelector("#refreshBtn").addEventListener("click", () => refresh().then(() => toast("已刷新")));
+
+document.querySelector("#videoStoragePaths").addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-action='copy-storage-path']");
+  if (!button) return;
+  const path = button.dataset.path || "";
+  if (!path) return;
+  try {
+    await navigator.clipboard.writeText(path);
+    toast("路径已复制");
+  } catch {
+    toast(path);
+  }
+});
 
 document.querySelectorAll(".navItem").forEach((item) => {
   item.addEventListener("click", () => switchPage(item.dataset.page, item.dataset.settingsSection || null));
@@ -1488,9 +1651,19 @@ document.querySelector("#runTaskBtn").addEventListener("click", async () => {
     toast("请先创建视频任务");
     return;
   }
-  const task = await api.post(`/video-tasks/${state.latestTaskId}/run`);
-  toast(`任务已运行：${task.status}`);
-  await refresh();
+  const currentTask = state.videoTasks.find((item) => item.id === state.latestTaskId);
+  if (currentTask && !taskActionState(currentTask).canRun) {
+    toast("这个任务当前不能开始生成，请先删除成片或检查任务状态");
+    return;
+  }
+  try {
+    const task = await api.post(`/video-tasks/${state.latestTaskId}/run`);
+    toast(`任务已运行：${taskStatusLabel(task.status)}`);
+  } catch (error) {
+    toast("这个任务当前不能开始生成，请先删除成片或检查任务状态");
+  } finally {
+    await refresh();
+  }
 });
 
 document.querySelector("#batchRunSelectedTasksBtn").addEventListener("click", async () => {
@@ -1538,6 +1711,7 @@ document.querySelector("#humanList").addEventListener("click", async (event) => 
 document.querySelectorAll("#taskListTasks, #taskList").forEach((list) => list.addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-action]");
   if (!button) return;
+  if (button.disabled) return;
   const id = button.dataset.id;
   if (button.dataset.action === "preview-video-task") {
     const task = state.videoTasks.find((item) => item.id === Number(id));
@@ -1545,36 +1719,42 @@ document.querySelectorAll("#taskListTasks, #taskList").forEach((list) => list.ad
     renderTaskOutputPreview(task);
     return;
   }
-  if (button.dataset.action === "run-video-task") {
-    button.textContent = "生成中";
-    button.disabled = true;
-    const task = await api.post(`/video-tasks/${id}/run`);
-    toast(`任务已运行：${task.status}`);
-  }
-  if (button.dataset.action === "approve-video-task") {
-    const task = await api.post(`/video-tasks/${id}/approve`);
-    toast(`任务已审核：${task.status}`);
-  }
-  if (button.dataset.action === "prepare-publish") {
-    const accounts = await api.get("/platform-accounts");
-    const account = accounts.find((item) => item.is_default) || accounts[0] || null;
-    const record = await api.post(`/video-tasks/${id}/publish-record`, {
-      platform: account ? account.platform : "douyin",
-      platform_account_id: account ? account.id : null,
-      account_name: account ? account.account_name : "公司官方号",
-    });
-    toast(`发布记录已创建 #${record.id}`);
-    switchPage("publish");
-  }
-  if (button.dataset.action === "delete-task-output") {
-    if (!window.confirm("确认删除这个任务的成片文件吗？任务会保留。")) return;
-    await api.delete(`/video-tasks/${id}/output`);
-    toast("成片已删除");
-  }
-  if (button.dataset.action === "delete-video-task") {
-    if (!window.confirm("确认删除这个视频任务吗？关联发布记录也会删除。")) return;
-    await api.delete(`/video-tasks/${id}`);
-    toast("视频任务已删除");
+  try {
+    if (button.dataset.action === "run-video-task") {
+      const statusCell = button.closest("tr")?.querySelector(".status");
+      button.textContent = "生成中";
+      button.disabled = true;
+      if (statusCell) statusCell.textContent = "生成中";
+      const task = await api.post(`/video-tasks/${id}/run`);
+      toast(`任务已运行：${taskStatusLabel(task.status)}`);
+    }
+    if (button.dataset.action === "approve-video-task") {
+      const task = await api.post(`/video-tasks/${id}/approve`);
+      toast(`任务已审核：${taskStatusLabel(task.status)}`);
+    }
+    if (button.dataset.action === "prepare-publish") {
+      const accounts = await api.get("/platform-accounts");
+      const account = accounts.find((item) => item.is_default) || accounts[0] || null;
+      const record = await api.post(`/video-tasks/${id}/publish-record`, {
+        platform: account ? account.platform : "douyin",
+        platform_account_id: account ? account.id : null,
+        account_name: account ? account.account_name : "公司官方号",
+      });
+      toast(`发布记录已创建 #${record.id}`);
+      switchPage("publish");
+    }
+    if (button.dataset.action === "delete-task-output") {
+      if (!window.confirm("确认删除这个任务的成片文件吗？任务会保留。")) return;
+      await api.delete(`/video-tasks/${id}/output`);
+      toast("成片已删除");
+    }
+    if (button.dataset.action === "delete-video-task") {
+      if (!window.confirm("确认删除这个视频任务吗？关联发布记录也会删除。")) return;
+      await api.delete(`/video-tasks/${id}`);
+      toast("视频任务已删除");
+    }
+  } catch (error) {
+    toast(actionErrorMessage(button.dataset.action));
   }
   await refresh();
 }));

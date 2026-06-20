@@ -384,7 +384,16 @@ h2 {
 }
 
 .settingsSummary {
-  margin-bottom: 14px;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.settingsSummary .statusCard {
+  padding: 10px 12px;
+}
+
+.settingsSummary .statusCard strong {
+  font-size: 20px;
 }
 
 .settingsTableWrap {
@@ -410,6 +419,126 @@ h2 {
   color: var(--muted);
   font-size: 12px;
   font-weight: 900;
+}
+
+#settings-tab-usage .panel {
+  padding: 14px;
+}
+
+#settings-tab-usage .sectionHeader p {
+  font-size: 13px;
+}
+
+.compactTable th,
+.compactTable td {
+  padding: 8px 10px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.compactTable th {
+  white-space: nowrap;
+}
+
+.usageTable td {
+  white-space: nowrap;
+}
+
+.usageTable td:nth-child(1) {
+  font-weight: 900;
+}
+
+.usageTable td:nth-child(2),
+.usageTable td:nth-child(3) {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.usageTable td:nth-child(4),
+.usageTable td:nth-child(5),
+.usageTable td:nth-child(6),
+.usageTable td:nth-child(7) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.storagePanel {
+  padding: 14px;
+}
+
+.storagePathGrid {
+  display: grid;
+  gap: 8px;
+}
+
+.storagePathRow {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 7px 8px;
+  background: #fbfcfd;
+}
+
+.storagePathRow span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.storagePathRow code,
+.pathCode {
+  display: block;
+  overflow: hidden;
+  color: #344054;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.storagePathRow button {
+  width: auto;
+  min-height: 28px;
+  padding-inline: 10px;
+  font-size: 12px;
+}
+
+.storageTable {
+  min-width: 980px;
+}
+
+.storageTable td:nth-child(5) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.storageTable td:nth-child(6) {
+  max-width: 360px;
+}
+
+.storageFileState {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  border-radius: 999px;
+  padding: 2px 7px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.storageFileOk {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.storageFileMissing {
+  background: #fef2f2;
+  color: #b42318;
 }
 
 .settingsTable select {
@@ -916,9 +1045,9 @@ button:disabled {
 .taskTable th,
 .taskTable td {
   border-bottom: 1px solid var(--line);
-  padding: 12px 10px;
+  padding: 9px 10px;
   text-align: left;
-  vertical-align: top;
+  vertical-align: middle;
 }
 
 .taskTable th {
@@ -932,9 +1061,61 @@ button:disabled {
   width: auto;
 }
 
+.taskTable .status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  margin-top: 4px;
+  padding: 2px 7px;
+  font-size: 11px;
+}
+
+.taskStatusQueued,
+.taskStatusDraft {
+  background: #eef2ff;
+  color: #3730a3;
+}
+
+.taskStatusRunning {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.taskStatusReview {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.taskStatusApproved {
+  background: #f0fdf4;
+  color: #15803d;
+}
+
+.taskStatusRejected,
+.taskStatusFailed {
+  background: #fef2f2;
+  color: #b42318;
+}
+
+.taskTable td:nth-child(2) strong {
+  display: inline-block;
+  margin-right: 6px;
+}
+
+.taskTable td:nth-child(3) {
+  max-width: 280px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.taskTable td:nth-child(4) {
+  max-width: 150px;
+  font-size: 13px;
+}
+
 .progressBar {
-  width: 150px;
-  height: 8px;
+  width: 130px;
+  height: 6px;
   overflow: hidden;
   border-radius: 999px;
   background: #e5e7eb;
@@ -974,14 +1155,15 @@ button:disabled {
 .tableActions {
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
-  min-width: 260px;
+  gap: 6px;
+  min-width: 190px;
 }
 
 .tableActions button {
   width: auto;
-  min-height: 34px;
-  padding-inline: 10px;
+  min-height: 28px;
+  padding-inline: 8px;
+  font-size: 12px;
 }
 
 .tableActions button:disabled {
@@ -1277,6 +1459,14 @@ button:disabled {
 
   .analysisPreviewCard {
     grid-template-columns: 1fr;
+  }
+
+  .storagePathRow {
+    grid-template-columns: 1fr;
+  }
+
+  .storagePathRow button {
+    justify-self: start;
   }
 
   .analysisPreviewMedia {
