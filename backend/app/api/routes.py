@@ -339,6 +339,24 @@ async def upload_material(
     tags: str = Form(default=""),
     session: Session = Depends(get_session),
 ) -> Material:
+    return await _save_uploaded_material(
+        file=file,
+        kind=kind,
+        name=name,
+        copyright_status=copyright_status,
+        tags=tags,
+        session=session,
+    )
+
+
+async def _save_uploaded_material(
+    file: UploadFile,
+    kind: MaterialKind,
+    name: Optional[str],
+    session: Session,
+    copyright_status: CopyrightStatus = CopyrightStatus.owned,
+    tags: str = "",
+) -> Material:
     settings = get_settings()
     original_name = file.filename or "upload.bin"
     suffix = Path(original_name).suffix
@@ -374,6 +392,40 @@ def preview_material(material_id: int, session: Session = Depends(get_session)) 
     if not path.exists() or not path.is_file():
         raise HTTPException(status_code=404, detail="Material file not found")
     return FileResponse(path)
+
+
+@router.delete("/materials/{material_id}")
+def delete_material(material_id: int, session: Session = Depends(get_session)) -> dict[str, object]:
+    material = session.get(Material, material_id)
+    if material is None:
+        raise HTTPException(status_code=404, detail="Material not found")
+
+    humans = session.exec(
+        select(DigitalHuman).where(
+            (DigitalHuman.portrait_material_id == material_id)
+            | (DigitalHuman.source_video_material_id == material_id)
+        )
+    ).all()
+    for human in humans:
+        if human.portrait_material_id == material_id:
+            human.portrait_material_id = None
+        if human.source_video_material_id == material_id:
+            human.source_video_material_id = None
+        session.add(human)
+
+    topics = session.exec(select(Topic).where(Topic.reference_material_id == material_id)).all()
+    for topic in topics:
+        topic.reference_material_id = None
+        session.add(topic)
+
+    transcriptions = session.exec(select(TranscriptionTask).where(TranscriptionTask.material_id == material_id)).all()
+    for task in transcriptions:
+        session.delete(task)
+
+    _delete_local_file(material.file_path)
+    session.delete(material)
+    session.commit()
+    return {"deleted": True, "id": material_id}
 
 
 @router.post("/transcriptions", response_model=TranscriptionTask)
@@ -597,9 +649,71 @@ def create_digital_human(payload: DigitalHumanCreate, session: Session = Depends
     return human
 
 
+@router.post("/digital-humans/create-with-assets", response_model=DigitalHuman)
+async def create_digital_human_with_assets(
+    name: str = Form(...),
+    role: Optional[str] = Form(default=None),
+    style: str = Form(default="realistic"),
+    authorization_scope: str = Form(default="internal_marketing"),
+    default_voice: Optional[str] = Form(default=None),
+    portrait_material_id: Optional[int] = Form(default=None),
+    source_video_material_id: Optional[int] = Form(default=None),
+    portrait_file: Optional[UploadFile] = File(default=None),
+    source_video_file: Optional[UploadFile] = File(default=None),
+    session: Session = Depends(get_session),
+) -> DigitalHuman:
+    portrait_id = portrait_material_id
+    source_video_id = source_video_material_id
+
+    if portrait_file is not None and portrait_file.filename:
+        portrait = await _save_uploaded_material(
+            file=portrait_file,
+            kind=MaterialKind.portrait,
+            name=f"{name}头像",
+            tags="digital-human,portrait",
+            session=session,
+        )
+        portrait_id = portrait.id
+
+    if source_video_file is not None and source_video_file.filename:
+        source_video = await _save_uploaded_material(
+            file=source_video_file,
+            kind=MaterialKind.avatar_source,
+            name=f"{name}口播源视频",
+            tags="digital-human,voice-source",
+            session=session,
+        )
+        source_video_id = source_video.id
+
+    payload = DigitalHumanCreate(
+        name=name,
+        role=role,
+        style=style,
+        portrait_material_id=portrait_id,
+        source_video_material_id=source_video_id,
+        default_voice=default_voice,
+        authorization_scope=authorization_scope,
+    )
+    return create_digital_human(payload, session)
+
+
 @router.get("/digital-humans", response_model=list[DigitalHuman])
 def list_digital_humans(session: Session = Depends(get_session)) -> list[DigitalHuman]:
     return list(session.exec(select(DigitalHuman).order_by(DigitalHuman.created_at.desc())).all())
+
+
+@router.delete("/digital-humans/{human_id}")
+def delete_digital_human(human_id: int, session: Session = Depends(get_session)) -> dict[str, object]:
+    human = session.get(DigitalHuman, human_id)
+    if human is None:
+        raise HTTPException(status_code=404, detail="Digital human not found")
+    tasks = session.exec(select(VideoTask).where(VideoTask.digital_human_id == human_id)).all()
+    for task in tasks:
+        task.digital_human_id = None
+        session.add(task)
+    session.delete(human)
+    session.commit()
+    return {"deleted": True, "id": human_id}
 
 
 @router.post("/video-tasks", response_model=VideoTask)
@@ -649,6 +763,34 @@ def preview_video_task_output(task_id: int, session: Session = Depends(get_sessi
     if not path.exists() or not path.is_file():
         raise HTTPException(status_code=404, detail="Video file not found")
     return FileResponse(path, media_type="video/mp4")
+
+
+@router.delete("/video-tasks/{task_id}/output")
+def delete_video_task_output(task_id: int, session: Session = Depends(get_session)) -> dict[str, object]:
+    task = session.get(VideoTask, task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Video task not found")
+    _delete_local_file(task.output_path)
+    task.output_path = None
+    task.status = TaskStatus.queued
+    task.updated_at = datetime.utcnow()
+    session.add(task)
+    session.commit()
+    return {"deleted": True, "id": task_id, "target": "output"}
+
+
+@router.delete("/video-tasks/{task_id}")
+def delete_video_task(task_id: int, session: Session = Depends(get_session)) -> dict[str, object]:
+    task = session.get(VideoTask, task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Video task not found")
+    records = session.exec(select(PublishRecord).where(PublishRecord.video_task_id == task_id)).all()
+    for record in records:
+        session.delete(record)
+    _delete_local_file(task.output_path)
+    session.delete(task)
+    session.commit()
+    return {"deleted": True, "id": task_id}
 
 
 @router.post("/video-tasks/{task_id}/publish-record", response_model=PublishRecord)
@@ -994,3 +1136,17 @@ def set_default_platform_account(
     session.commit()
     session.refresh(account)
     return account
+
+
+def _delete_local_file(path_value: Optional[str]) -> None:
+    if not path_value or path_value.startswith("mock://") or path_value.startswith("http"):
+        return
+    path = Path(path_value)
+    if path.exists() and path.is_file():
+        path.unlink()
+    parent = path.parent
+    try:
+        if parent.exists() and not any(parent.iterdir()):
+            parent.rmdir()
+    except OSError:
+        return

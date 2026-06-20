@@ -238,6 +238,11 @@ button:disabled {
   color: #1d4ed8;
 }
 
+.danger {
+  background: #fee4e2;
+  color: #b42318;
+}
+
 .iconBtn {
   width: 42px;
   min-height: 42px;

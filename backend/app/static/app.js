@@ -23,6 +23,14 @@ const api = {
     if (!res.ok) throw new Error(await res.text());
     return res.json();
   },
+  async delete(path) {
+    const res = await fetch(`/api${path}`, {
+      method: "DELETE",
+      headers: authHeaders(),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
 };
 
 const state = {
@@ -394,6 +402,8 @@ function renderTaskTable(tasks) {
                     <button type="button" data-action="run-video-task" data-id="${task.id}">${task.status === "running" ? "生成中" : "开始生成"}</button>
                     <button type="button" class="secondary" data-action="approve-video-task" data-id="${task.id}">审核通过</button>
                     <button type="button" class="secondary" data-action="prepare-publish" data-id="${task.id}">准备发布</button>
+                    <button type="button" class="secondary" data-action="delete-task-output" data-id="${task.id}">删除成片</button>
+                    <button type="button" class="danger" data-action="delete-video-task" data-id="${task.id}">删除任务</button>
                   </div>
                 </td>
               </tr>
@@ -566,6 +576,9 @@ function renderMaterials(materials) {
           <strong>#${material.id} ${escapeHtml(material.name)}</strong>
           <span class="status">${materialKindLabel(material.kind)}</span>
           <div class="recordMeta">${escapeHtml(material.copyright_status)} · ${escapeHtml(material.tags || "未打标签")}</div>
+          <div class="itemActions accountActions">
+            <button type="button" class="danger" data-action="delete-material" data-id="${material.id}">删除素材</button>
+          </div>
         </div>
       </div>
     `)
@@ -635,6 +648,9 @@ function renderDigitalHumans(humans) {
             <div class="recordMeta">口播源视频 ID：${human.source_video_material_id || "-"}</div>
             <div class="recordMeta">声音 ID：${escapeHtml(human.default_voice || "未复刻")}</div>
             ${sourceVideo}
+            <div class="itemActions accountActions">
+              <button type="button" class="danger" data-action="delete-human" data-id="${human.id}">删除数字人</button>
+            </div>
           </div>
         </div>
       `;
@@ -905,26 +921,21 @@ document.querySelector("#loginForm").addEventListener("submit", async (event) =>
   await refresh();
 });
 
-document.querySelector("#uploadForm").addEventListener("submit", async (event) => {
+document.querySelector("#humanAssetForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
   const payload = new FormData(form);
-  const res = await fetch("/api/materials/upload", {
+  const res = await fetch("/api/digital-humans/create-with-assets", {
     method: "POST",
+    headers: authHeaders(),
     body: payload,
   });
   if (!res.ok) throw new Error(await res.text());
-  const material = await res.json();
-  if (material.kind === "portrait") {
-    state.latestPortraitId = material.id;
-    document.querySelector("[name='portrait_material_id']").value = material.id;
-  }
-  if (material.kind === "avatar_source" || material.kind === "video") {
-    state.latestSourceVideoId = material.id;
-    const sourceSelect = document.querySelector("[name='source_video_material_id']");
-    if (sourceSelect) sourceSelect.value = material.id;
-  }
-  toast(`素材已上传 #${material.id}`);
+  const human = await res.json();
+  state.latestHumanId = human.id;
+  const taskHumanSelect = document.querySelector("#taskHumanSelect");
+  if (taskHumanSelect) taskHumanSelect.value = human.id;
+  toast(`数字人资产已创建 #${human.id}`);
   form.reset();
   await refresh();
 });
@@ -946,28 +957,6 @@ document.querySelector("#scriptForm").addEventListener("submit", async (event) =
   state.latestScriptId = script.id;
   document.querySelector("[name='script_id']").value = script.id;
   toast(`脚本已生成 #${script.id}`);
-  await refresh();
-});
-
-document.querySelector("#humanForm").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const payload = formData(event.currentTarget);
-  payload.portrait_material_id = payload.portrait_material_id
-    ? Number(payload.portrait_material_id)
-    : state.latestPortraitId;
-  payload.source_video_material_id = payload.source_video_material_id
-    ? Number(payload.source_video_material_id)
-    : state.latestSourceVideoId;
-  if (!payload.portrait_material_id) {
-    delete payload.portrait_material_id;
-  }
-  if (!payload.source_video_material_id) {
-    delete payload.source_video_material_id;
-  }
-  const human = await api.post("/digital-humans", payload);
-  state.latestHumanId = human.id;
-  document.querySelector("[name='digital_human_id']").value = human.id;
-  toast(`数字人已创建 #${human.id}`);
   await refresh();
 });
 
@@ -1037,6 +1026,24 @@ document.querySelector("#runTaskBtn").addEventListener("click", async () => {
   await refresh();
 });
 
+document.querySelector("#materialList").addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-action='delete-material']");
+  if (!button) return;
+  if (!window.confirm("确认删除这个素材吗？相关数字人会自动解除绑定。")) return;
+  await api.delete(`/materials/${button.dataset.id}`);
+  toast("素材已删除");
+  await refresh();
+});
+
+document.querySelector("#humanList").addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-action='delete-human']");
+  if (!button) return;
+  if (!window.confirm("确认删除这个数字人吗？相关视频任务会改为不露脸。")) return;
+  await api.delete(`/digital-humans/${button.dataset.id}`);
+  toast("数字人已删除");
+  await refresh();
+});
+
 document.querySelectorAll("#taskListTasks, #taskList").forEach((list) => list.addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-action]");
   if (!button) return;
@@ -1061,6 +1068,16 @@ document.querySelectorAll("#taskListTasks, #taskList").forEach((list) => list.ad
     });
     toast(`发布记录已创建 #${record.id}`);
     switchPage("publish");
+  }
+  if (button.dataset.action === "delete-task-output") {
+    if (!window.confirm("确认删除这个任务的成片文件吗？任务会保留。")) return;
+    await api.delete(`/video-tasks/${id}/output`);
+    toast("成片已删除");
+  }
+  if (button.dataset.action === "delete-video-task") {
+    if (!window.confirm("确认删除这个视频任务吗？关联发布记录也会删除。")) return;
+    await api.delete(`/video-tasks/${id}`);
+    toast("视频任务已删除");
   }
   await refresh();
 }));

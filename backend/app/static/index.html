@@ -179,21 +179,32 @@
 
       <section id="page-humans" class="page">
         <section class="split">
-          <form id="uploadForm" class="panel">
-            <h2>上传数字人素材</h2>
-            <label>文件<input name="file" type="file" accept="image/*,video/*" /></label>
-            <label>名称<input name="name" placeholder="李明亮头像 / 李明亮口播源视频" /></label>
-            <label>类型
-              <select name="kind">
-                <option value="portrait">数字人头像</option>
-                <option value="avatar_source">数字人口播视频源</option>
-                <option value="image">图片素材</option>
-                <option value="video">普通视频素材</option>
-                <option value="product">产品素材</option>
-                <option value="reference">参考素材</option>
+          <form id="humanAssetForm" class="panel">
+            <h2>创建数字人资产</h2>
+            <label>名称<input name="name" value="公司讲解员A" /></label>
+            <label>角色<input name="role" value="品牌顾问" /></label>
+            <label>上传头像<input name="portrait_file" type="file" accept="image/*" /></label>
+            <label>或选择已有头像
+              <select name="portrait_material_id" id="portraitMaterialSelect">
+                <option value="">不选择已有头像</option>
               </select>
             </label>
-            <button type="submit">上传并预览</button>
+            <label>上传口播源视频<input name="source_video_file" type="file" accept="video/*" /></label>
+            <label>或选择已有口播源视频
+              <select name="source_video_material_id" id="sourceVideoMaterialSelect">
+                <option value="">不选择已有源视频</option>
+              </select>
+            </label>
+            <label>风格
+              <select name="style">
+                <option value="realistic">实拍真实感</option>
+                <option value="ai_recommended">AI 推荐</option>
+                <option value="business">商务</option>
+                <option value="consultant">顾问</option>
+                <option value="cartoon">卡通</option>
+              </select>
+            </label>
+            <button type="submit">创建并生成数字人</button>
           </form>
           <div class="panel">
             <h2>声音与形象采集</h2>
@@ -203,41 +214,6 @@
               <div class="item">配置声音复刻 API 后，系统会先生成 voice_id，再用本人音色合成新脚本。</div>
             </div>
             <div id="voiceCloneStatus" class="voiceCloneStatus"></div>
-          </div>
-        </section>
-        <section class="split">
-          <form id="humanForm" class="panel">
-            <h2>创建数字人</h2>
-            <label>名称<input name="name" value="公司讲解员A" /></label>
-            <label>角色<input name="role" value="品牌顾问" /></label>
-            <label>头像素材
-              <select name="portrait_material_id" id="portraitMaterialSelect">
-                <option value="">先上传头像素材</option>
-              </select>
-            </label>
-            <label>口播视频源
-              <select name="source_video_material_id" id="sourceVideoMaterialSelect">
-                <option value="">可选，先上传带语音的视频源</option>
-              </select>
-            </label>
-            <label>风格
-              <select name="style">
-                <option value="business">商务</option>
-                <option value="realistic">实拍真实感</option>
-                <option value="ai_recommended">AI 推荐</option>
-                <option value="consultant">顾问</option>
-                <option value="cartoon">卡通</option>
-              </select>
-            </label>
-            <button type="submit">创建数字人</button>
-          </form>
-          <div class="panel">
-            <h2>数字人流程</h2>
-            <div class="list">
-              <div class="item">先在素材库上传授权头像和带语音的视频源。</div>
-              <div class="item">创建数字人时绑定头像和口播视频源。</div>
-              <div class="item">视频任务运行时会把头像、源视频和新音频一起交给数字人适配器。</div>
-            </div>
           </div>
         </section>
         <section class="panel footerPanel">
