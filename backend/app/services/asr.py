@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 import httpx
 from app.core.config import get_settings
-from app.models.entities import Material, TranscriptionTask
+from app.models.entities import AIModelConfig, Material, TranscriptionTask
 
 
 @dataclass
@@ -15,27 +15,39 @@ class TranscriptionResult:
 
 
 class ASRClient:
-    def __init__(self) -> None:
+    def __init__(self, model_config: AIModelConfig | None = None) -> None:
         self.settings = get_settings()
+        self.model_config = model_config
 
     async def transcribe(self, task: TranscriptionTask, material: Material) -> TranscriptionResult:
-        if self.settings.asr_provider in ("volcengine", "http-json") and self.settings.asr_api_base:
-            return await self._transcribe_http_json(task, material)
+        provider = self.model_config.provider if self.model_config else self.settings.asr_provider
+        api_base = self.model_config.api_base if self.model_config and self.model_config.api_base else self.settings.asr_api_base
+        api_key = self.model_config.api_key if self.model_config and self.model_config.api_key else self.settings.asr_api_key
+        model_name = self.model_config.model_name if self.model_config else self.settings.asr_model
+        if provider in ("volcengine", "http-json", "aliyun-bailian", "openai-compatible") and api_base:
+            return await self._transcribe_http_json(task, material, api_base, api_key, model_name)
         return self._mock_result(material)
 
-    async def _transcribe_http_json(self, task: TranscriptionTask, material: Material) -> TranscriptionResult:
+    async def _transcribe_http_json(
+        self,
+        task: TranscriptionTask,
+        material: Material,
+        api_base: str,
+        api_key: str | None,
+        model_name: str,
+    ) -> TranscriptionResult:
         headers = {}
-        if self.settings.asr_api_key:
-            headers["Authorization"] = f"Bearer {self.settings.asr_api_key}"
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
 
         payload = {
-            "model": self.settings.asr_model,
+            "model": model_name,
             "language": task.language,
             "file_path": material.file_path,
             "source_url": material.source_url,
             "material_name": material.name,
         }
-        url = self.settings.asr_api_base.rstrip("/") + "/asr/transcriptions"
+        url = api_base.rstrip("/") + "/asr/transcriptions"
         async with httpx.AsyncClient(timeout=180) as client:
             response = await client.post(url, headers=headers, json=payload)
             response.raise_for_status()

@@ -107,6 +107,13 @@ const providerOptions = {
     { value: "hunyuan-video", label: "HunyuanVideo", model: "hunyuan-video" },
     { value: "mock", label: "Mock 测试", model: "mock-video" },
   ],
+  digital_human: [
+    { value: "volcengine-digital-human", label: "火山引擎 / 数字人驱动", model: "volcengine-digital-human" },
+    { value: "sadtalker", label: "SadTalker 本地/HTTP 服务", model: "sadtalker" },
+    { value: "heygen", label: "HeyGen 数字人", model: "heygen-avatar" },
+    { value: "d-id", label: "D-ID 数字人", model: "d-id-talking-avatar" },
+    { value: "mock", label: "Mock 测试", model: "mock-digital-human" },
+  ],
   asr: [
     { value: "volcengine", label: "火山引擎 / 豆包 ASR", model: "volcengine-asr" },
     { value: "aliyun-bailian", label: "阿里云百炼 / Qwen Audio", model: "qwen-audio-asr" },
@@ -1089,6 +1096,7 @@ function purposeLabel(value) {
     tts: "语音合成",
     voice_clone: "声音复刻",
     video: "视频生成",
+    digital_human: "数字人驱动",
     asr: "语音识别",
     compliance: "合规检查",
     knowledge: "知识库/文档/长文本",

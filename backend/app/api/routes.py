@@ -67,9 +67,16 @@ from app.services.ai_clients import ScriptGenerator
 from app.services.asr import ASRClient
 from app.services.pipeline import VideoPipeline
 from app.services.trending import TrendingCollector
+from app.services.usage import estimate_text_tokens, record_generated_model_usage, record_model_usage
 
 
 router = APIRouter()
+
+
+def _active_model_config(session: Session, purpose: str) -> AIModelConfig | None:
+    return session.exec(
+        select(AIModelConfig).where(AIModelConfig.purpose == purpose, AIModelConfig.is_active == True)
+    ).first()
 
 
 async def _run_video_task_background(task_id: int) -> None:
@@ -617,18 +624,37 @@ async def run_transcription_task(
     material = session.get(Material, task.material_id)
     if material is None:
         raise HTTPException(status_code=404, detail="Material not found")
+    active_model = _active_model_config(session, "asr")
+    settings = get_settings()
+    task.provider = active_model.provider if active_model else settings.asr_provider
     task.status = TaskStatus.running
     session.add(task)
     session.commit()
     try:
-        result = await ASRClient().transcribe(task, material)
+        result = await ASRClient(active_model).transcribe(task, material)
         task.transcript = result.transcript
         task.summary = result.summary
         task.hook_analysis = result.hook_analysis
         task.status = TaskStatus.needs_review
+        record_model_usage(
+            session=session,
+            purpose="asr",
+            model_config=active_model,
+            provider=settings.asr_provider,
+            model_name=settings.asr_model,
+            completion_tokens=estimate_text_tokens(result.transcript, result.summary, result.hook_analysis),
+        )
     except Exception as exc:
         task.status = TaskStatus.failed
         task.error_message = str(exc)
+        record_model_usage(
+            session=session,
+            purpose="asr",
+            model_config=active_model,
+            provider=settings.asr_provider,
+            model_name=settings.asr_model,
+            status="failed",
+        )
     session.add(task)
     session.commit()
     session.refresh(task)
@@ -690,9 +716,7 @@ async def generate_script_from_transcription(
         f"开头钩子分析：{task.hook_analysis}。"
         "要求只借鉴结构和选题，不复制原文。"
     )
-    active_model = session.exec(
-        select(AIModelConfig).where(AIModelConfig.purpose == "script", AIModelConfig.is_active == True)
-    ).first()
+    active_model = _active_model_config(session, "script")
     generated = await ScriptGenerator(active_model).generate(
         topic=topic,
         brand_voice="专业、可信、原创、适合公司数字人口播",
@@ -711,7 +735,15 @@ async def generate_script_from_transcription(
         compliance_notes=f"{generated.compliance_notes}\n基于转写任务 #{task.id} 生成，仅借鉴结构，不搬运原文。",
     )
     session.add(script)
-    _record_model_usage(session, active_model, "script", generated)
+    settings = get_settings()
+    record_generated_model_usage(
+        session,
+        "script",
+        generated,
+        active_model,
+        provider=settings.llm_provider,
+        model_name=settings.llm_model,
+    )
     session.commit()
     session.refresh(script)
     return script
@@ -738,47 +770,6 @@ def list_topics(session: Session = Depends(get_session)) -> list[Topic]:
     return list(session.exec(select(Topic).order_by(Topic.created_at.desc())).all())
 
 
-def _estimate_completion_tokens(generated) -> int:
-    text = "\n".join(
-        [
-            generated.hook,
-            generated.voiceover,
-            generated.storyboard,
-            generated.seedance_prompt,
-            generated.title_options,
-            generated.hashtags,
-            generated.compliance_notes,
-        ]
-    )
-    return max(1, len(text) // 2) if text.strip() else 0
-
-
-def _record_model_usage(
-    session: Session,
-    model_config: Optional[AIModelConfig],
-    purpose: str,
-    generated,
-    status: str = "success",
-) -> None:
-    prompt_tokens = int(getattr(generated, "prompt_tokens", 0) or 0)
-    completion_tokens = int(getattr(generated, "completion_tokens", 0) or 0)
-    total_tokens = int(getattr(generated, "total_tokens", 0) or 0)
-    if total_tokens <= 0:
-        completion_tokens = completion_tokens or _estimate_completion_tokens(generated)
-        total_tokens = prompt_tokens + completion_tokens
-    usage = AIModelUsage(
-        model_config_id=model_config.id if model_config else None,
-        provider=model_config.provider if model_config else get_settings().llm_provider,
-        purpose=purpose,
-        model_name=model_config.model_name if model_config else get_settings().llm_model,
-        prompt_tokens=prompt_tokens,
-        completion_tokens=completion_tokens,
-        total_tokens=total_tokens,
-        status=status,
-    )
-    session.add(usage)
-
-
 def _create_script_record(
     session: Session,
     payload: ScriptGenerateRequest,
@@ -797,7 +788,15 @@ def _create_script_record(
         compliance_notes=generated.compliance_notes,
     )
     session.add(script)
-    _record_model_usage(session, model_config, "script", generated)
+    settings = get_settings()
+    record_generated_model_usage(
+        session,
+        "script",
+        generated,
+        model_config,
+        provider=settings.llm_provider,
+        model_name=settings.llm_model,
+    )
     session.commit()
     session.refresh(script)
     return script
@@ -805,9 +804,7 @@ def _create_script_record(
 
 @router.post("/scripts/generate", response_model=Script)
 async def generate_script(payload: ScriptGenerateRequest, session: Session = Depends(get_session)) -> Script:
-    active_model = session.exec(
-        select(AIModelConfig).where(AIModelConfig.purpose == "script", AIModelConfig.is_active == True)
-    ).first()
+    active_model = _active_model_config(session, "script")
     generated = await ScriptGenerator(active_model).generate(
         topic=payload.topic,
         brand_voice=payload.brand_voice,
@@ -820,9 +817,7 @@ async def generate_script(payload: ScriptGenerateRequest, session: Session = Dep
 
 @router.post("/scripts/batch-generate", response_model=list[Script])
 async def batch_generate_scripts(payload: ScriptBatchGenerateRequest, session: Session = Depends(get_session)) -> list[Script]:
-    active_model = session.exec(
-        select(AIModelConfig).where(AIModelConfig.purpose == "script", AIModelConfig.is_active == True)
-    ).first()
+    active_model = _active_model_config(session, "script")
     generator = ScriptGenerator(active_model)
     topics = [item.strip() for item in payload.topics if item.strip()] or [
         f"{payload.topic}\n批量生成第 {index + 1} 条：请换一个标题角度、开头钩子和分镜结构，避免与其他脚本重复。"

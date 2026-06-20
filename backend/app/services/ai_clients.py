@@ -238,26 +238,33 @@ class ScriptGenerator:
 
 
 class MediaGenerationClient:
-    def __init__(self, video_model_config=None) -> None:
+    def __init__(self, video_model_config=None, tts_model_config=None, digital_human_model_config=None) -> None:
         self.settings = get_settings()
         self.video_model_config = video_model_config
+        self.tts_model_config = tts_model_config
+        self.digital_human_model_config = digital_human_model_config
         self.storage_dir = Path(self.settings.storage_dir)
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 
     async def synthesize_voice(self, text: str, voice: Optional[str] = None) -> str:
-        if self.settings.tts_provider == "mock" or not self.settings.tts_api_base:
+        api_base = self.tts_model_config.api_base if self.tts_model_config and self.tts_model_config.api_base else self.settings.tts_api_base
+        api_key = self.tts_model_config.api_key if self.tts_model_config and self.tts_model_config.api_key else self.settings.tts_api_key
+        provider = self.tts_model_config.provider if self.tts_model_config else self.settings.tts_provider
+        default_voice = self.tts_model_config.model_name if self.tts_model_config else self.settings.tts_voice
+        if provider == "mock" or not api_base:
             return self._local_voiceover(text, voice)
 
         payload = {
             "text": text,
-            "voice": voice or self.settings.tts_voice,
+            "voice": voice or default_voice,
+            "provider": provider,
             "format": "wav",
         }
         data = await self._post_media(
-            self.settings.tts_api_base,
+            api_base,
             "/synthesize",
             payload,
-            api_key=self.settings.tts_api_key,
+            api_key=api_key,
             binary=True,
         )
         output_path = self._asset_path("voice", "voiceover.wav")
@@ -300,7 +307,22 @@ class MediaGenerationClient:
         audio_path: str,
         source_video_path: Optional[str] = None,
     ) -> str:
-        if self.settings.digital_human_provider == "mock" or not self.settings.digital_human_api_base:
+        api_base = (
+            self.digital_human_model_config.api_base
+            if self.digital_human_model_config and self.digital_human_model_config.api_base
+            else self.settings.digital_human_api_base
+        )
+        api_key = (
+            self.digital_human_model_config.api_key
+            if self.digital_human_model_config and self.digital_human_model_config.api_key
+            else self.settings.digital_human_api_key
+        )
+        provider = (
+            self.digital_human_model_config.provider
+            if self.digital_human_model_config
+            else self.settings.digital_human_provider
+        )
+        if provider == "mock" or not api_base:
             if portrait_path and self._is_local_path(audio_path):
                 return self._local_talking_avatar_preview(portrait_path, audio_path)
             return self._mock_asset("digital-human", "talking-avatar.mp4")
@@ -308,24 +330,31 @@ class MediaGenerationClient:
         if self._is_local_path(audio_path) and (
             self._is_local_path(portrait_path or "") or self._is_local_path(source_video_path or "")
         ):
-            result = await self._post_digital_human_media(portrait_path, audio_path, source_video_path)
+            result = await self._post_digital_human_media(
+                portrait_path,
+                audio_path,
+                source_video_path,
+                api_base,
+                api_key,
+                provider,
+            )
             media_url = self._extract_media_url(result, "digital_human_video")
             if media_url.startswith("http"):
                 return await self._download_media(media_url, "digital-human", "talking-avatar.mp4")
             return media_url
 
         payload = {
-            "provider": self.settings.digital_human_provider,
+            "provider": provider,
             "portrait_path": portrait_path,
             "audio_path": audio_path,
             "source_video_path": source_video_path,
             "format": "mp4",
         }
         result = await self._post_media(
-            self.settings.digital_human_api_base,
+            api_base,
             "/generate",
             payload,
-            api_key=self.settings.digital_human_api_key,
+            api_key=api_key,
         )
         return self._extract_media_url(result, "digital_human_video")
 
@@ -432,13 +461,18 @@ class MediaGenerationClient:
         portrait_path: Optional[str],
         audio_path: str,
         source_video_path: Optional[str] = None,
+        api_base: Optional[str] = None,
+        api_key: Optional[str] = None,
+        provider: Optional[str] = None,
     ) -> dict[str, object]:
         headers = {}
-        if self.settings.digital_human_api_key:
-            headers["Authorization"] = f"Bearer {self.settings.digital_human_api_key}"
-        url = self.settings.digital_human_api_base.rstrip("/") + "/generate"
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+        if not api_base:
+            raise RuntimeError("Digital human service is not configured")
+        url = api_base.rstrip("/") + "/generate"
         data = {
-            "provider": self.settings.digital_human_provider,
+            "provider": provider or self.settings.digital_human_provider,
             "format": "mp4",
         }
         with open(audio_path, "rb") as audio_file:

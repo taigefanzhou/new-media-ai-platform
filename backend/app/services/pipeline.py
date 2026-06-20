@@ -3,14 +3,25 @@ from __future__ import annotations
 from datetime import datetime
 from sqlmodel import select
 from sqlmodel import Session
+from app.core.config import get_settings
 from app.models.entities import AIModelConfig, DigitalHuman, Material, Script, TaskStatus, VideoSegment, VideoTask
 from app.services.ai_clients import MediaGenerationClient
+from app.services.usage import estimate_text_tokens, record_model_usage
 
 
 class VideoPipeline:
     def __init__(self, session: Session) -> None:
         self.session = session
-        self.media = MediaGenerationClient(self._active_video_model())
+        self.settings = get_settings()
+        self.video_model_config = self._active_model("video")
+        self.tts_model_config = self._active_model("tts")
+        self.digital_human_model_config = self._active_model("digital_human")
+        self.voice_clone_model_config = self._active_model("voice_clone")
+        self.media = MediaGenerationClient(
+            self.video_model_config,
+            self.tts_model_config,
+            self.digital_human_model_config,
+        )
 
     async def run(self, task: VideoTask) -> VideoTask:
         task.status = TaskStatus.running
@@ -42,8 +53,8 @@ class VideoPipeline:
             portrait = self._portrait_path(human)
             source_video = self._source_video_path(human)
             voice = await self._voice_for_human(human, source_video, task)
-            audio = await self.media.synthesize_voice(script.voiceover, voice)
-            avatar = await self.media.generate_talking_avatar(portrait, audio, source_video)
+            audio = await self._synthesize_voice(script, voice)
+            avatar = await self._generate_talking_avatar(portrait, audio, source_video)
             clips = []
             for segment in segments:
                 clip_path = await self._run_segment(segment, task)
@@ -99,6 +110,13 @@ class VideoPipeline:
                 segment.segment_index - 1,
                 task.segment_count,
             )
+            self._record_usage(
+                "video",
+                self.video_model_config,
+                provider=self.settings.video_generation_provider,
+                model_name=self.settings.seedance_model,
+                prompt_tokens=estimate_text_tokens(segment.prompt),
+            )
             segment.output_path = clip_path
             segment.status = TaskStatus.needs_review
             segment.updated_at = datetime.utcnow()
@@ -109,6 +127,14 @@ class VideoPipeline:
             self.session.commit()
             return clip_path
         except Exception as exc:
+            self._record_usage(
+                "video",
+                self.video_model_config,
+                provider=self.settings.video_generation_provider,
+                model_name=self.settings.seedance_model,
+                prompt_tokens=estimate_text_tokens(segment.prompt),
+                status="failed",
+            )
             segment.status = TaskStatus.failed
             segment.error_message = str(exc)
             segment.updated_at = datetime.utcnow()
@@ -160,9 +186,22 @@ class VideoPipeline:
             voice_id = await self.media.clone_voice_from_source_video(
                 source_video_path,
                 human.name,
-                self._active_voice_clone_model(),
+                self.voice_clone_model_config,
+            )
+            self._record_usage(
+                "voice_clone",
+                self.voice_clone_model_config,
+                provider=self.settings.voice_clone_provider,
+                model_name=self.settings.voice_clone_provider,
             )
         except Exception as exc:
+            self._record_usage(
+                "voice_clone",
+                self.voice_clone_model_config,
+                provider=self.settings.voice_clone_provider,
+                model_name=self.settings.voice_clone_provider,
+                status="failed",
+            )
             note = f"声音复刻未执行，继续使用默认语音：{exc}"
             task.audit_notes = f"{task.audit_notes}\n{note}".strip()
             self.session.add(task)
@@ -173,18 +212,78 @@ class VideoPipeline:
         self.session.commit()
         return voice_id
 
-    def _active_video_model(self) -> AIModelConfig | None:
+    async def _synthesize_voice(self, script: Script, voice: str | None) -> str:
+        try:
+            audio = await self.media.synthesize_voice(script.voiceover, voice)
+            self._record_usage(
+                "tts",
+                self.tts_model_config,
+                provider=self.settings.tts_provider,
+                model_name=self.settings.tts_voice,
+                prompt_tokens=estimate_text_tokens(script.voiceover),
+            )
+            return audio
+        except Exception:
+            self._record_usage(
+                "tts",
+                self.tts_model_config,
+                provider=self.settings.tts_provider,
+                model_name=self.settings.tts_voice,
+                prompt_tokens=estimate_text_tokens(script.voiceover),
+                status="failed",
+            )
+            raise
+
+    async def _generate_talking_avatar(
+        self,
+        portrait_path: str | None,
+        audio_path: str,
+        source_video_path: str | None,
+    ) -> str:
+        try:
+            avatar = await self.media.generate_talking_avatar(portrait_path, audio_path, source_video_path)
+            self._record_usage(
+                "digital_human",
+                self.digital_human_model_config,
+                provider=self.settings.digital_human_provider,
+                model_name=self.settings.digital_human_provider,
+            )
+            return avatar
+        except Exception:
+            self._record_usage(
+                "digital_human",
+                self.digital_human_model_config,
+                provider=self.settings.digital_human_provider,
+                model_name=self.settings.digital_human_provider,
+                status="failed",
+            )
+            raise
+
+    def _active_model(self, purpose: str) -> AIModelConfig | None:
         return self.session.exec(
             select(AIModelConfig).where(
-                AIModelConfig.purpose == "video",
+                AIModelConfig.purpose == purpose,
                 AIModelConfig.is_active == True,
             )
         ).first()
 
-    def _active_voice_clone_model(self) -> AIModelConfig | None:
-        return self.session.exec(
-            select(AIModelConfig).where(
-                AIModelConfig.purpose == "voice_clone",
-                AIModelConfig.is_active == True,
-            )
-        ).first()
+    def _record_usage(
+        self,
+        purpose: str,
+        model_config: AIModelConfig | None,
+        provider: str,
+        model_name: str,
+        prompt_tokens: int = 0,
+        completion_tokens: int = 0,
+        status: str = "success",
+    ) -> None:
+        record_model_usage(
+            session=self.session,
+            purpose=purpose,
+            model_config=model_config,
+            provider=provider,
+            model_name=model_name,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            status=status,
+        )
