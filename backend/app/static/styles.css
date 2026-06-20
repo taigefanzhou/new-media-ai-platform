@@ -1413,6 +1413,33 @@ button:disabled {
   font-weight: 900;
 }
 
+.analysisQuality,
+.modelTestResult {
+  border: 1px solid #b7e4d8;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #f0fdfa;
+  color: #134e4a;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.55;
+}
+
+.modelTestResult {
+  margin-bottom: 12px;
+}
+
+.modelTestResult strong,
+.modelTestResult span {
+  display: block;
+}
+
+.modelTestResult p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-weight: 700;
+}
+
 .videoAnalysisSheet {
   display: block;
   width: 100%;

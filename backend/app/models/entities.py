@@ -180,6 +180,9 @@ class ReferenceVideoAnalysis(SQLModel, table=True):
     editing_analysis: str = ""
     reusable_template: str = ""
     reuse_notes: str = ""
+    quality_score: float = 0
+    quality_summary: str = ""
+    model_enhanced: bool = False
     error_message: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

@@ -1224,6 +1224,7 @@ function renderIntegrations(status) {
     voice_clone: "声音复刻",
     digital_human: "数字人",
     video_generation: "视频生成",
+    video_understanding: "视频理解",
     composition: "视频合成",
     trending_search: "爆款采集",
     asr: "语音识别",
@@ -1248,10 +1249,16 @@ function renderModels(models) {
     .map(
       (model) => `
         <div class="item">
-          <strong>${model.name}</strong>
+          <div class="itemHeader">
+            <strong>${model.name}</strong>
+            <span class="status taskStatus ${model.is_active ? "taskStatusApproved" : "taskStatusDraft"}">${model.is_active ? "启用" : "停用"}</span>
+          </div>
           <div>${providerLabel(model.purpose, model.provider)} · ${purposeLabel(model.purpose)}</div>
           <div>${model.model_name}</div>
-          <span class="status">${model.is_active ? "启用" : "停用"}</span>
+          <div class="itemActions">
+            <button type="button" class="secondary" data-action="test-model-config" data-id="${model.id}">测试</button>
+            <button type="button" data-action="activate-model-config" data-id="${model.id}" ${model.is_active ? "disabled" : ""}>启用</button>
+          </div>
         </div>
       `,
     )
@@ -1649,7 +1656,9 @@ function renderVideoAnalyses(analyses) {
             <span>${analysis.width || "-"}x${analysis.height || "-"}</span>
             <span>${analysis.scene_count || 0} 个视觉段落</span>
             <span>平均 ${Number(analysis.avg_shot_seconds || 0).toFixed(1)} 秒/段</span>
+            <span>${analysis.model_enhanced ? "模型增强" : "本地基础"} · ${Number(analysis.quality_score || 0).toFixed(0)} 分</span>
           </div>
+          ${analysis.quality_summary ? `<div class="analysisQuality">${escapeHtml(analysis.quality_summary)}</div>` : ""}
           ${analysis.dense_contact_sheet_path ? `<img class="videoAnalysisSheet" src="/api/video-analyses/${analysis.id}/dense-contact-sheet" alt="深度拆解抽帧图" />` : ""}
           ${analysis.error_message ? `<div class="errorText">${escapeHtml(analysis.error_message)}</div>` : ""}
           <div class="analysisGrid">
@@ -2334,6 +2343,48 @@ document.querySelector("#modelConfigForm").addEventListener("submit", async (eve
   const config = await api.post("/settings/models", payload);
   toast(`模型配置已保存 #${config.id}`);
   await refresh();
+});
+
+document.querySelector("#modelConfigList").addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-action]");
+  if (!button || button.disabled) return;
+  const id = button.dataset.id;
+  const resultTarget = document.querySelector("#modelTestResult");
+  if (button.dataset.action === "activate-model-config") {
+    const config = await api.post(`/settings/models/${id}/activate`);
+    toast(`${config.name} 已启用`);
+    await refresh();
+    return;
+  }
+  if (button.dataset.action === "test-model-config") {
+    const originalText = button.textContent;
+    button.disabled = true;
+    button.textContent = "测试中...";
+    if (resultTarget) {
+      resultTarget.innerHTML = "正在测试模型连接...";
+    }
+    try {
+      const result = await api.post(`/settings/models/${id}/test`);
+      if (resultTarget) {
+        resultTarget.innerHTML = `
+          <strong>测试通过 · ${escapeHtml(result.provider || "-")} / ${escapeHtml(result.model_name || "-")}</strong>
+          <span>评分 ${Number(result.quality_score || 0).toFixed(0)} 分</span>
+          <p>${escapeHtml(result.summary || "模型连接可用。")}</p>
+        `;
+      }
+      toast(`模型测试通过：${Number(result.quality_score || 0).toFixed(0)} 分`);
+      await refresh();
+    } catch (error) {
+      const message = error?.message || "模型测试失败";
+      if (resultTarget) {
+        resultTarget.innerHTML = `<strong>测试失败</strong><p>${escapeHtml(message)}</p>`;
+      }
+      toast(message);
+    } finally {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  }
 });
 
 document.querySelector("#platformCredentialForm").addEventListener("submit", async (event) => {

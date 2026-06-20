@@ -46,6 +46,9 @@ def apply_sqlite_migrations() -> None:
                     editing_analysis VARCHAR DEFAULT '',
                     reusable_template VARCHAR DEFAULT '',
                     reuse_notes VARCHAR DEFAULT '',
+                    quality_score FLOAT DEFAULT 0,
+                    quality_summary VARCHAR DEFAULT '',
+                    model_enhanced BOOLEAN DEFAULT 0,
                     error_message VARCHAR,
                     created_at DATETIME,
                     updated_at DATETIME
@@ -53,6 +56,16 @@ def apply_sqlite_migrations() -> None:
                 """
             )
         )
+        analysis_rows = connection.execute(text("PRAGMA table_info(referencevideoanalysis)")).fetchall()
+        analysis_columns = {row[1] for row in analysis_rows}
+        analysis_migrations = {
+            "quality_score": "ALTER TABLE referencevideoanalysis ADD COLUMN quality_score FLOAT DEFAULT 0",
+            "quality_summary": "ALTER TABLE referencevideoanalysis ADD COLUMN quality_summary VARCHAR DEFAULT ''",
+            "model_enhanced": "ALTER TABLE referencevideoanalysis ADD COLUMN model_enhanced BOOLEAN DEFAULT 0",
+        }
+        for column, statement in analysis_migrations.items():
+            if analysis_rows and column not in analysis_columns:
+                connection.execute(text(statement))
 
         rows = connection.execute(text("PRAGMA table_info(publishrecord)")).fetchall()
         columns = {row[1] for row in rows}

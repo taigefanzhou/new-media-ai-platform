@@ -445,6 +445,58 @@ def activate_model_config(
     return config
 
 
+@router.post("/settings/models/{model_id}/test")
+async def test_model_config(
+    model_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> dict[str, object]:
+    config = session.get(AIModelConfig, model_id)
+    if config is None:
+        raise HTTPException(status_code=404, detail="Model config not found")
+    try:
+        if config.purpose == "video_understanding":
+            result = await ReferenceVideoAnalyzer(config).test_connection()
+        elif config.api_base and config.api_key:
+            result = {
+                "ok": True,
+                "provider": config.provider,
+                "model_name": config.model_name,
+                "quality_score": 70,
+                "summary": "模型配置已填写；当前测试按钮主要用于视频理解/深度拆解模型。",
+                "usage": {"prompt_tokens": 0, "completion_tokens": 1, "total_tokens": 1},
+            }
+        else:
+            result = {
+                "ok": True,
+                "provider": config.provider,
+                "model_name": config.model_name,
+                "quality_score": 60,
+                "summary": "本地或占位模型配置可用，但未调用外部 API。",
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        usage = result.get("usage") if isinstance(result.get("usage"), dict) else {}
+        record_model_usage(
+            session=session,
+            purpose=config.purpose,
+            model_config=config,
+            prompt_tokens=int(usage.get("prompt_tokens") or 0),
+            completion_tokens=int(usage.get("completion_tokens") or 0),
+            total_tokens=int(usage.get("total_tokens") or 0),
+        )
+        session.commit()
+        return result
+    except Exception as exc:
+        record_model_usage(
+            session=session,
+            purpose=config.purpose,
+            model_config=config,
+            status="failed",
+        )
+        session.commit()
+        raise HTTPException(status_code=400, detail=f"模型测试失败：{exc}") from exc
+
+
 def _deactivate_models(session: Session, purpose: str) -> None:
     configs = session.exec(select(AIModelConfig).where(AIModelConfig.purpose == purpose)).all()
     for item in configs:
@@ -556,8 +608,9 @@ def _platform_credential_public(credential: PlatformCredential) -> PlatformCrede
 
 
 @router.get("/integrations/status")
-def integrations_status() -> dict[str, dict[str, object]]:
+def integrations_status(session: Session = Depends(get_session)) -> dict[str, dict[str, object]]:
     settings = get_settings()
+    video_understanding_model = _active_model_config(session, "video_understanding")
     return {
         "script_model": {
             "provider": settings.llm_provider,
@@ -585,6 +638,17 @@ def integrations_status() -> dict[str, dict[str, object]]:
                 or bool(settings.comfyui_api_base)
             ),
             "model": settings.seedance_model,
+        },
+        "video_understanding": {
+            "provider": video_understanding_model.provider if video_understanding_model else "local",
+            "configured": bool(
+                video_understanding_model
+                and (
+                    video_understanding_model.provider == "local"
+                    or (video_understanding_model.api_base and video_understanding_model.api_key)
+                )
+            ),
+            "model": video_understanding_model.model_name if video_understanding_model else "local-video-analyzer",
         },
         "composition": {
             "provider": settings.composition_provider,
@@ -951,6 +1015,9 @@ async def run_reference_video_analysis(
         task.editing_analysis = result.editing_analysis
         task.reusable_template = result.reusable_template
         task.reuse_notes = result.reuse_notes
+        task.quality_score = result.quality_score
+        task.quality_summary = result.quality_summary
+        task.model_enhanced = result.model_enhanced
         task.status = TaskStatus.needs_review
         estimated_completion_tokens = estimate_text_tokens(
             task.script_analysis,

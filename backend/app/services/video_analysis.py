@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import math
 import base64
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -32,6 +33,8 @@ class ReferenceAnalysisResult:
     editing_analysis: str
     reusable_template: str
     reuse_notes: str
+    quality_score: float = 0
+    quality_summary: str = ""
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0
@@ -58,6 +61,55 @@ class ReferenceVideoAnalyzer:
         if self._can_use_model():
             return await self._enhance_with_model(video_path, local_result, transcript)
         return local_result
+
+    async def test_connection(self) -> dict[str, object]:
+        if not self.model_config:
+            raise RuntimeError("没有选择模型配置")
+        if self.model_config.provider == "local":
+            return {
+                "ok": True,
+                "provider": "local",
+                "model_name": "local-video-analyzer",
+                "quality_score": 65,
+                "summary": "本地镜头/节奏分析可用；未调用外部视频理解模型。",
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        if not self._can_use_model():
+            raise RuntimeError("请先填写接口地址、模型名和 API Key")
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            image_path = Path(tmp_dir) / "video-understanding-test.jpg"
+            self._write_test_contact_sheet(image_path)
+            prompt = json.dumps(
+                {
+                    "task": "这是一个视频理解模型连通性测试。请判断这张抽帧测试图是否能用于参考视频拆解工作流。",
+                    "requirements": [
+                        "必须返回严格 JSON",
+                        "ok 为 true",
+                        "summary 用中文说明模型已能读取抽帧图并可用于脚本/拍摄/剪辑拆解",
+                        "quality_score 给 0-100 的整数，表示模型返回内容是否符合视频拆解工作流",
+                    ],
+                    "json_schema": {
+                        "ok": True,
+                        "summary": "中文测试结论",
+                        "quality_score": 90,
+                    },
+                },
+                ensure_ascii=False,
+            )
+            provider = (self.model_config.provider or "").lower()
+            if "gemini" in provider:
+                parsed, usage = await self._call_gemini_video_understanding(prompt, image_path)
+            else:
+                parsed, usage = await self._call_openai_compatible_vision(prompt, image_path)
+        return {
+            "ok": bool(parsed.get("ok", True)),
+            "provider": self.model_config.provider,
+            "model_name": self.model_config.model_name,
+            "quality_score": self._safe_score(parsed.get("quality_score"), default=80),
+            "summary": str(parsed.get("summary") or "模型测试通过，可以用于视频理解/深度拆解。"),
+            "usage": usage,
+        }
 
     def _can_use_model(self) -> bool:
         if not self.model_config:
@@ -97,6 +149,14 @@ class ReferenceVideoAnalyzer:
             editing_analysis = self._editing_analysis(duration, scene_count, avg_shot, visual_frequency, timeline)
             reusable_template = self._reusable_template(duration, timeline, transcript)
             reuse_notes = self._reuse_notes(timeline)
+            quality_score, quality_summary = self._local_quality_score(
+                duration=duration,
+                width=width,
+                height=height,
+                has_audio=has_audio,
+                scene_count=scene_count,
+                transcript=transcript,
+            )
 
             return ReferenceAnalysisResult(
                 duration_seconds=round(duration, 2),
@@ -115,6 +175,8 @@ class ReferenceVideoAnalyzer:
                 editing_analysis=editing_analysis,
                 reusable_template=reusable_template,
                 reuse_notes=reuse_notes,
+                quality_score=quality_score,
+                quality_summary=quality_summary,
             )
         finally:
             clip.close()
@@ -180,6 +242,8 @@ class ReferenceVideoAnalyzer:
                     "editing_analysis": "剪辑方式分析，中文，多行文本",
                     "reusable_template": "可复用原创模板，中文，多行文本",
                     "reuse_notes": "可学习/不可搬运/合规注意，中文，多行文本",
+                    "quality_score": "0-100 的数字，评价这次拆解是否足够指导原创视频生产",
+                    "quality_summary": "中文，一句话说明评分原因和下一步优化建议",
                     "timeline": [
                         {
                             "index": 1,
@@ -279,6 +343,10 @@ class ReferenceVideoAnalyzer:
             value = parsed.get(field_name)
             if isinstance(value, str) and value.strip():
                 setattr(local_result, field_name, value.strip())
+        local_result.quality_score = self._safe_score(parsed.get("quality_score"), default=local_result.quality_score)
+        quality_summary = parsed.get("quality_summary")
+        if isinstance(quality_summary, str) and quality_summary.strip():
+            local_result.quality_summary = quality_summary.strip()
         local_result.prompt_tokens = int(usage.get("prompt_tokens") or usage.get("promptTokenCount") or 0)
         local_result.completion_tokens = int(usage.get("completion_tokens") or usage.get("completionTokenCount") or 0)
         local_result.total_tokens = int(usage.get("total_tokens") or usage.get("totalTokenCount") or 0)
@@ -298,6 +366,68 @@ class ReferenceVideoAnalyzer:
             if start >= 0 and end > start:
                 return json.loads(content[start : end + 1])
             raise
+
+    def _safe_score(self, value: object, default: float = 0) -> float:
+        try:
+            return max(0.0, min(100.0, float(value)))
+        except (TypeError, ValueError):
+            return default
+
+    def _local_quality_score(
+        self,
+        duration: float,
+        width: int,
+        height: int,
+        has_audio: bool,
+        scene_count: int,
+        transcript: str,
+    ) -> tuple[float, str]:
+        score = 45.0
+        reasons: list[str] = []
+        if duration >= 20:
+            score += 12
+            reasons.append("视频时长足够拆解结构")
+        if height >= width:
+            score += 10
+            reasons.append("竖版画幅适合抖音/视频号参考")
+        if has_audio:
+            score += 10
+            reasons.append("包含音频，可继续结合转写分析口播")
+        if scene_count >= 5:
+            score += 12
+            reasons.append("检测到多个视觉段落")
+        if transcript.strip():
+            score += 8
+            reasons.append("已有转写稿，脚本结构判断更完整")
+        score = min(100.0, round(score, 1))
+        if not reasons:
+            reasons.append("已完成基础抽帧和节奏拆解")
+        return score, "本地基础评分：" + "、".join(reasons) + "。"
+
+    def _write_test_contact_sheet(self, output_path: Path) -> None:
+        width, height = 720, 1280
+        thumb_w, thumb_h = 180, 320
+        sheet = Image.new("RGB", (thumb_w * 4, thumb_h + 42), "white")
+        draw = ImageDraw.Draw(sheet)
+        font = self._font(16)
+        frames = [
+            ("0s 开场口播", (31, 92, 150)),
+            ("5s 数据截图", (24, 132, 117)),
+            ("10s 客房场景", (230, 160, 64)),
+            ("15s 总结引导", (120, 76, 160)),
+        ]
+        for index, (label, color) in enumerate(frames):
+            x = index * thumb_w
+            frame = Image.new("RGB", (width, height), color)
+            frame_draw = ImageDraw.Draw(frame)
+            frame_draw.rectangle((60, 120, width - 60, 280), fill=(255, 255, 255))
+            frame_draw.text((90, 170), label, fill=(20, 30, 40), font=self._font(42))
+            frame_draw.rectangle((80, height - 260, width - 80, height - 170), fill=(20, 30, 40))
+            frame_draw.text((110, height - 235), "reference video analysis", fill=(255, 255, 255), font=self._font(36))
+            thumb = self._cover(frame, thumb_w, thumb_h)
+            sheet.paste(thumb, (x, 0))
+            draw.text((x + 8, thumb_h + 10), label, fill=(20, 20, 20), font=font)
+        sheet.save(output_path, quality=90)
 
     def _sample_times(self, duration: float, interval: float = 1.5, max_samples: int = 90) -> list[float]:
         if duration <= 0:
