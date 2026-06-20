@@ -50,6 +50,9 @@ const state = {
   publishRecords: [],
   platformCredentials: [],
   digitalHumans: [],
+  modelUsage: null,
+  users: [],
+  currentUser: null,
 };
 
 const pages = {
@@ -149,6 +152,16 @@ function toDateTimeInput(value) {
   ].join("-") + `T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+function formatNumber(value) {
+  return Number(value || 0).toLocaleString("zh-CN");
+}
+
+function formatDateTime(value) {
+  if (!value) return "-";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "-" : date.toLocaleString("zh-CN", { hour12: false });
+}
+
 function toast(message) {
   const el = document.querySelector("#toast");
   el.textContent = message;
@@ -165,6 +178,13 @@ function switchPage(page) {
   document.querySelector("#pageEyebrow").textContent = pages[page].eyebrow;
   window.location.hash = page;
 }
+
+window.addEventListener("hashchange", () => {
+  const page = window.location.hash.replace("#", "");
+  if (pages[page] && page !== state.currentPage) {
+    switchPage(page);
+  }
+});
 
 function syncProviderOptions() {
   const form = document.querySelector("#modelConfigForm");
@@ -835,6 +855,125 @@ function renderModels(models) {
     .join("");
 }
 
+function renderModelUsage(report) {
+  const summaryTarget = document.querySelector("#modelUsageSummary");
+  const listTarget = document.querySelector("#modelUsageList");
+  if (!summaryTarget || !listTarget) return;
+  const totals = report?.totals || {};
+  const cards = [
+    ["调用次数", totals.call_count],
+    ["总 Token", totals.total_tokens],
+    ["输入 Token", totals.prompt_tokens],
+    ["输出 Token", totals.completion_tokens],
+  ];
+  summaryTarget.innerHTML = cards
+    .map(
+      ([label, value]) => `
+        <div class="statusCard">
+          <strong>${formatNumber(value)}</strong>
+          <span>${label}</span>
+        </div>
+      `,
+    )
+    .join("");
+
+  const items = report?.items || [];
+  if (!items.length) {
+    listTarget.innerHTML = `<div class="item">还没有模型调用记录。生成一次脚本后，这里会自动出现用量。</div>`;
+    return;
+  }
+  listTarget.innerHTML = `
+    <table class="settingsTable">
+      <thead>
+        <tr>
+          <th>用途</th>
+          <th>供应商</th>
+          <th>模型</th>
+          <th>调用次数</th>
+          <th>输入 Token</th>
+          <th>输出 Token</th>
+          <th>总 Token</th>
+          <th>最近调用</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${items
+          .map(
+            (item) => `
+              <tr>
+                <td>${purposeLabel(item.purpose)}</td>
+                <td>${escapeHtml(providerLabel(item.purpose, item.provider))}</td>
+                <td>${escapeHtml(item.model_name)}</td>
+                <td>${formatNumber(item.call_count)}</td>
+                <td>${formatNumber(item.prompt_tokens)}</td>
+                <td>${formatNumber(item.completion_tokens)}</td>
+                <td>${formatNumber(item.total_tokens)}</td>
+                <td>${formatDateTime(item.last_used_at)}</td>
+              </tr>
+            `,
+          )
+          .join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+function renderSystemUsers(users) {
+  const target = document.querySelector("#userAccountList");
+  if (!target) return;
+  if (!users.length) {
+    target.innerHTML = `<div class="item">还没有可维护账号，或当前账号没有管理员权限。</div>`;
+    return;
+  }
+  target.innerHTML = `
+    <table class="settingsTable userTable">
+      <thead>
+        <tr>
+          <th>账号</th>
+          <th>角色</th>
+          <th>状态</th>
+          <th>创建时间</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${users
+          .map(
+            (user) => `
+              <tr data-id="${user.id}">
+                <td>
+                  <strong>${escapeHtml(user.username)}</strong>
+                  <div class="recordMeta">#${user.id}</div>
+                </td>
+                <td>
+                  <select data-field="role">
+                    <option value="operator" ${user.role === "operator" ? "selected" : ""}>运营人员</option>
+                    <option value="reviewer" ${user.role === "reviewer" ? "selected" : ""}>审核人员</option>
+                    <option value="admin" ${user.role === "admin" ? "selected" : ""}>管理员</option>
+                  </select>
+                </td>
+                <td>
+                  <select data-field="is_active">
+                    <option value="true" ${user.is_active ? "selected" : ""}>启用</option>
+                    <option value="false" ${!user.is_active ? "selected" : ""}>停用</option>
+                  </select>
+                </td>
+                <td>${formatDateTime(user.created_at)}</td>
+                <td>
+                  <div class="tableActions">
+                    <button type="button" data-action="save-user" data-id="${user.id}">保存</button>
+                    <button type="button" class="secondary" data-action="reset-user-password" data-id="${user.id}">重置密码</button>
+                  </div>
+                </td>
+              </tr>
+            `,
+          )
+          .join("")}
+      </tbody>
+    </table>
+  `;
+}
+
 function renderPlatformCredentials(credentials) {
   const target = document.querySelector("#platformCredentialList");
   if (!target) return;
@@ -967,6 +1106,7 @@ function renderTranscriptions(tasks) {
 }
 
 function setLoginState(user) {
+  state.currentUser = user;
   const label = document.querySelector("#loginState");
   if (user) {
     label.textContent = `${user.username} · ${user.role}`;
@@ -1001,6 +1141,8 @@ async function refresh() {
       digitalHumans,
       scripts,
       videoTasks,
+      modelUsage,
+      users,
     ] = await Promise.all([
       api.get("/settings/models"),
       api.get("/settings/platform-credentials"),
@@ -1012,13 +1154,19 @@ async function refresh() {
       api.get("/digital-humans"),
       api.get("/scripts"),
       api.get("/video-tasks"),
+      api.get("/settings/model-usage"),
+      api.get("/settings/users").catch(() => []),
     ]);
     state.platformCredentials = platformCredentials;
     state.platformAccounts = platformAccounts;
     state.publishRecords = publishRecords;
     state.digitalHumans = digitalHumans;
+    state.modelUsage = modelUsage;
+    state.users = users;
     renderModels(models);
     renderPlatformCredentials(platformCredentials);
+    renderModelUsage(modelUsage);
+    renderSystemUsers(users);
     renderTrending(searches, videos);
     renderTranscriptions(transcriptions);
     renderPublishRecords(publishRecords);
@@ -1382,6 +1530,52 @@ document.querySelector("#platformCredentialList").addEventListener("click", asyn
   if (button.dataset.action === "activate-platform-credential") {
     const credential = await api.post(`/settings/platform-credentials/${button.dataset.id}/activate`);
     toast(`${credential.display_name} 已启用`);
+    await refresh();
+  }
+});
+
+document.querySelector(".settingsNav").addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-settings-tab]");
+  if (!button) return;
+  const tab = button.dataset.settingsTab;
+  document.querySelectorAll("[data-settings-tab]").forEach((item) => {
+    item.classList.toggle("activeSettingsTab", item.dataset.settingsTab === tab);
+  });
+  document.querySelectorAll(".settingsPane").forEach((pane) => {
+    pane.classList.toggle("activeSettingsPane", pane.id === `settings-tab-${tab}`);
+  });
+});
+
+document.querySelector("#userAccountForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const payload = formData(event.currentTarget);
+  payload.is_active = Boolean(event.currentTarget.querySelector("[name='is_active']").checked);
+  const user = await api.post("/settings/users", payload);
+  toast(`账号已新增：${user.username}`);
+  event.currentTarget.reset();
+  event.currentTarget.querySelector("[name='is_active']").checked = true;
+  await refresh();
+});
+
+document.querySelector("#userAccountList").addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-action]");
+  if (!button) return;
+  const id = button.dataset.id;
+  const row = button.closest("tr");
+  if (button.dataset.action === "save-user") {
+    const payload = {
+      role: row.querySelector("[data-field='role']").value,
+      is_active: row.querySelector("[data-field='is_active']").value === "true",
+    };
+    const user = await api.patch(`/settings/users/${id}`, payload);
+    toast(`账号已保存：${user.username}`);
+    await refresh();
+  }
+  if (button.dataset.action === "reset-user-password") {
+    const password = window.prompt("请输入新的临时密码，至少 6 位");
+    if (!password) return;
+    const user = await api.post(`/settings/users/${id}/reset-password`, { password });
+    toast(`已重置密码：${user.username}`);
     await refresh();
   }
 });

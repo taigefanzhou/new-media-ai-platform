@@ -22,6 +22,9 @@ class GeneratedScript:
     title_options: str
     hashtags: str
     compliance_notes: str
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
 
 
 class ScriptGenerator:
@@ -106,6 +109,7 @@ class ScriptGenerator:
 
         content = data["choices"][0]["message"]["content"]
         parsed = json.loads(content)
+        usage = data.get("usage") or {}
         return GeneratedScript(
             hook=parsed.get("hook", ""),
             voiceover=parsed.get("voiceover", ""),
@@ -114,6 +118,9 @@ class ScriptGenerator:
             title_options=parsed.get("title_options", ""),
             hashtags=parsed.get("hashtags", ""),
             compliance_notes=parsed.get("compliance_notes", ""),
+            prompt_tokens=int(usage.get("prompt_tokens") or 0),
+            completion_tokens=int(usage.get("completion_tokens") or 0),
+            total_tokens=int(usage.get("total_tokens") or 0),
         )
 
     def _stub(

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, Field
-from app.models.entities import CopyrightStatus, MaterialKind, PublishPlatform, TrendingSource
+from app.models.entities import CopyrightStatus, MaterialKind, PublishPlatform, TrendingSource, UserRole
 
 
 class LoginRequest(BaseModel):
@@ -30,6 +31,30 @@ class AIModelConfigUpdate(BaseModel):
     model_name: Optional[str] = None
     is_active: Optional[bool] = None
     notes: Optional[str] = None
+
+
+class UserCreate(BaseModel):
+    username: str
+    password: str = Field(..., min_length=6)
+    role: UserRole = UserRole.operator
+    is_active: bool = True
+
+
+class UserUpdate(BaseModel):
+    role: Optional[UserRole] = None
+    is_active: Optional[bool] = None
+
+
+class UserPasswordReset(BaseModel):
+    password: str = Field(..., min_length=6)
+
+
+class UserPublic(BaseModel):
+    id: int
+    username: str
+    role: UserRole
+    is_active: bool
+    created_at: datetime
 
 
 class TrendingSearchCreate(BaseModel):

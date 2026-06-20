@@ -398,68 +398,121 @@
       </section>
 
       <section id="page-settings" class="page">
-        <section class="split">
-          <form id="modelConfigForm" class="panel">
-            <h2>AI 模型入口维护</h2>
-            <label>名称<input name="name" value="脚本生成模型" /></label>
-            <label>用途
-              <select name="purpose">
-                <option value="script">脚本生成</option>
-                <option value="tts">语音合成</option>
-                <option value="voice_clone">声音复刻</option>
-                <option value="video">视频生成</option>
-                <option value="asr">语音识别</option>
-                <option value="compliance">合规检查</option>
-                <option value="knowledge">知识库/文档/长文本</option>
-              </select>
-            </label>
-            <label>供应商
-              <select name="provider" id="providerSelect"></select>
-            </label>
-            <label>接口地址<input name="api_base" placeholder="https://api.example.com/v1" /></label>
-            <label>模型名<input name="model_name" placeholder="gpt-4.1-mini / deepseek-chat" /></label>
-            <label>API Key<input name="api_key" type="password" placeholder="保存后不会展示明文" /></label>
-            <label class="checkLine"><input name="is_active" type="checkbox" checked /> 设为启用</label>
-            <button type="submit">保存模型配置</button>
-          </form>
+        <div class="settingsNav">
+          <button type="button" class="activeSettingsTab" data-settings-tab="usage">模型用量</button>
+          <button type="button" data-settings-tab="models">AI 模型接入</button>
+          <button type="button" data-settings-tab="collectors">短视频采集接入</button>
+          <button type="button" data-settings-tab="accounts">账号管理</button>
+        </div>
+
+        <section id="settings-tab-usage" class="settingsPane activeSettingsPane">
+          <div id="modelUsageSummary" class="statusBoard settingsSummary"></div>
           <div class="panel">
-            <h2>模型配置列表</h2>
-            <div id="modelConfigList" class="list"></div>
+            <div class="sectionHeader compactSectionHeader">
+              <div>
+                <h2>模型调用明细</h2>
+                <p>统计 AI 生成脚本时的调用次数、输入 token、输出 token 和总消耗。</p>
+              </div>
+            </div>
+            <div id="modelUsageList" class="settingsTableWrap"></div>
           </div>
         </section>
-        <section class="split">
-          <form id="platformCredentialForm" class="panel">
-            <h2>短视频平台 API 接入</h2>
-            <label>配置名称<input name="display_name" value="抖音爆款采集接口" /></label>
-            <label>平台
-              <select name="platform">
-                <option value="douyin">抖音</option>
-                <option value="wechat_channels">视频号</option>
-                <option value="xiaohongshu">小红书</option>
-                <option value="kuaishou">快手</option>
-              </select>
-            </label>
-            <label>用途
-              <select name="purpose">
-                <option value="trending">爆款采集</option>
-                <option value="publishing">自动发布</option>
-                <option value="analytics">数据回收</option>
-              </select>
-            </label>
-            <label>接口地址<input name="api_base" placeholder="https://your-adapter.example.com" /></label>
-            <label>Client ID<input name="client_id" placeholder="平台应用 ID 或账号标识" /></label>
-            <label>Client Secret<input name="client_secret" type="password" placeholder="保存后不回显明文" /></label>
-            <label>Access Token<input name="access_token" type="password" placeholder="可选，已有授权时填写" /></label>
-            <label>Refresh Token<input name="refresh_token" type="password" placeholder="可选" /></label>
-            <label>回调地址<input name="webhook_url" placeholder="https://your-domain.com/callback" /></label>
-            <label>备注<textarea name="notes" placeholder="记录申请主体、授权范围、到期时间"></textarea></label>
-            <label class="checkLine"><input name="is_active" type="checkbox" checked /> 设为启用</label>
-            <button type="submit">保存平台接入</button>
-          </form>
-          <div class="panel">
-            <h2>平台接入配置</h2>
-            <div id="platformCredentialList" class="list"></div>
-          </div>
+
+        <section id="settings-tab-models" class="settingsPane">
+          <section class="split">
+            <form id="modelConfigForm" class="panel">
+              <h2>AI 模型入口维护</h2>
+              <label>名称<input name="name" value="脚本生成模型" /></label>
+              <label>用途
+                <select name="purpose">
+                  <option value="script">脚本生成</option>
+                  <option value="tts">语音合成</option>
+                  <option value="voice_clone">声音复刻</option>
+                  <option value="video">视频生成</option>
+                  <option value="asr">语音识别</option>
+                  <option value="compliance">合规检查</option>
+                  <option value="knowledge">知识库/文档/长文本</option>
+                </select>
+              </label>
+              <label>供应商
+                <select name="provider" id="providerSelect"></select>
+              </label>
+              <label>接口地址<input name="api_base" placeholder="https://api.example.com/v1" /></label>
+              <label>模型名<input name="model_name" placeholder="gpt-4.1-mini / deepseek-chat" /></label>
+              <label>API Key<input name="api_key" type="password" placeholder="保存后不会展示明文" /></label>
+              <label class="checkLine"><input name="is_active" type="checkbox" checked /> 设为启用</label>
+              <button type="submit">保存模型配置</button>
+            </form>
+            <div class="panel">
+              <h2>模型配置列表</h2>
+              <div id="modelConfigList" class="list"></div>
+            </div>
+          </section>
+        </section>
+
+        <section id="settings-tab-collectors" class="settingsPane">
+          <section class="split">
+            <form id="platformCredentialForm" class="panel">
+              <h2>短视频采集 API 接入</h2>
+              <label>配置名称<input name="display_name" value="抖音爆款采集接口" /></label>
+              <label>平台
+                <select name="platform">
+                  <option value="douyin">抖音</option>
+                  <option value="wechat_channels">视频号</option>
+                  <option value="xiaohongshu">小红书</option>
+                  <option value="kuaishou">快手</option>
+                </select>
+              </label>
+              <label>用途
+                <select name="purpose">
+                  <option value="trending">爆款采集</option>
+                  <option value="publishing">自动发布</option>
+                  <option value="analytics">数据回收</option>
+                </select>
+              </label>
+              <label>接口地址<input name="api_base" placeholder="https://your-adapter.example.com" /></label>
+              <label>Client ID<input name="client_id" placeholder="平台应用 ID 或账号标识" /></label>
+              <label>Client Secret<input name="client_secret" type="password" placeholder="保存后不回显明文" /></label>
+              <label>Access Token<input name="access_token" type="password" placeholder="可选，已有授权时填写" /></label>
+              <label>Refresh Token<input name="refresh_token" type="password" placeholder="可选" /></label>
+              <label>回调地址<input name="webhook_url" placeholder="https://your-domain.com/callback" /></label>
+              <label>备注<textarea name="notes" placeholder="记录申请主体、授权范围、到期时间"></textarea></label>
+              <label class="checkLine"><input name="is_active" type="checkbox" checked /> 设为启用</label>
+              <button type="submit">保存采集接入</button>
+            </form>
+            <div class="panel">
+              <h2>采集接入配置</h2>
+              <div id="platformCredentialList" class="list"></div>
+            </div>
+          </section>
+        </section>
+
+        <section id="settings-tab-accounts" class="settingsPane">
+          <section class="split">
+            <form id="userAccountForm" class="panel">
+              <h2>新增系统账号</h2>
+              <label>账号名<input name="username" placeholder="例如：operator01" autocomplete="off" /></label>
+              <label>初始密码<input name="password" type="password" placeholder="至少 6 位" autocomplete="new-password" /></label>
+              <label>角色
+                <select name="role">
+                  <option value="operator">运营人员</option>
+                  <option value="reviewer">审核人员</option>
+                  <option value="admin">管理员</option>
+                </select>
+              </label>
+              <label class="checkLine"><input name="is_active" type="checkbox" checked /> 启用账号</label>
+              <button type="submit">新增账号</button>
+            </form>
+            <div class="panel">
+              <div class="sectionHeader compactSectionHeader">
+                <div>
+                  <h2>账号维护</h2>
+                  <p>可以调整角色、启停账号，也可以为忘记密码的账号重置密码。</p>
+                </div>
+              </div>
+              <div id="userAccountList" class="settingsTableWrap"></div>
+            </div>
+          </section>
         </section>
       </section>
     </main>

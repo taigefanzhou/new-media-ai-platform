@@ -13,6 +13,7 @@ from app.core.db import engine, get_session
 from app.core.security import create_token, hash_password
 from app.models.entities import (
     AIModelConfig,
+    AIModelUsage,
     AuthSession,
     CopyrightStatus,
     DigitalHuman,
@@ -28,6 +29,7 @@ from app.models.entities import (
     TrendingVideo,
     TranscriptionTask,
     User,
+    UserRole,
     VideoTask,
 )
 from app.schemas.requests import (
@@ -50,6 +52,10 @@ from app.schemas.requests import (
     TrendingSearchCreate,
     TrendingVideoCreate,
     TranscriptionTaskCreate,
+    UserCreate,
+    UserPasswordReset,
+    UserPublic,
+    UserUpdate,
     VideoTaskBatchCreateRequest,
     VideoTaskBatchRunRequest,
     VideoTaskPublishPrepareRequest,
@@ -96,6 +102,95 @@ def me(user: User = Depends(current_user)) -> dict[str, object]:
     return {"id": user.id, "username": user.username, "role": user.role}
 
 
+def require_admin(user: User = Depends(current_user)) -> User:
+    if user.role != UserRole.admin:
+        raise HTTPException(status_code=403, detail="Admin account required")
+    return user
+
+
+def _user_public(user: User) -> UserPublic:
+    return UserPublic(
+        id=user.id or 0,
+        username=user.username,
+        role=user.role,
+        is_active=user.is_active,
+        created_at=user.created_at,
+    )
+
+
+@router.get("/settings/users", response_model=list[UserPublic])
+def list_users(
+    session: Session = Depends(get_session),
+    admin: User = Depends(require_admin),
+) -> list[UserPublic]:
+    users = session.exec(select(User).order_by(User.created_at.desc())).all()
+    return [_user_public(item) for item in users]
+
+
+@router.post("/settings/users", response_model=UserPublic)
+def create_user(
+    payload: UserCreate,
+    session: Session = Depends(get_session),
+    admin: User = Depends(require_admin),
+) -> UserPublic:
+    username = payload.username.strip()
+    if not username:
+        raise HTTPException(status_code=400, detail="Username is required")
+    existing = session.exec(select(User).where(User.username == username)).first()
+    if existing is not None:
+        raise HTTPException(status_code=400, detail="Username already exists")
+    user = User(
+        username=username,
+        password_hash=hash_password(payload.password),
+        role=payload.role,
+        is_active=payload.is_active,
+    )
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return _user_public(user)
+
+
+@router.patch("/settings/users/{user_id}", response_model=UserPublic)
+def update_user(
+    user_id: int,
+    payload: UserUpdate,
+    session: Session = Depends(get_session),
+    admin: User = Depends(require_admin),
+) -> UserPublic:
+    user = session.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    update_data = payload.model_dump(exclude_unset=True)
+    if user.id == admin.id and (
+        update_data.get("is_active") is False or update_data.get("role") not in (None, UserRole.admin)
+    ):
+        raise HTTPException(status_code=400, detail="Cannot disable or demote the current admin account")
+    for key, value in update_data.items():
+        setattr(user, key, value)
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return _user_public(user)
+
+
+@router.post("/settings/users/{user_id}/reset-password", response_model=UserPublic)
+def reset_user_password(
+    user_id: int,
+    payload: UserPasswordReset,
+    session: Session = Depends(get_session),
+    admin: User = Depends(require_admin),
+) -> UserPublic:
+    user = session.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.password_hash = hash_password(payload.password)
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return _user_public(user)
+
+
 @router.get("/dashboard")
 def dashboard(session: Session = Depends(get_session)) -> dict[str, object]:
     counts = {
@@ -119,6 +214,56 @@ def list_model_configs(
     user: User = Depends(current_user),
 ) -> list[AIModelConfig]:
     return list(session.exec(select(AIModelConfig).order_by(AIModelConfig.created_at.desc())).all())
+
+
+@router.get("/settings/model-usage")
+def model_usage_summary(
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> dict[str, object]:
+    rows = session.exec(select(AIModelUsage).order_by(AIModelUsage.created_at.desc())).all()
+    summary: dict[tuple[str, str, str], dict[str, object]] = {}
+    totals = {
+        "call_count": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+    }
+    for row in rows:
+        key = (row.purpose, row.provider, row.model_name)
+        item = summary.setdefault(
+            key,
+            {
+                "purpose": row.purpose,
+                "provider": row.provider,
+                "model_name": row.model_name,
+                "call_count": 0,
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "total_tokens": 0,
+                "success_count": 0,
+                "failed_count": 0,
+                "last_used_at": row.created_at,
+            },
+        )
+        item["call_count"] = int(item["call_count"]) + 1
+        item["prompt_tokens"] = int(item["prompt_tokens"]) + row.prompt_tokens
+        item["completion_tokens"] = int(item["completion_tokens"]) + row.completion_tokens
+        item["total_tokens"] = int(item["total_tokens"]) + row.total_tokens
+        item["success_count" if row.status == "success" else "failed_count"] = (
+            int(item["success_count" if row.status == "success" else "failed_count"]) + 1
+        )
+        if row.created_at > item["last_used_at"]:
+            item["last_used_at"] = row.created_at
+        totals["call_count"] += 1
+        totals["prompt_tokens"] += row.prompt_tokens
+        totals["completion_tokens"] += row.completion_tokens
+        totals["total_tokens"] += row.total_tokens
+    return {
+        "totals": totals,
+        "items": sorted(summary.values(), key=lambda item: item["last_used_at"], reverse=True),
+        "recent": rows[:20],
+    }
 
 
 @router.post("/settings/models", response_model=AIModelConfig)
@@ -564,6 +709,7 @@ async def generate_script_from_transcription(
         compliance_notes=f"{generated.compliance_notes}\n基于转写任务 #{task.id} 生成，仅借鉴结构，不搬运原文。",
     )
     session.add(script)
+    _record_model_usage(session, active_model, "script", generated)
     session.commit()
     session.refresh(script)
     return script
@@ -590,10 +736,52 @@ def list_topics(session: Session = Depends(get_session)) -> list[Topic]:
     return list(session.exec(select(Topic).order_by(Topic.created_at.desc())).all())
 
 
+def _estimate_completion_tokens(generated) -> int:
+    text = "\n".join(
+        [
+            generated.hook,
+            generated.voiceover,
+            generated.storyboard,
+            generated.seedance_prompt,
+            generated.title_options,
+            generated.hashtags,
+            generated.compliance_notes,
+        ]
+    )
+    return max(1, len(text) // 2) if text.strip() else 0
+
+
+def _record_model_usage(
+    session: Session,
+    model_config: Optional[AIModelConfig],
+    purpose: str,
+    generated,
+    status: str = "success",
+) -> None:
+    prompt_tokens = int(getattr(generated, "prompt_tokens", 0) or 0)
+    completion_tokens = int(getattr(generated, "completion_tokens", 0) or 0)
+    total_tokens = int(getattr(generated, "total_tokens", 0) or 0)
+    if total_tokens <= 0:
+        completion_tokens = completion_tokens or _estimate_completion_tokens(generated)
+        total_tokens = prompt_tokens + completion_tokens
+    usage = AIModelUsage(
+        model_config_id=model_config.id if model_config else None,
+        provider=model_config.provider if model_config else get_settings().llm_provider,
+        purpose=purpose,
+        model_name=model_config.model_name if model_config else get_settings().llm_model,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        total_tokens=total_tokens,
+        status=status,
+    )
+    session.add(usage)
+
+
 def _create_script_record(
     session: Session,
     payload: ScriptGenerateRequest,
     generated,
+    model_config: Optional[AIModelConfig] = None,
 ) -> Script:
     script = Script(
         topic_id=payload.topic_id,
@@ -607,6 +795,7 @@ def _create_script_record(
         compliance_notes=generated.compliance_notes,
     )
     session.add(script)
+    _record_model_usage(session, model_config, "script", generated)
     session.commit()
     session.refresh(script)
     return script
@@ -624,7 +813,7 @@ async def generate_script(payload: ScriptGenerateRequest, session: Session = Dep
         target_platform=payload.target_platform,
         output_language=payload.output_language,
     )
-    return _create_script_record(session, payload, generated)
+    return _create_script_record(session, payload, generated, active_model)
 
 
 @router.post("/scripts/batch-generate", response_model=list[Script])
@@ -654,7 +843,7 @@ async def batch_generate_scripts(payload: ScriptBatchGenerateRequest, session: S
             target_platform=payload.target_platform,
             output_language=payload.output_language,
         )
-        script = _create_script_record(session, item_payload, generated)
+        script = _create_script_record(session, item_payload, generated, active_model)
         scripts.append(script)
     return scripts
 

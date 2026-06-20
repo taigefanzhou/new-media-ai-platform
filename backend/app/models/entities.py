@@ -94,6 +94,19 @@ class AIModelConfig(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+class AIModelUsage(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    model_config_id: Optional[int] = None
+    provider: str
+    purpose: str = "script"
+    model_name: str
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+    status: str = "success"
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 class TrendingSearch(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     platform: TrendingSource

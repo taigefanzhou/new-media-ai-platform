@@ -296,6 +296,68 @@ h2 {
   padding: 18px;
 }
 
+.settingsNav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.settingsNav button {
+  width: auto;
+  min-height: 36px;
+  padding: 0 14px;
+  background: #e8eef7;
+  color: #344054;
+}
+
+.settingsNav .activeSettingsTab {
+  background: var(--accent);
+  color: white;
+}
+
+.settingsPane {
+  display: none;
+}
+
+.activeSettingsPane {
+  display: block;
+}
+
+.settingsSummary {
+  margin-bottom: 14px;
+}
+
+.settingsTableWrap {
+  overflow-x: auto;
+}
+
+.settingsTable {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+}
+
+.settingsTable th,
+.settingsTable td {
+  border-bottom: 1px solid var(--line);
+  padding: 11px 10px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.settingsTable th {
+  background: #f8fafc;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.settingsTable select {
+  min-width: 120px;
+  padding: 8px 9px;
+}
+
 label {
   display: grid;
   gap: 6px;
@@ -1049,7 +1111,8 @@ button:disabled {
   .publishActions,
   .titleGrid,
   .materialGrid,
-  .humanGrid {
+  .humanGrid,
+  .settingsSummary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -1091,7 +1154,8 @@ button:disabled {
   .publishActions,
   .workflowSteps,
   .materialGrid,
-  .humanGrid {
+  .humanGrid,
+  .settingsSummary {
     grid-template-columns: 1fr;
   }
 
