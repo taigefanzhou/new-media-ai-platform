@@ -81,6 +81,34 @@ nav {
   color: white;
 }
 
+.subNav {
+  display: grid;
+  gap: 4px;
+  margin: -2px 0 8px 16px;
+  padding-left: 10px;
+  border-left: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.subNavItem {
+  width: 100%;
+  min-height: 32px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #aeb7c6;
+  padding: 7px 10px;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.subNavItem:hover,
+.subNavItem.active {
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+}
+
 main {
   margin-left: 248px;
   padding: 28px;
@@ -296,26 +324,6 @@ h2 {
   padding: 18px;
 }
 
-.settingsNav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 14px;
-}
-
-.settingsNav button {
-  width: auto;
-  min-height: 36px;
-  padding: 0 14px;
-  background: #e8eef7;
-  color: #344054;
-}
-
-.settingsNav .activeSettingsTab {
-  background: var(--accent);
-  color: white;
-}
-
 .settingsPane {
   display: none;
 }
@@ -356,6 +364,34 @@ h2 {
 .settingsTable select {
   min-width: 120px;
   padding: 8px 9px;
+}
+
+.settingsAccountCreatePanel {
+  margin-bottom: 14px;
+}
+
+.settingsAccountForm {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.1fr) minmax(160px, 1fr) minmax(160px, 1fr) minmax(140px, 0.8fr) auto minmax(120px, 0.6fr);
+  gap: 12px;
+  align-items: end;
+}
+
+.settingsAccountForm label,
+.settingsAccountForm .checkLine {
+  margin-bottom: 0;
+}
+
+.settingsAccountForm h2 {
+  margin-bottom: 4px;
+}
+
+.settingsAccountForm .resultHint {
+  margin: 0;
+}
+
+.userTable {
+  min-width: 920px;
 }
 
 label {
@@ -1103,7 +1139,8 @@ button:disabled {
   .creationParamBar,
   .advancedTaskGrid,
   .scriptUtilityGrid,
-  .scriptMetaGrid {
+  .scriptMetaGrid,
+  .settingsAccountForm {
     grid-template-columns: 1fr;
   }
 
@@ -1150,6 +1187,7 @@ button:disabled {
   .creationParamBar,
   .advancedTaskGrid,
   .scriptUtilityGrid,
+  .settingsAccountForm,
   .statusBoard,
   .publishActions,
   .workflowSteps,

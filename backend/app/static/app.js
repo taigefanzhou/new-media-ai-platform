@@ -53,6 +53,14 @@ const state = {
   modelUsage: null,
   users: [],
   currentUser: null,
+  currentSettingsSection: "usage",
+};
+
+const settingsSections = {
+  usage: { title: "模型用量", eyebrow: "Settings / Usage" },
+  models: { title: "AI 模型接入", eyebrow: "Settings / AI Models" },
+  collectors: { title: "短视频采集接入", eyebrow: "Settings / Collectors" },
+  accounts: { title: "账号管理", eyebrow: "Settings / Accounts" },
 };
 
 const pages = {
@@ -169,20 +177,52 @@ function toast(message) {
   setTimeout(() => el.classList.remove("show"), 2600);
 }
 
-function switchPage(page) {
+function parseRoute(hash) {
+  const value = hash.replace("#", "") || "overview";
+  if (value.startsWith("settings-")) {
+    const section = value.replace("settings-", "");
+    return { page: "settings", section: settingsSections[section] ? section : "usage" };
+  }
+  return { page: pages[value] ? value : "overview", section: null };
+}
+
+function switchSettingsSection(section, updateHash = true) {
+  const nextSection = settingsSections[section] ? section : "usage";
+  state.currentSettingsSection = nextSection;
+  document.querySelectorAll(".settingsPane").forEach((pane) => {
+    pane.classList.toggle("activeSettingsPane", pane.id === `settings-tab-${nextSection}`);
+  });
+  document.querySelectorAll(".subNavItem").forEach((item) => {
+    item.classList.toggle("active", item.dataset.settingsSection === nextSection);
+  });
+  document.querySelector("#pageTitle").textContent = settingsSections[nextSection].title;
+  document.querySelector("#pageEyebrow").textContent = settingsSections[nextSection].eyebrow;
+  if (updateHash) {
+    window.location.hash = `settings-${nextSection}`;
+  }
+}
+
+function switchPage(page, section = null, updateHash = true) {
   state.currentPage = page;
   document.querySelectorAll(".page").forEach((el) => el.classList.remove("activePage"));
   document.querySelector(`#page-${page}`)?.classList.add("activePage");
   document.querySelectorAll(".navItem").forEach((el) => el.classList.toggle("active", el.dataset.page === page));
+  if (page === "settings") {
+    switchSettingsSection(section || state.currentSettingsSection, updateHash);
+    return;
+  }
+  document.querySelectorAll(".subNavItem").forEach((item) => item.classList.remove("active"));
   document.querySelector("#pageTitle").textContent = pages[page].title;
   document.querySelector("#pageEyebrow").textContent = pages[page].eyebrow;
-  window.location.hash = page;
+  if (updateHash) {
+    window.location.hash = page;
+  }
 }
 
 window.addEventListener("hashchange", () => {
-  const page = window.location.hash.replace("#", "");
-  if (pages[page] && page !== state.currentPage) {
-    switchPage(page);
+  const route = parseRoute(window.location.hash);
+  if (route.page !== state.currentPage || route.section !== state.currentSettingsSection) {
+    switchPage(route.page, route.section, false);
   }
 });
 
@@ -1180,7 +1220,11 @@ async function refresh() {
 document.querySelector("#refreshBtn").addEventListener("click", () => refresh().then(() => toast("已刷新")));
 
 document.querySelectorAll(".navItem").forEach((item) => {
-  item.addEventListener("click", () => switchPage(item.dataset.page));
+  item.addEventListener("click", () => switchPage(item.dataset.page, item.dataset.settingsSection || null));
+});
+
+document.querySelectorAll(".subNavItem").forEach((item) => {
+  item.addEventListener("click", () => switchPage(item.dataset.page, item.dataset.settingsSection));
 });
 
 document.querySelector("#loginForm").addEventListener("submit", async (event) => {
@@ -1534,18 +1578,6 @@ document.querySelector("#platformCredentialList").addEventListener("click", asyn
   }
 });
 
-document.querySelector(".settingsNav").addEventListener("click", (event) => {
-  const button = event.target.closest("button[data-settings-tab]");
-  if (!button) return;
-  const tab = button.dataset.settingsTab;
-  document.querySelectorAll("[data-settings-tab]").forEach((item) => {
-    item.classList.toggle("activeSettingsTab", item.dataset.settingsTab === tab);
-  });
-  document.querySelectorAll(".settingsPane").forEach((pane) => {
-    pane.classList.toggle("activeSettingsPane", pane.id === `settings-tab-${tab}`);
-  });
-});
-
 document.querySelector("#userAccountForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const payload = formData(event.currentTarget);
@@ -1685,9 +1717,7 @@ if (api.token) {
   refresh().catch((err) => toast(err.message));
 }
 
-const initialPage = window.location.hash.replace("#", "") || "overview";
-if (pages[initialPage]) {
-  switchPage(initialPage);
-}
+const initialRoute = parseRoute(window.location.hash);
+switchPage(initialRoute.page, initialRoute.section, false);
 
 syncProviderOptions();

@@ -23,7 +23,13 @@
         <button class="navItem" data-page="tasks">视频任务</button>
         <button class="navItem" data-page="trending">爆款采集</button>
         <button class="navItem" data-page="publish">发布中心</button>
-        <button class="navItem" data-page="settings">系统设置</button>
+        <button class="navItem" data-page="settings" data-settings-section="usage">系统设置</button>
+        <div class="subNav" aria-label="系统设置二级菜单">
+          <button class="subNavItem" data-page="settings" data-settings-section="usage">模型用量</button>
+          <button class="subNavItem" data-page="settings" data-settings-section="models">AI 模型接入</button>
+          <button class="subNavItem" data-page="settings" data-settings-section="collectors">短视频采集接入</button>
+          <button class="subNavItem" data-page="settings" data-settings-section="accounts">账号管理</button>
+        </div>
       </nav>
     </aside>
 
@@ -398,13 +404,6 @@
       </section>
 
       <section id="page-settings" class="page">
-        <div class="settingsNav">
-          <button type="button" class="activeSettingsTab" data-settings-tab="usage">模型用量</button>
-          <button type="button" data-settings-tab="models">AI 模型接入</button>
-          <button type="button" data-settings-tab="collectors">短视频采集接入</button>
-          <button type="button" data-settings-tab="accounts">账号管理</button>
-        </div>
-
         <section id="settings-tab-usage" class="settingsPane activeSettingsPane">
           <div id="modelUsageSummary" class="statusBoard settingsSummary"></div>
           <div class="panel">
@@ -488,9 +487,12 @@
         </section>
 
         <section id="settings-tab-accounts" class="settingsPane">
-          <section class="split">
-            <form id="userAccountForm" class="panel">
-              <h2>新增系统账号</h2>
+          <section class="panel settingsAccountCreatePanel">
+            <form id="userAccountForm" class="settingsAccountForm">
+              <div>
+                <h2>新增系统账号</h2>
+                <p class="resultHint">用于给运营、审核和管理员分配系统登录账号。</p>
+              </div>
               <label>账号名<input name="username" placeholder="例如：operator01" autocomplete="off" /></label>
               <label>初始密码<input name="password" type="password" placeholder="至少 6 位" autocomplete="new-password" /></label>
               <label>角色
@@ -503,15 +505,15 @@
               <label class="checkLine"><input name="is_active" type="checkbox" checked /> 启用账号</label>
               <button type="submit">新增账号</button>
             </form>
-            <div class="panel">
-              <div class="sectionHeader compactSectionHeader">
-                <div>
-                  <h2>账号维护</h2>
-                  <p>可以调整角色、启停账号，也可以为忘记密码的账号重置密码。</p>
-                </div>
+          </section>
+          <section class="panel">
+            <div class="sectionHeader compactSectionHeader">
+              <div>
+                <h2>账号维护</h2>
+                <p>可以调整角色、启停账号，也可以为忘记密码的账号重置密码。</p>
               </div>
-              <div id="userAccountList" class="settingsTableWrap"></div>
             </div>
+            <div id="userAccountList" class="settingsTableWrap"></div>
           </section>
         </section>
       </section>
