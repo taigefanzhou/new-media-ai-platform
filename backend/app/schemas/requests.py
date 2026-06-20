@@ -74,6 +74,15 @@ class StorageSettingsUpdate(BaseModel):
     storage_root: str = Field(..., min_length=1)
 
 
+class RemoteUploadSettingsUpdate(BaseModel):
+    enabled: bool = False
+    upload_url: Optional[str] = None
+    public_base_url: Optional[str] = None
+    file_field_name: str = "file"
+    upload_token: Optional[str] = None
+    clear_upload_token: bool = False
+
+
 class TrendingSearchCreate(BaseModel):
     platform: TrendingSource
     keyword: str

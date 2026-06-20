@@ -552,6 +552,32 @@
             <div id="storagePresetList" class="storagePresetList"></div>
             <div id="videoStoragePaths" class="storagePathGrid"></div>
           </section>
+          <section class="panel storagePanel">
+            <div class="sectionHeader compactSectionHeader">
+              <div>
+                <h2>素材服务器访问</h2>
+                <p>用于把本机素材上传到你的服务器，生成云模型可访问的公网地址。</p>
+              </div>
+              <span id="remoteUploadState" class="pill subtle">未启用</span>
+            </div>
+            <form id="remoteUploadForm" class="storageConfigForm remoteUploadForm">
+              <label class="checkLine remoteUploadSwitch"><input name="enabled" type="checkbox" /> 启用服务器上传</label>
+              <label>上传接口
+                <input name="upload_url" placeholder="https://your-server.com/api/upload" />
+              </label>
+              <label>访问域名
+                <input name="public_base_url" placeholder="https://cdn.your-server.com/materials" />
+              </label>
+              <label>文件字段
+                <input name="file_field_name" value="file" />
+              </label>
+              <label>上传 Token
+                <input name="upload_token" type="password" placeholder="已保存可留空" />
+              </label>
+              <label class="checkLine"><input name="clear_upload_token" type="checkbox" /> 清空 Token</label>
+              <button type="submit">保存服务器配置</button>
+            </form>
+          </section>
           <section class="panel footerPanel">
             <div class="sectionHeader compactSectionHeader">
               <div>

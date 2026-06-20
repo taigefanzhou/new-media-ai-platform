@@ -56,6 +56,7 @@ const state = {
   modelUsage: null,
   modelDiagnostics: null,
   videoStorage: null,
+  remoteUpload: null,
   users: [],
   currentUser: null,
   currentSettingsSection: "usage",
@@ -94,13 +95,15 @@ const providerOptions = {
     { value: "vllm", label: "vLLM 自建服务", model: "Qwen/Qwen3-30B-A3B-Instruct-2507", base: "http://localhost:8000/v1" },
   ],
   tts: [
+    { value: "aliyun-cosyvoice", label: "阿里云百炼 / CosyVoice 真实语音", model: "cosyvoice-v3-flash", base: "https://dashscope.aliyuncs.com/api/v1" },
     { value: "volcengine-tts", label: "火山语音", model: "volcano-tts" },
     { value: "cosyvoice", label: "CosyVoice", model: "cosyvoice-v2", base: "http://localhost:9880" },
     { value: "fish-speech", label: "Fish Speech", model: "fish-speech", base: "http://localhost:9881" },
-    { value: "aliyun-tts", label: "阿里云语音", model: "cosyvoice-v1" },
+    { value: "aliyun-tts", label: "阿里云语音", model: "cosyvoice-v3-flash", base: "https://dashscope.aliyuncs.com/api/v1" },
     { value: "mock", label: "Mock 测试", model: "mock-tts" },
   ],
   voice_clone: [
+    { value: "aliyun-cosyvoice-clone", label: "阿里云百炼 / CosyVoice 声音复刻", model: "cosyvoice-v3-flash", base: "https://dashscope.aliyuncs.com/api/v1" },
     { value: "volcengine-voice-clone", label: "火山引擎 / 声音复刻", model: "volcengine-voice-clone" },
     { value: "cosyvoice-clone", label: "CosyVoice 声音克隆服务", model: "cosyvoice-clone", base: "http://localhost:9880" },
     { value: "openvoice", label: "OpenVoice 本地服务", model: "openvoice-v2", base: "http://localhost:9010" },
@@ -118,12 +121,12 @@ const providerOptions = {
     { value: "volcengine-digital-human", label: "火山引擎 / 数字人驱动", model: "volcengine-digital-human" },
     { value: "sadtalker", label: "SadTalker 本地/HTTP 服务", model: "sadtalker", base: "http://localhost:7860" },
     { value: "heygen", label: "HeyGen 数字人", model: "heygen-avatar" },
-    { value: "d-id", label: "D-ID 数字人", model: "d-id-talking-avatar" },
+    { value: "d-id", label: "D-ID 数字人", model: "d-id-talking-avatar", base: "https://api.d-id.com" },
     { value: "mock", label: "Mock 测试", model: "mock-digital-human" },
   ],
   asr: [
     { value: "volcengine", label: "火山引擎 / 豆包 ASR", model: "volcengine-asr" },
-    { value: "aliyun-bailian", label: "阿里云百炼 / Qwen Audio", model: "qwen-audio-asr" },
+    { value: "aliyun-bailian", label: "阿里云百炼 / Qwen-ASR", model: "qwen3-asr-flash", base: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
     { value: "openai-compatible", label: "OpenAI 兼容转写", model: "whisper-1" },
     { value: "whisperx", label: "WhisperX 本地服务", model: "whisperx-large-v3", base: "http://localhost:9000" },
     { value: "mock", label: "Mock 测试", model: "mock-asr" },
@@ -1093,7 +1096,9 @@ function renderMaterials(materials) {
           <strong>#${material.id} ${escapeHtml(material.name)}</strong>
           <span class="status">${materialKindLabel(material.kind)}</span>
           <div class="recordMeta">${escapeHtml(material.copyright_status)} · ${escapeHtml(material.tags || "未打标签")}</div>
+          <div class="recordMeta">${material.source_url ? "云端地址已就绪" : "云端地址未上传"}</div>
           <div class="itemActions accountActions">
+            ${material.source_url ? `<button type="button" class="secondary" data-action="copy-material-url" data-url="${escapeHtml(material.source_url)}">复制云端地址</button>` : `<button type="button" class="secondary" data-action="remote-upload-material" data-id="${material.id}">补传服务器</button>`}
             <button type="button" class="danger" data-action="delete-material" data-id="${material.id}">删除素材</button>
           </div>
         </div>
@@ -1499,6 +1504,23 @@ function renderVideoStorage(report) {
   `;
 }
 
+function renderRemoteUpload(settings) {
+  const form = document.querySelector("#remoteUploadForm");
+  const stateLabel = document.querySelector("#remoteUploadState");
+  if (!form) return;
+  form.querySelector("[name='enabled']").checked = Boolean(settings?.enabled);
+  form.querySelector("[name='upload_url']").value = settings?.upload_url || "";
+  form.querySelector("[name='public_base_url']").value = settings?.public_base_url || "";
+  form.querySelector("[name='file_field_name']").value = settings?.file_field_name || "file";
+  form.querySelector("[name='upload_token']").value = "";
+  form.querySelector("[name='upload_token']").placeholder = settings?.has_upload_token ? "已保存 Token，可留空" : "可选 Bearer Token";
+  form.querySelector("[name='clear_upload_token']").checked = false;
+  if (stateLabel) {
+    stateLabel.textContent = settings?.ready ? "已启用" : settings?.enabled ? "缺上传接口" : "未启用";
+    stateLabel.className = `pill ${settings?.ready ? "ok" : "subtle"}`;
+  }
+}
+
 function renderSystemUsers(users) {
   const target = document.querySelector("#userAccountList");
   if (!target) return;
@@ -1812,6 +1834,7 @@ async function refresh() {
       modelUsage,
       modelDiagnostics,
       videoStorage,
+      remoteUpload,
       users,
     ] = await Promise.all([
       api.get("/settings/models"),
@@ -1828,6 +1851,7 @@ async function refresh() {
       api.get("/settings/model-usage"),
       api.get("/settings/model-diagnostics"),
       api.get("/settings/video-storage"),
+      api.get("/settings/remote-upload"),
       api.get("/settings/users").catch(() => []),
     ]);
     state.platformCredentials = platformCredentials;
@@ -1837,12 +1861,14 @@ async function refresh() {
     state.modelUsage = modelUsage;
     state.modelDiagnostics = modelDiagnostics;
     state.videoStorage = videoStorage;
+    state.remoteUpload = remoteUpload;
     state.users = users;
     renderModels(models);
     renderModelDiagnostics(modelDiagnostics);
     renderPlatformCredentials(platformCredentials);
     renderModelUsage(modelUsage);
     renderVideoStorage(videoStorage);
+    renderRemoteUpload(remoteUpload);
     renderSystemUsers(users);
     renderTrending(searches, videos);
     renderTranscriptions(transcriptions);
@@ -1911,6 +1937,30 @@ document.querySelector("#videoStorageForm").addEventListener("submit", async (ev
     toast("视频保存位置已更新");
   } catch (error) {
     toast("保存失败，请确认这个文件夹可访问、可写入");
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
+});
+
+document.querySelector("#remoteUploadForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = form.querySelector("button[type='submit']");
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "保存中...";
+  const payload = formData(form);
+  payload.enabled = form.querySelector("[name='enabled']").checked;
+  payload.clear_upload_token = form.querySelector("[name='clear_upload_token']").checked;
+  if (!payload.upload_token) delete payload.upload_token;
+  try {
+    const settings = await api.patch("/settings/remote-upload", payload);
+    state.remoteUpload = settings;
+    renderRemoteUpload(settings);
+    toast("素材服务器配置已保存");
+  } catch (error) {
+    toast("保存失败，请确认上传接口是可访问的 http/https 地址");
   } finally {
     button.disabled = false;
     button.textContent = originalText;
@@ -2287,6 +2337,33 @@ document.querySelector("#batchRunSelectedTasksBtn").addEventListener("click", as
 });
 
 document.querySelector("#materialList").addEventListener("click", async (event) => {
+  const uploadButton = event.target.closest("button[data-action='remote-upload-material']");
+  if (uploadButton) {
+    uploadButton.disabled = true;
+    const originalText = uploadButton.textContent;
+    uploadButton.textContent = "上传中...";
+    try {
+      await api.post(`/materials/${uploadButton.dataset.id}/remote-upload`);
+      toast("素材已上传到服务器");
+      await refresh();
+    } catch (error) {
+      toast("补传失败，请先配置素材服务器上传接口");
+    } finally {
+      uploadButton.disabled = false;
+      uploadButton.textContent = originalText;
+    }
+    return;
+  }
+  const copyButton = event.target.closest("button[data-action='copy-material-url']");
+  if (copyButton) {
+    try {
+      await navigator.clipboard.writeText(copyButton.dataset.url || "");
+      toast("云端地址已复制");
+    } catch {
+      toast(copyButton.dataset.url || "");
+    }
+    return;
+  }
   const button = event.target.closest("button[data-action='delete-material']");
   if (!button) return;
   if (!window.confirm("确认删除这个素材吗？相关数字人会自动解除绑定。")) return;

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import base64
 import json
+import mimetypes
+import re
 import subprocess
 import asyncio
 import wave
@@ -56,6 +59,9 @@ SCRIPT_REALISM_PRESET = {
 
 KEYLESS_VOICE_CLONE_PROVIDERS = {"cosyvoice-clone", "f5-tts", "openvoice"}
 KEYLESS_DIGITAL_HUMAN_PROVIDERS = {"http-json", "sadtalker"}
+DASHSCOPE_TTS_PROVIDERS = {"aliyun-cosyvoice", "aliyun-tts"}
+DASHSCOPE_VOICE_CLONE_PROVIDERS = {"aliyun-cosyvoice-clone"}
+DID_DIGITAL_HUMAN_PROVIDERS = {"d-id", "did"}
 
 
 class ScriptGenerator:
@@ -434,13 +440,30 @@ class MediaGenerationClient:
         api_base = self.tts_model_config.api_base if self.tts_model_config and self.tts_model_config.api_base else self.settings.tts_api_base
         api_key = self.tts_model_config.api_key if self.tts_model_config and self.tts_model_config.api_key else self.settings.tts_api_key
         provider = self.tts_model_config.provider if self.tts_model_config else self.settings.tts_provider
-        default_voice = self.tts_model_config.model_name if self.tts_model_config else self.settings.tts_voice
+        model_name = self.tts_model_config.model_name if self.tts_model_config else self.settings.tts_voice
+        default_voice = (
+            self._config_note_value(self.tts_model_config, "voice")
+            or self._config_note_value(self.tts_model_config, "default_voice")
+            or self.settings.tts_voice
+        )
+        if self._is_dashscope_tts(provider, api_base):
+            if not api_base:
+                raise RuntimeError("百炼 CosyVoice 接口地址未配置，请使用 https://dashscope.aliyuncs.com/api/v1")
+            if not api_key:
+                raise RuntimeError("百炼 CosyVoice API Key 未配置")
+            return await self._synthesize_dashscope_cosyvoice(
+                text,
+                voice or default_voice or "longanyang",
+                api_base,
+                api_key,
+                model_name or "cosyvoice-v3-flash",
+            )
         if provider == "mock" or not api_base:
             return self._local_voiceover(text, voice)
 
         payload = {
             "text": text,
-            "voice": voice or default_voice,
+            "voice": voice or default_voice or model_name,
             "provider": provider,
             "format": "wav",
         }
@@ -460,12 +483,24 @@ class MediaGenerationClient:
         source_video_path: str,
         speaker_name: str,
         model_config=None,
+        source_url: Optional[str] = None,
     ) -> str:
         api_base = model_config.api_base if model_config and model_config.api_base else self.settings.voice_clone_api_base
         api_key = model_config.api_key if model_config and model_config.api_key else self.settings.voice_clone_api_key
         provider = model_config.provider if model_config else self.settings.voice_clone_provider
         if not api_base:
             raise RuntimeError("Voice clone service is not configured")
+        if self._is_dashscope_voice_clone(provider, api_base):
+            if not api_key:
+                raise RuntimeError("百炼 CosyVoice 声音复刻 API Key 未配置")
+            return await self._clone_dashscope_cosyvoice(
+                source_video_path,
+                source_url,
+                speaker_name,
+                api_base,
+                api_key,
+                model_config,
+            )
         if not api_key and provider not in KEYLESS_VOICE_CLONE_PROVIDERS:
             raise RuntimeError("Voice clone API key is not configured")
 
@@ -515,6 +550,8 @@ class MediaGenerationClient:
             return self._mock_asset("digital-human", "talking-avatar.mp4")
         if not api_key and provider not in KEYLESS_DIGITAL_HUMAN_PROVIDERS:
             raise RuntimeError("Digital human API key is not configured")
+        if self._is_did_provider(provider):
+            return await self._generate_did_talk(portrait_path, audio_path, api_base, api_key, style_prompt)
 
         if self._is_local_path(audio_path) and (
             self._is_local_path(portrait_path or "") or self._is_local_path(source_video_path or "")
@@ -1126,6 +1163,158 @@ class MediaGenerationClient:
         clip.close()
         return self._export_to_profile(str(output_path), export_profile)
 
+    async def _synthesize_dashscope_cosyvoice(
+        self,
+        text: str,
+        voice: str,
+        api_base: str,
+        api_key: str,
+        model_name: str,
+    ) -> str:
+        endpoint = self._dashscope_tts_endpoint(api_base)
+        payload = {
+            "model": model_name or "cosyvoice-v3-flash",
+            "input": {
+                "text": text,
+                "voice": voice or "longanyang",
+            },
+            "parameters": {
+                "format": "wav",
+                "sample_rate": 24000,
+            },
+        }
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+        async with httpx.AsyncClient(timeout=240) as client:
+            response = await client.post(endpoint, headers=headers, json=payload)
+            response.raise_for_status()
+            data = response.json()
+
+        audio_url = self._nested_value(data, ("output", "audio", "url"))
+        if isinstance(audio_url, str) and audio_url:
+            audio_path = await self._download_media(audio_url, "voice", "voiceover.wav")
+            Path(f"{audio_path}.source_url").write_text(audio_url, encoding="utf-8")
+            return audio_path
+
+        audio_data = self._nested_value(data, ("output", "audio", "data"))
+        if isinstance(audio_data, str) and audio_data:
+            if "," in audio_data:
+                audio_data = audio_data.split(",", 1)[1]
+            output_path = self._asset_path("voice", "voiceover.wav")
+            output_path.write_bytes(base64.b64decode(audio_data))
+            return str(output_path)
+        raise RuntimeError("百炼 CosyVoice 未返回音频 URL 或音频数据")
+
+    async def _clone_dashscope_cosyvoice(
+        self,
+        source_video_path: str,
+        source_url: Optional[str],
+        speaker_name: str,
+        api_base: str,
+        api_key: str,
+        model_config=None,
+    ) -> str:
+        media_url = self._public_media_url(source_url or source_video_path)
+        if not media_url:
+            raise RuntimeError("百炼 CosyVoice 声音复刻需要公网可访问的音频/视频 URL，请先在素材里填写 source_url 或上传到 OSS。")
+        target_model = (
+            self._config_note_value(model_config, "target_model")
+            or self._config_note_value(model_config, "tts_model")
+            or (model_config.model_name if model_config else "")
+            or "cosyvoice-v3-flash"
+        )
+        prefix = self._voice_prefix(speaker_name)
+        payload = {
+            "model": "voice-enrollment",
+            "input": {
+                "action": "create_voice",
+                "target_model": target_model,
+                "prefix": prefix,
+                "url": media_url,
+            },
+        }
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+        async with httpx.AsyncClient(timeout=300) as client:
+            response = await client.post(self._dashscope_customization_endpoint(api_base), headers=headers, json=payload)
+            response.raise_for_status()
+            data = response.json()
+        voice_id = self._extract_voice_id(data)
+        if not voice_id:
+            raise RuntimeError("百炼 CosyVoice 声音复刻未返回 voice_id")
+        return voice_id
+
+    async def _generate_did_talk(
+        self,
+        portrait_path: Optional[str],
+        audio_path: str,
+        api_base: str,
+        api_key: Optional[str],
+        style_prompt: str = "",
+    ) -> str:
+        if not portrait_path or not self._is_local_path(portrait_path) or not Path(portrait_path).exists():
+            raise RuntimeError("D-ID 数字人需要本地头像图片")
+        if not self._is_local_path(audio_path) or not Path(audio_path).exists():
+            raise RuntimeError("D-ID 数字人需要本地音频文件")
+        if not api_key:
+            raise RuntimeError("D-ID API Key 未配置")
+
+        base = api_base.rstrip("/")
+        headers = self._did_headers(api_key)
+        image_url = await self._did_upload_file(
+            f"{base}/images",
+            "image",
+            portrait_path,
+            headers,
+        )
+        audio_url = self._audio_source_url(audio_path)
+        if not audio_url:
+            audio_url = await self._did_upload_file(
+                f"{base}/audios",
+                "audio",
+                audio_path,
+                headers,
+            )
+        payload = {
+            "source_url": image_url,
+            "script": {
+                "type": "audio",
+                "audio_url": audio_url,
+            },
+            "config": {
+                "stitch": True,
+                "fluent": True,
+            },
+        }
+        async with httpx.AsyncClient(timeout=300) as client:
+            create_response = await client.post(f"{base}/talks", headers={**headers, "Content-Type": "application/json"}, json=payload)
+            create_response.raise_for_status()
+            talk_data = create_response.json()
+
+            immediate_url = self._did_result_url(talk_data)
+            if immediate_url.startswith("http"):
+                return await self._download_media(immediate_url, "digital-human", "talking-avatar.mp4")
+
+            talk_id = str(talk_data.get("id") or "")
+            if not talk_id:
+                raise RuntimeError("D-ID 创建任务未返回 talk id")
+            for _ in range(120):
+                await asyncio.sleep(3)
+                status_response = await client.get(f"{base}/talks/{talk_id}", headers=headers)
+                status_response.raise_for_status()
+                status_data = status_response.json()
+                status = str(status_data.get("status") or "").lower()
+                result_url = self._did_result_url(status_data)
+                if result_url.startswith("http") and status in {"done", "created"}:
+                    return await self._download_media(result_url, "digital-human", "talking-avatar.mp4")
+                if status in {"error", "failed", "rejected"}:
+                    raise RuntimeError(f"D-ID 数字人生成失败：{status_data.get('error') or status_data}")
+            raise RuntimeError(f"D-ID 数字人生成超时：{talk_id}")
+
     async def _post_digital_human_media(
         self,
         portrait_path: Optional[str],
@@ -1545,11 +1734,126 @@ class MediaGenerationClient:
                     return value
         return None
 
+    def _is_dashscope_tts(self, provider: str, api_base: Optional[str]) -> bool:
+        normalized_provider = (provider or "").lower()
+        normalized_base = (api_base or "").lower()
+        return normalized_provider in DASHSCOPE_TTS_PROVIDERS or "dashscope.aliyuncs.com" in normalized_base
+
+    def _is_dashscope_voice_clone(self, provider: str, api_base: Optional[str]) -> bool:
+        normalized_provider = (provider or "").lower()
+        normalized_base = (api_base or "").lower()
+        return normalized_provider in DASHSCOPE_VOICE_CLONE_PROVIDERS or (
+            normalized_provider == "cosyvoice-clone" and "dashscope.aliyuncs.com" in normalized_base
+        )
+
+    def _is_did_provider(self, provider: str) -> bool:
+        return (provider or "").lower() in DID_DIGITAL_HUMAN_PROVIDERS
+
+    def _dashscope_tts_endpoint(self, api_base: str) -> str:
+        base = api_base.rstrip("/")
+        if base.endswith("/SpeechSynthesizer"):
+            return base
+        if base.endswith("/api/v1"):
+            return f"{base}/services/audio/tts/SpeechSynthesizer"
+        return f"{base}/api/v1/services/audio/tts/SpeechSynthesizer"
+
+    def _dashscope_customization_endpoint(self, api_base: str) -> str:
+        base = api_base.rstrip("/")
+        if base.endswith("/customization"):
+            return base
+        if base.endswith("/api/v1"):
+            return f"{base}/services/audio/tts/customization"
+        return f"{base}/api/v1/services/audio/tts/customization"
+
+    def _config_note_value(self, model_config, key: str) -> Optional[str]:
+        if not model_config or not getattr(model_config, "notes", ""):
+            return None
+        notes = str(model_config.notes).strip()
+        try:
+            parsed = json.loads(notes)
+            if isinstance(parsed, dict):
+                value = parsed.get(key)
+                return str(value).strip() if value else None
+        except json.JSONDecodeError:
+            pass
+        for line in notes.splitlines():
+            if "=" not in line:
+                continue
+            item_key, item_value = line.split("=", 1)
+            if item_key.strip() == key:
+                return item_value.strip() or None
+        return None
+
+    def _nested_value(self, data: object, path: tuple[str, ...]) -> object:
+        current = data
+        for key in path:
+            if not isinstance(current, dict):
+                return None
+            current = current.get(key)
+        return current
+
+    def _public_media_url(self, value: Optional[str]) -> Optional[str]:
+        if value and value.startswith(("http://", "https://")):
+            return value
+        return None
+
+    def _voice_prefix(self, speaker_name: str) -> str:
+        cleaned = re.sub(r"[^a-zA-Z0-9_]", "", (speaker_name or "").lower())
+        if not cleaned:
+            cleaned = "voice"
+        return f"{cleaned[:10]}{uuid4().hex[:4]}"
+
+    def _did_headers(self, api_key: str) -> dict[str, str]:
+        cleaned = api_key.strip()
+        if cleaned.lower().startswith(("basic ", "bearer ")):
+            return {"Authorization": cleaned}
+        return {"Authorization": f"Basic {cleaned}"}
+
+    async def _did_upload_file(
+        self,
+        url: str,
+        field_name: str,
+        file_path: str,
+        headers: dict[str, str],
+    ) -> str:
+        path = Path(file_path)
+        mime_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+        with open(path, "rb") as upload_file:
+            files = {
+                field_name: (path.name, upload_file, mime_type),
+            }
+            async with httpx.AsyncClient(timeout=300) as client:
+                response = await client.post(url, headers=headers, files=files)
+                response.raise_for_status()
+                data = response.json()
+        media_url = self._extract_media_url(data, field_name)
+        if not media_url.startswith("http"):
+            raise RuntimeError(f"D-ID 上传 {field_name} 后未返回可访问 URL")
+        return media_url
+
+    def _audio_source_url(self, audio_path: str) -> Optional[str]:
+        sidecar = Path(f"{audio_path}.source_url")
+        if sidecar.exists():
+            url = sidecar.read_text(encoding="utf-8").strip()
+            if url.startswith(("http://", "https://")):
+                return url
+        return None
+
+    def _did_result_url(self, data: dict[str, object]) -> str:
+        for key in ("result_url", "video_url", "output_url"):
+            value = data.get(key)
+            if isinstance(value, str) and value:
+                return value
+        result = data.get("result")
+        if isinstance(result, dict):
+            return self._did_result_url(result)
+        return ""
+
     def _mock_asset(self, category: str, filename: str) -> str:
         return f"mock://{category}/{filename}"
 
     def _extract_media_url(self, result: dict[str, object], fallback_key: str) -> str:
-        for key in ("url", "video_url", "audio_url", "output_url", "path", "output_path"):
+        for key in ("url", "result_url", "video_url", "audio_url", "image_url", "source_url", "output_url", "path", "output_path"):
             value = result.get(key)
             if isinstance(value, str) and value:
                 return value

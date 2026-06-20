@@ -64,11 +64,13 @@ class VideoPipeline:
 
             human = self.session.get(DigitalHuman, task.digital_human_id) if task.digital_human_id else None
             portrait = self._portrait_path(human)
-            source_video = self._source_video_path(human)
-            voice = await self._voice_for_human(human, source_video, task)
+            source_video_material = self._source_video_material(human)
+            source_video = source_video_material.file_path if source_video_material else None
+            source_video_url = source_video_material.source_url if source_video_material else None
+            voice = await self._voice_for_human(human, source_video, task, source_video_url)
             audio = await self._synthesize_voice(script, voice)
             if task.production_mode == "talking_head_template":
-                if human is None or source_video is None:
+                if human is None or (source_video is None and source_video_url is None):
                     raise RuntimeError("数字人口播模板需要选择已绑定口播源视频的数字人。")
                 if not self.media.can_generate_talking_avatar():
                     raise RuntimeError("数字人口播模板需要先配置真实数字人驱动接口，不能使用头像或图文预览代替。")
@@ -256,30 +258,35 @@ class VideoPipeline:
         return material.file_path
 
     def _source_video_path(self, human: DigitalHuman | None) -> str | None:
-        if human is None or human.source_video_material_id is None:
-            return None
-        material = self.session.get(Material, human.source_video_material_id)
+        material = self._source_video_material(human)
         if material is None:
             return None
         return material.file_path
+
+    def _source_video_material(self, human: DigitalHuman | None) -> Material | None:
+        if human is None or human.source_video_material_id is None:
+            return None
+        return self.session.get(Material, human.source_video_material_id)
 
     async def _voice_for_human(
         self,
         human: DigitalHuman | None,
         source_video_path: str | None,
         task: VideoTask,
+        source_video_url: str | None = None,
     ) -> str | None:
         if human is None:
             return None
         if human.default_voice:
             return human.default_voice
-        if not source_video_path:
+        if not source_video_path and not source_video_url:
             return None
         try:
             voice_id = await self.media.clone_voice_from_source_video(
-                source_video_path,
+                source_video_path or source_video_url or "",
                 human.name,
                 self.voice_clone_model_config,
+                source_url=source_video_url,
             )
             self._record_usage(
                 "voice_clone",

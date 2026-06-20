@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
 from uuid import uuid4
+import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlmodel import Session, func, select
@@ -55,6 +56,7 @@ from app.schemas.requests import (
     PlatformCredentialUpdate,
     PublishPrepareRequest,
     ReferenceVideoAnalysisCreate,
+    RemoteUploadSettingsUpdate,
     PublishRecordUpdate,
     ScriptBatchGenerateRequest,
     ScriptGenerateRequest,
@@ -84,6 +86,12 @@ from app.services.video_analysis import ReferenceVideoAnalyzer
 
 
 router = APIRouter()
+
+REMOTE_UPLOAD_ENABLED_KEY = "remote_upload_enabled"
+REMOTE_UPLOAD_URL_KEY = "remote_upload_url"
+REMOTE_UPLOAD_PUBLIC_BASE_URL_KEY = "remote_upload_public_base_url"
+REMOTE_UPLOAD_FIELD_NAME_KEY = "remote_upload_field_name"
+REMOTE_UPLOAD_TOKEN_KEY = "remote_upload_token"
 
 PRODUCTION_MODES = {"dynamic_explainer", "digital_human", "seedance_scene", "talking_head_template"}
 MODEL_PURPOSE_ORDER = [
@@ -568,6 +576,63 @@ def update_video_storage(
     return video_storage_summary(session=session, user=user)
 
 
+@router.get("/settings/remote-upload")
+def remote_upload_settings(
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> dict[str, object]:
+    settings = _remote_upload_settings(session)
+    return {
+        "enabled": settings["enabled"],
+        "upload_url": settings["upload_url"],
+        "public_base_url": settings["public_base_url"],
+        "file_field_name": settings["file_field_name"],
+        "has_upload_token": bool(settings["upload_token"]),
+        "ready": bool(settings["enabled"] and settings["upload_url"]),
+    }
+
+
+@router.patch("/settings/remote-upload")
+def update_remote_upload_settings(
+    payload: RemoteUploadSettingsUpdate,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> dict[str, object]:
+    upload_url = (payload.upload_url or "").strip()
+    public_base_url = (payload.public_base_url or "").strip()
+    field_name = (payload.file_field_name or "file").strip() or "file"
+    if payload.enabled and not upload_url:
+        raise HTTPException(status_code=400, detail="启用素材服务器上传前，请先填写上传接口地址。")
+    if upload_url and not _api_base_looks_valid(upload_url):
+        raise HTTPException(status_code=400, detail="上传接口地址必须是 http 或 https 地址。")
+    if public_base_url and not _api_base_looks_valid(public_base_url):
+        raise HTTPException(status_code=400, detail="访问域名必须是 http 或 https 地址。")
+
+    _save_system_setting(session, REMOTE_UPLOAD_ENABLED_KEY, "1" if payload.enabled else "0")
+    _save_system_setting(session, REMOTE_UPLOAD_URL_KEY, upload_url)
+    _save_system_setting(session, REMOTE_UPLOAD_PUBLIC_BASE_URL_KEY, public_base_url)
+    _save_system_setting(session, REMOTE_UPLOAD_FIELD_NAME_KEY, field_name)
+    if payload.clear_upload_token:
+        _save_system_setting(session, REMOTE_UPLOAD_TOKEN_KEY, "")
+    elif payload.upload_token:
+        _save_system_setting(session, REMOTE_UPLOAD_TOKEN_KEY, payload.upload_token.strip())
+    return remote_upload_settings(session=session, user=user)
+
+
+@router.post("/materials/{material_id}/remote-upload", response_model=Material)
+async def upload_material_to_remote(
+    material_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> Material:
+    material = session.get(Material, material_id)
+    if material is None:
+        raise HTTPException(status_code=404, detail="Material not found")
+    await _publish_material_to_remote(material, session, require_config=True)
+    session.refresh(material)
+    return material
+
+
 @router.post("/settings/video-storage/choose-folder")
 def choose_video_storage_folder(user: User = Depends(current_user)) -> dict[str, str]:
     if platform.system() != "Darwin":
@@ -937,7 +1002,104 @@ async def _save_uploaded_material(
     session.add(material)
     session.commit()
     session.refresh(material)
+    try:
+        await _publish_material_to_remote(material, session)
+        session.refresh(material)
+    except Exception:
+        pass
     return material
+
+
+def _save_system_setting(session: Session, key: str, value: str) -> SystemSetting:
+    setting = session.get(SystemSetting, key)
+    if setting is None:
+        setting = SystemSetting(key=key)
+    setting.value = value
+    setting.updated_at = datetime.utcnow()
+    session.add(setting)
+    session.commit()
+    session.refresh(setting)
+    return setting
+
+
+def _system_setting_value(session: Session, key: str) -> str:
+    setting = session.get(SystemSetting, key)
+    return setting.value.strip() if setting and setting.value else ""
+
+
+def _remote_upload_settings(session: Session) -> dict[str, object]:
+    return {
+        "enabled": _system_setting_value(session, REMOTE_UPLOAD_ENABLED_KEY) == "1",
+        "upload_url": _system_setting_value(session, REMOTE_UPLOAD_URL_KEY),
+        "public_base_url": _system_setting_value(session, REMOTE_UPLOAD_PUBLIC_BASE_URL_KEY),
+        "file_field_name": _system_setting_value(session, REMOTE_UPLOAD_FIELD_NAME_KEY) or "file",
+        "upload_token": _system_setting_value(session, REMOTE_UPLOAD_TOKEN_KEY),
+    }
+
+
+async def _publish_material_to_remote(
+    material: Material,
+    session: Session,
+    require_config: bool = False,
+) -> None:
+    if material.source_url and material.source_url.startswith(("http://", "https://")):
+        return
+    settings = _remote_upload_settings(session)
+    if not settings["enabled"] or not settings["upload_url"]:
+        if require_config:
+            raise HTTPException(status_code=400, detail="请先在视频存储位置里配置素材服务器上传接口。")
+        return
+    if not material.file_path or not Path(material.file_path).exists():
+        if require_config:
+            raise HTTPException(status_code=400, detail="素材本地文件不存在，无法上传到服务器。")
+        return
+
+    upload_url = str(settings["upload_url"])
+    field_name = str(settings["file_field_name"] or "file")
+    token = str(settings["upload_token"] or "")
+    path = Path(material.file_path)
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    with open(path, "rb") as file_obj:
+        files = {field_name: (path.name, file_obj, "application/octet-stream")}
+        data = {
+            "material_id": str(material.id or ""),
+            "name": material.name,
+            "kind": material.kind.value if hasattr(material.kind, "value") else str(material.kind),
+        }
+        async with httpx.AsyncClient(timeout=600) as client:
+            response = await client.post(upload_url, headers=headers, files=files, data=data)
+            response.raise_for_status()
+            try:
+                result = response.json()
+            except ValueError:
+                result = response.text
+    source_url = _extract_remote_upload_url(result)
+    if not source_url and settings["public_base_url"]:
+        source_url = _join_public_base_url(str(settings["public_base_url"]), path.name)
+    if not source_url:
+        raise HTTPException(status_code=400, detail="素材服务器未返回 url/source_url/file_url 字段。")
+    material.source_url = source_url
+    session.add(material)
+    session.commit()
+
+
+def _extract_remote_upload_url(result: object) -> str:
+    if isinstance(result, str):
+        return result if result.startswith(("http://", "https://")) else ""
+    if not isinstance(result, dict):
+        return ""
+    for key in ("source_url", "url", "file_url", "public_url", "download_url"):
+        value = result.get(key)
+        if isinstance(value, str) and value.startswith(("http://", "https://")):
+            return value
+    data = result.get("data")
+    if isinstance(data, dict):
+        return _extract_remote_upload_url(data)
+    return ""
+
+
+def _join_public_base_url(base_url: str, filename: str) -> str:
+    return f"{base_url.rstrip('/')}/{filename.lstrip('/')}"
 
 
 @router.get("/materials", response_model=list[Material])
