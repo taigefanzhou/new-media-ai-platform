@@ -349,6 +349,89 @@ function renderScripts(scripts) {
   renderScriptDetail(script, state.highlightedScriptId === script.id);
 }
 
+function productionModeLabel(mode) {
+  return {
+    dynamic_explainer: "动态讲解",
+    digital_human: "真人口播",
+    seedance_scene: "Seedance 分段",
+  }[mode] || "动态讲解";
+}
+
+function parseStoryboardPlan(script) {
+  if (!script?.storyboard_plan) return storyboardRowsFromText(script?.storyboard || "", script?.duration_seconds || 30);
+  try {
+    const parsed = JSON.parse(script.storyboard_plan);
+    if (Array.isArray(parsed) && parsed.length) return parsed;
+  } catch {
+    return storyboardRowsFromText(script?.storyboard || "", script?.duration_seconds || 30);
+  }
+  return storyboardRowsFromText(script?.storyboard || "", script?.duration_seconds || 30);
+}
+
+function storyboardRowsFromText(storyboard, durationSeconds) {
+  const lines = String(storyboard || "")
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const total = Number(durationSeconds || 30);
+  const segment = Math.max(5, Math.ceil(total / Math.max(1, lines.length || 1)));
+  return lines.map((line, index) => ({
+    start_second: index * segment,
+    end_second: Math.min(total, (index + 1) * segment),
+    shot_type: index === 0 || index === lines.length - 1 ? "talking_head" : "text_card",
+    visual: line,
+    person_action: "根据口播自然讲解，画面需要有轻微镜头运动",
+    screen_text: line.slice(0, 18),
+    asset_or_background: "business hotel scene",
+    ai_prompt: line,
+    needs_lip_sync: index === 0 || index === lines.length - 1,
+  }));
+}
+
+function storyboardPlanJson(script) {
+  const rows = parseStoryboardPlan(script);
+  return JSON.stringify(rows, null, 2);
+}
+
+function renderStoryboardPlanTable(script) {
+  const rows = parseStoryboardPlan(script);
+  if (!rows.length) return `<div class="item">还没有结构化分镜，保存脚本时可在高级项里补充。</div>`;
+  return `
+    <div class="storyboardPlanBlock">
+      <div class="candidateHeader">
+        <strong>分镜执行表</strong>
+        <span>用于决定画面怎么动，不只是口播文字。</span>
+      </div>
+      <div class="storyboardPlanTableWrap">
+        <table class="storyboardPlanTable compactTable">
+          <thead>
+            <tr>
+              <th>时间</th>
+              <th>画面类型</th>
+              <th>画面动作</th>
+              <th>屏幕文字</th>
+              <th>数字人</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows
+              .map((row) => `
+                <tr>
+                  <td>${Number(row.start_second || 0)}-${Number(row.end_second || 0)}s</td>
+                  <td>${escapeHtml(row.shot_type || "-")}</td>
+                  <td>${escapeHtml(row.visual || row.person_action || "-")}</td>
+                  <td>${escapeHtml(row.screen_text || "-")}</td>
+                  <td>${row.needs_lip_sync ? "需口型" : "不需要"}</td>
+                </tr>
+              `)
+              .join("")}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
 function renderScriptDetail(script, isFresh = false) {
   const creationTarget = document.querySelector("#scriptPreviewCreation");
   const resultStatus = document.querySelector("#scriptResultStatus");
@@ -362,8 +445,10 @@ function renderScriptDetail(script, isFresh = false) {
       </div>
       <label>口播稿<textarea name="voiceover" rows="8">${escapeHtml(script.voiceover)}</textarea></label>
       <label>分镜/画面<textarea name="storyboard" rows="5">${escapeHtml(script.storyboard)}</textarea></label>
+      ${renderStoryboardPlanTable(script)}
       <details class="scriptAdvancedEdit">
         <summary>视频提示词、标题和合规提醒</summary>
+        <label>分镜执行表 JSON<textarea name="storyboard_plan" rows="8">${escapeHtml(storyboardPlanJson(script))}</textarea></label>
         <label>视频提示词<textarea name="seedance_prompt" rows="5">${escapeHtml(script.seedance_prompt)}</textarea></label>
         <label>标题建议<textarea name="title_options" rows="4">${escapeHtml(script.title_options)}</textarea></label>
         <label>合规提醒<textarea name="compliance_notes" rows="4">${escapeHtml(script.compliance_notes)}</textarea></label>
@@ -566,10 +651,11 @@ function taskProgress(task) {
 
 function taskSegmentMeta(task) {
   const total = Number(task.segment_count || 1);
-  if (total <= 1) return "短视频";
+  const modeLabel = productionModeLabel(task.production_mode);
+  if (total <= 1) return modeLabel;
   const completed = Number(task.completed_segments || 0);
   const mode = task.generation_mode === "long" ? "长视频" : "分段视频";
-  return `${mode} · ${completed}/${total} 段`;
+  return `${modeLabel} · ${mode} · ${completed}/${total} 段`;
 }
 
 function humanName(id) {
@@ -689,6 +775,7 @@ function renderTaskTable(tasks) {
           <th>任务</th>
           <th>脚本</th>
           <th>数字人</th>
+          <th>方式</th>
           <th>进度</th>
           <th>操作</th>
         </tr>
@@ -708,6 +795,7 @@ function renderTaskTable(tasks) {
                 </td>
                 <td>${escapeHtml(scriptName(task.script_id)).slice(0, 72)}</td>
                 <td>${escapeHtml(humanName(task.digital_human_id))}</td>
+                <td>${productionModeLabel(task.production_mode)}</td>
                 <td>
                   <div class="progressBar"><span style="width:${progress}%"></span></div>
                   <div class="recordMeta">${progress}% · ${taskStatusLabel(task.status)}</div>
@@ -1647,6 +1735,19 @@ document.querySelectorAll(".durationPreset").forEach((button) => {
 
 document.querySelector("#scriptForm [name='duration_seconds']").addEventListener("input", syncDurationPreset);
 
+function syncProductionModeHint() {
+  const select = document.querySelector("#creationProductionModeSelect");
+  const hint = document.querySelector("#productionModeHint");
+  if (!select || !hint) return;
+  hint.textContent = {
+    dynamic_explainer: "会按分镜表生成动态画面、字幕和卖点卡片，适合先出样片。",
+    digital_human: "需要选择已上传口播源视频的数字人，用于后续真人嘴型驱动。",
+    seedance_scene: "会把分镜表拆成多个视频模型提示词，适合生成场景化画面。",
+  }[select.value] || "";
+}
+
+document.querySelector("#creationProductionModeSelect").addEventListener("change", syncProductionModeHint);
+
 document.querySelector("#scriptCandidateList").addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-script-id]");
   if (!button) return;
@@ -1700,9 +1801,11 @@ document.querySelector("#batchCreateTasksBtn").addEventListener("click", async (
     return;
   }
   const humanValue = document.querySelector("#batchHumanSelect").value;
+  const productionMode = document.querySelector("#batchProductionModeSelect").value;
   const payload = {
     script_ids: scriptIds,
     digital_human_id: humanValue ? Number(humanValue) : null,
+    production_mode: productionMode,
   };
   const tasks = await api.post("/video-tasks/batch-create", payload);
   toast(`已批量创建 ${tasks.length} 个视频任务`);
@@ -1718,9 +1821,14 @@ document.querySelector("#createTaskFromScriptBtn").addEventListener("click", asy
   const button = document.querySelector("#createTaskFromScriptBtn");
   const originalText = button.textContent;
   const humanInput = document.querySelector("#creationHumanSelect");
-  const payload = {};
+  const productionMode = document.querySelector("#creationProductionModeSelect").value;
+  const payload = { production_mode: productionMode };
   if (humanInput.value) {
     payload.digital_human_id = Number(humanInput.value);
+  }
+  if (productionMode === "digital_human" && !payload.digital_human_id) {
+    toast("真人数字人口播需要先选择有口播源视频的数字人");
+    return;
   }
   button.disabled = true;
   button.textContent = "进入生成队列...";
@@ -2131,3 +2239,4 @@ const initialRoute = parseRoute(window.location.hash);
 switchPage(initialRoute.page, initialRoute.section, false);
 
 syncProviderOptions();
+syncProductionModeHint();

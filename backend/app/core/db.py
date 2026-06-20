@@ -42,10 +42,16 @@ def apply_sqlite_migrations() -> None:
         if human_rows and "source_video_material_id" not in human_columns:
             connection.execute(text("ALTER TABLE digitalhuman ADD COLUMN source_video_material_id INTEGER"))
 
+        script_rows = connection.execute(text("PRAGMA table_info(script)")).fetchall()
+        script_columns = {row[1] for row in script_rows}
+        if script_rows and "storyboard_plan" not in script_columns:
+            connection.execute(text("ALTER TABLE script ADD COLUMN storyboard_plan VARCHAR DEFAULT ''"))
+
         video_task_rows = connection.execute(text("PRAGMA table_info(videotask)")).fetchall()
         video_task_columns = {row[1] for row in video_task_rows}
         video_task_migrations = {
             "generation_mode": "ALTER TABLE videotask ADD COLUMN generation_mode VARCHAR DEFAULT 'short'",
+            "production_mode": "ALTER TABLE videotask ADD COLUMN production_mode VARCHAR DEFAULT 'dynamic_explainer'",
             "segment_count": "ALTER TABLE videotask ADD COLUMN segment_count INTEGER DEFAULT 1",
             "completed_segments": "ALTER TABLE videotask ADD COLUMN completed_segments INTEGER DEFAULT 0",
         }

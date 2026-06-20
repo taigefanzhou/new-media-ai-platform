@@ -173,10 +173,20 @@
             <div id="titleSuggestionList" class="titleGrid"></div>
             <div id="scriptPreviewCreation" class="scriptResult empty">还没有脚本</div>
             <div class="creationFooterActions">
+              <div class="productionModeBar">
+                <label>成片方式
+                  <select id="creationProductionModeSelect">
+                    <option value="dynamic_explainer">动态讲解视频（当前推荐）</option>
+                    <option value="digital_human">真人数字人口播（需源视频）</option>
+                    <option value="seedance_scene">Seedance 分段视频</option>
+                  </select>
+                </label>
+                <span id="productionModeHint">会按分镜表生成动态画面、字幕和卖点卡片。</span>
+              </div>
               <div class="nextStepBar">
                 <span>1. 选方案</span>
                 <span>2. 改脚本</span>
-                <span>3. 审核通过</span>
+                <span>3. 选成片方式</span>
                 <span>4. 自动成片</span>
               </div>
               <div class="itemActions creationActions">
@@ -306,6 +316,13 @@
                   <option value="">不使用数字人露脸</option>
                 </select>
               </label>
+              <label>成片方式
+                <select name="production_mode">
+                  <option value="dynamic_explainer">动态讲解视频</option>
+                  <option value="digital_human">真人数字人口播</option>
+                  <option value="seedance_scene">Seedance 分段视频</option>
+                </select>
+              </label>
               <div class="actions">
                 <button type="submit">创建任务</button>
                 <button id="runTaskBtn" type="button" class="secondary">运行任务</button>
@@ -319,6 +336,13 @@
               <label>数字人
                 <select id="batchHumanSelect">
                   <option value="">不使用数字人露脸</option>
+                </select>
+              </label>
+              <label>成片方式
+                <select id="batchProductionModeSelect">
+                  <option value="dynamic_explainer">动态讲解视频</option>
+                  <option value="digital_human">真人数字人口播</option>
+                  <option value="seedance_scene">Seedance 分段视频</option>
                 </select>
               </label>
               <div class="actions">

@@ -41,7 +41,12 @@ class VideoPipeline:
             return task
 
         try:
-            segment_specs = self.media.segment_plan(script.seedance_prompt, script.storyboard, script.duration_seconds)
+            segment_specs = self.media.segment_plan(
+                script.seedance_prompt,
+                script.storyboard,
+                script.duration_seconds,
+                script.storyboard_plan,
+            )
             segments = self._reset_segments(task, segment_specs)
             task.generation_mode = "long" if script.duration_seconds >= 120 else "short"
             task.segment_count = len(segments)
@@ -56,6 +61,26 @@ class VideoPipeline:
             source_video = self._source_video_path(human)
             voice = await self._voice_for_human(human, source_video, task)
             audio = await self._synthesize_voice(script, voice)
+            if task.production_mode == "dynamic_explainer":
+                task.output_path = await self.media.compose_dynamic_explainer(
+                    script.voiceover,
+                    script.storyboard_plan,
+                    audio,
+                    portrait,
+                    duration_seconds=script.duration_seconds,
+                )
+                for segment in segments:
+                    segment.status = TaskStatus.needs_review
+                    segment.output_path = task.output_path
+                    segment.updated_at = datetime.utcnow()
+                    self.session.add(segment)
+                task.completed_segments = len(segments)
+                task.status = TaskStatus.needs_review
+                task.updated_at = datetime.utcnow()
+                self.session.add(task)
+                self.session.commit()
+                self.session.refresh(task)
+                return task
             avatar = await self._generate_talking_avatar(portrait, audio, source_video)
             clips = []
             for segment in segments:
@@ -151,7 +176,7 @@ class VideoPipeline:
     def _task_plan_notes(self, task: VideoTask, script: Script) -> str:
         base_note = task.audit_notes.strip()
         plan_note = (
-            f"长视频分段计划：脚本时长 {script.duration_seconds} 秒，"
+            f"成片方式：{task.production_mode}。长视频分段计划：脚本时长 {script.duration_seconds} 秒，"
             f"共 {task.segment_count} 段，每段约 10 秒，可用于后续分段预览和失败段重跑。"
         )
         return f"{base_note}\n{plan_note}".strip() if base_note else plan_note

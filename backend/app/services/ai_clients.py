@@ -6,7 +6,7 @@ import asyncio
 import wave
 import math
 from pathlib import Path
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 from uuid import uuid4
 import httpx
@@ -22,6 +22,7 @@ class GeneratedScript:
     title_options: str
     hashtags: str
     compliance_notes: str
+    storyboard_plan: list[dict[str, object]] = field(default_factory=list)
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0
@@ -74,14 +75,29 @@ class ScriptGenerator:
                 "适合公司新媒体账号和数字人口播",
                 "严格按 duration_seconds 控制口播长度：30秒约120字中文，60秒约220字中文，180秒约650字中文，360秒约1200字中文",
                 "如果 duration_seconds 大于等于60秒，脚本必须是完整连贯结构，不能重复堆砌；按问题、误区、方案、案例、总结推进",
-                "如果 duration_seconds 是180秒，storyboard 至少12段；如果是360秒，storyboard 至少24段，每段10-15秒",
-                "分镜要能转成 Seedance 视频提示词；seedance_prompt 始终使用英文",
+                "storyboard_plan 必须是数组，每段 10-20 秒，180秒至少9段，360秒至少18段",
+                "storyboard_plan 每项必须包含：start_second,end_second,shot_type,visual,person_action,screen_text,asset_or_background,ai_prompt,needs_lip_sync",
+                "分镜要能真正执行：说明镜头如何动、画面元素如何变化、屏幕文字如何出现；不能只写“继续讲解”",
+                "ai_prompt 始终使用英文，适合 Seedance 或其他视频模型；seedance_prompt 始终使用英文",
                 "必须输出严格 JSON",
             ],
             "json_schema": {
                 "hook": "开头钩子，一句话",
                 "voiceover": "完整口播稿",
                 "storyboard": "按镜头分行的分镜",
+                "storyboard_plan": [
+                    {
+                        "start_second": 0,
+                        "end_second": 12,
+                        "shot_type": "talking_head / b_roll / screen_demo / text_card / process_animation",
+                        "visual": "画面内容",
+                        "person_action": "人物动作或不露脸说明",
+                        "screen_text": "屏幕文字",
+                        "asset_or_background": "需要的素材或背景",
+                        "ai_prompt": "English prompt for this shot",
+                        "needs_lip_sync": True,
+                    }
+                ],
                 "seedance_prompt": "英文视频生成提示词，9:16，专业商务风",
                 "title_options": "3个标题，换行分隔",
                 "hashtags": "话题标签",
@@ -111,10 +127,12 @@ class ScriptGenerator:
         content = data["choices"][0]["message"]["content"]
         parsed = json.loads(content)
         usage = data.get("usage") or {}
+        storyboard_plan = self._normalize_storyboard_plan(parsed.get("storyboard_plan"), parsed.get("storyboard", ""), duration_seconds)
         return GeneratedScript(
             hook=parsed.get("hook", ""),
             voiceover=parsed.get("voiceover", ""),
             storyboard=parsed.get("storyboard", ""),
+            storyboard_plan=storyboard_plan,
             seedance_prompt=parsed.get("seedance_prompt", ""),
             title_options=parsed.get("title_options", ""),
             hashtags=parsed.get("hashtags", ""),
@@ -135,10 +153,12 @@ class ScriptGenerator:
         if output_language == "en-US":
             voiceover = self._stub_voiceover_en(topic, duration_seconds)
             storyboard = self._stub_storyboard_en(topic, duration_seconds)
+            storyboard_plan = self._stub_storyboard_plan(topic, duration_seconds, "en-US")
             return GeneratedScript(
                 hook=f"The real value of {topic} is not convenience alone, but smarter hotel operations.",
                 voiceover=voiceover,
                 storyboard=storyboard,
+                storyboard_plan=storyboard_plan,
                 seedance_prompt=(
                     "Vertical 9:16 long-form business explainer video, consistent modern hotel lobby and guest room, "
                     "smart operations dashboard, natural talking-head pacing, smooth transitions, professional lighting, "
@@ -154,10 +174,12 @@ class ScriptGenerator:
             )
         voiceover = self._stub_voiceover_zh(topic, duration_seconds)
         storyboard = self._stub_storyboard_zh(topic, duration_seconds)
+        storyboard_plan = self._stub_storyboard_plan(topic, duration_seconds, "zh-CN")
         return GeneratedScript(
             hook=f"你有没有发现，{topic}真正影响结果的不是选择多，而是判断标准。",
             voiceover=voiceover,
             storyboard=storyboard,
+            storyboard_plan=storyboard_plan,
             seedance_prompt=(
                 "Vertical 9:16 long-form corporate explainer video, consistent presenter and modern business hotel scenes, "
                 "clear chapter-like progression, smart operations interface, smooth transitions, professional lighting, "
@@ -212,26 +234,121 @@ class ScriptGenerator:
         return text.strip()[: target_chars + 120]
 
     def _stub_storyboard_zh(self, topic: str, duration_seconds: int) -> str:
-        segment_count = self._script_segment_count(duration_seconds)
-        shots = []
-        for index in range(segment_count):
-            start = index * 10
-            end = min(duration_seconds, start + 10)
-            shots.append(
-                f"镜头{index + 1} {start}-{end}s：围绕“{topic}”推进第{index + 1}段内容，保持同一人物、同一商务场景和统一字幕风格。"
-            )
-        return "\n".join(shots)
+        return "\n".join(self._storyboard_lines(self._stub_storyboard_plan(topic, duration_seconds, "zh-CN")))
 
     def _stub_storyboard_en(self, topic: str, duration_seconds: int) -> str:
-        segment_count = self._script_segment_count(duration_seconds)
-        shots = []
-        for index in range(segment_count):
-            start = index * 10
-            end = min(duration_seconds, start + 10)
-            shots.append(
-                f"Shot {index + 1} {start}-{end}s: Continue the explanation of {topic}, same presenter, same business setting, consistent subtitles and pacing."
+        return "\n".join(self._storyboard_lines(self._stub_storyboard_plan(topic, duration_seconds, "en-US")))
+
+    def _storyboard_lines(self, plan: list[dict[str, object]]) -> list[str]:
+        lines = []
+        for index, item in enumerate(plan):
+            lines.append(
+                f"镜头{index + 1} {item.get('start_second')}-{item.get('end_second')}s："
+                f"{item.get('visual')}；屏幕文字：{item.get('screen_text')}。"
             )
-        return "\n".join(shots)
+        return lines
+
+    def _stub_storyboard_plan(self, topic: str, duration_seconds: int, output_language: str) -> list[dict[str, object]]:
+        segment_count = max(4, min(24, math.ceil(max(duration_seconds, 30) / 18)))
+        segment_length = math.ceil(duration_seconds / segment_count)
+        zh_templates = [
+            ("talking_head", "负责人正面对镜开场，背景是现代酒店大堂", "镜头缓慢推进，底部出现身份条", "开场钩子"),
+            ("text_card", "传统房卡取电痛点以三张卡片弹出", "卡片逐条滑入，突出补卡、空调空转、房态不透明", "运营痛点"),
+            ("process_animation", "订单、门锁、人在状态、客控形成联动流程", "节点连线亮起，展示数据流动", "状态联动"),
+            ("b_roll", "客人进入房间，灯光和空调自动进入欢迎模式", "用真实酒店房间感镜头表现舒适体验", "住客体验"),
+            ("screen_demo", "后台能耗和房态看板动态变化", "展示异常提醒和房态更新", "管理看得见"),
+            ("text_card", "节能、效率、风控三个价值点并列出现", "数字标签依次放大", "经营价值"),
+            ("process_animation", "退房、清洁、维修工单自动流转", "流程线从左到右推进", "工单闭环"),
+            ("talking_head", "负责人给出三阶段落地建议", "镜头稳定，旁边出现阶段清单", "落地路径"),
+            ("talking_head", "总结无卡取电是智慧客房入口", "缓慢拉远，品牌式收尾", "总结"),
+        ]
+        en_templates = [
+            ("talking_head", "Presenter opens in a modern hotel lobby", "slow push-in, lower third appears", "Opening hook"),
+            ("text_card", "Three pain-point cards about key cards and energy waste", "cards slide in one by one", "Pain points"),
+            ("process_animation", "Booking, lock, occupancy and room control nodes connect", "animated data-flow lines", "Connected states"),
+            ("b_roll", "Guest enters a smart hotel room with lights and AC ready", "realistic hospitality scene", "Guest experience"),
+            ("screen_demo", "Operations dashboard shows energy and room status", "alerts and charts animate", "Visible operations"),
+            ("text_card", "Energy saving, efficiency and risk control value cards", "numbers scale up", "Business value"),
+            ("process_animation", "Checkout, cleaning and maintenance workflow closes the loop", "left-to-right process animation", "Workflow"),
+            ("talking_head", "Presenter explains three-stage rollout", "stable shot with checklist", "Rollout"),
+            ("talking_head", "Conclusion that cardless power is the smart-room entry point", "slow pullback ending", "Summary"),
+        ]
+        templates = en_templates if output_language == "en-US" else zh_templates
+        plan: list[dict[str, object]] = []
+        for index in range(segment_count):
+            start = index * segment_length
+            end = min(duration_seconds, (index + 1) * segment_length)
+            shot_type, visual, action, screen_text = templates[min(index, len(templates) - 1)]
+            plan.append(
+                {
+                    "start_second": start,
+                    "end_second": end,
+                    "shot_type": shot_type,
+                    "visual": f"{visual}，围绕“{topic}”推进第{index + 1}段内容",
+                    "person_action": action,
+                    "screen_text": screen_text,
+                    "asset_or_background": "modern business hotel, guest room, smart room control dashboard",
+                    "ai_prompt": (
+                        f"Vertical 9:16 realistic business hotel video, {shot_type}, {visual}, "
+                        f"topic: {topic}, smooth motion, clean subtitles, professional lighting, no watermark"
+                    ),
+                    "needs_lip_sync": shot_type == "talking_head",
+                }
+            )
+        return plan
+
+    def _normalize_storyboard_plan(self, raw_plan, storyboard: str, duration_seconds: int) -> list[dict[str, object]]:
+        if isinstance(raw_plan, str):
+            try:
+                raw_plan = json.loads(raw_plan)
+            except json.JSONDecodeError:
+                raw_plan = None
+        if not isinstance(raw_plan, list):
+            return self._plan_from_storyboard_lines(storyboard, duration_seconds)
+        normalized = []
+        for index, item in enumerate(raw_plan):
+            if not isinstance(item, dict):
+                continue
+            start = int(item.get("start_second") or item.get("start") or index * 10)
+            end = int(item.get("end_second") or item.get("end") or min(duration_seconds, start + 10))
+            normalized.append(
+                {
+                    "start_second": max(0, start),
+                    "end_second": min(duration_seconds, max(end, start + 1)),
+                    "shot_type": str(item.get("shot_type") or "talking_head"),
+                    "visual": str(item.get("visual") or item.get("description") or ""),
+                    "person_action": str(item.get("person_action") or ""),
+                    "screen_text": str(item.get("screen_text") or ""),
+                    "asset_or_background": str(item.get("asset_or_background") or ""),
+                    "ai_prompt": str(item.get("ai_prompt") or item.get("prompt") or ""),
+                    "needs_lip_sync": bool(item.get("needs_lip_sync", item.get("shot_type") == "talking_head")),
+                }
+            )
+        return normalized or self._plan_from_storyboard_lines(storyboard, duration_seconds)
+
+    def _plan_from_storyboard_lines(self, storyboard: str, duration_seconds: int) -> list[dict[str, object]]:
+        lines = [line.strip() for line in storyboard.splitlines() if line.strip()]
+        if not lines:
+            return self._stub_storyboard_plan("视频主题", duration_seconds, "zh-CN")
+        segment_length = max(1, math.ceil(duration_seconds / len(lines)))
+        plan = []
+        for index, line in enumerate(lines):
+            start = index * segment_length
+            end = min(duration_seconds, (index + 1) * segment_length)
+            plan.append(
+                {
+                    "start_second": start,
+                    "end_second": end,
+                    "shot_type": "talking_head" if index in (0, len(lines) - 1) else "text_card",
+                    "visual": line,
+                    "person_action": "根据口播自然讲解，画面需要有轻微镜头运动",
+                    "screen_text": line[:18],
+                    "asset_or_background": "business hotel scene",
+                    "ai_prompt": f"Vertical 9:16 realistic business hotel video, {line}, smooth camera motion, no watermark",
+                    "needs_lip_sync": index in (0, len(lines) - 1),
+                }
+            )
+        return plan
 
     def _script_segment_count(self, duration_seconds: int) -> int:
         return max(4, min(36, math.ceil(max(duration_seconds, 30) / 10)))
@@ -404,7 +521,16 @@ class MediaGenerationClient:
 
         return self._mock_asset("seedance", f"clip-{index + 1}.mp4")
 
-    def segment_plan(self, prompt: str, storyboard: str, duration_seconds: int = 30) -> list[dict[str, object]]:
+    def segment_plan(
+        self,
+        prompt: str,
+        storyboard: str,
+        duration_seconds: int = 30,
+        storyboard_plan: str | list[dict[str, object]] | None = None,
+    ) -> list[dict[str, object]]:
+        structured_plan = self._media_storyboard_plan(storyboard_plan, duration_seconds)
+        if structured_plan:
+            return structured_plan
         clip_count = self._clip_count_for_duration(duration_seconds)
         clip_duration = self._clip_duration_for_duration(duration_seconds)
         storyboard_lines = [line.strip() for line in storyboard.splitlines() if line.strip()]
@@ -423,6 +549,42 @@ class MediaGenerationClient:
                     "title": f"第 {index + 1} 段",
                     "duration_seconds": int(item_duration),
                     "prompt": segment_prompt,
+                }
+            )
+        return plan
+
+    def _media_storyboard_plan(
+        self,
+        storyboard_plan: str | list[dict[str, object]] | None,
+        duration_seconds: int,
+    ) -> list[dict[str, object]]:
+        if isinstance(storyboard_plan, str) and storyboard_plan.strip():
+            try:
+                storyboard_plan = json.loads(storyboard_plan)
+            except json.JSONDecodeError:
+                storyboard_plan = None
+        if not isinstance(storyboard_plan, list):
+            return []
+        plan: list[dict[str, object]] = []
+        for index, item in enumerate(storyboard_plan):
+            if not isinstance(item, dict):
+                continue
+            start = int(item.get("start_second") or index * 10)
+            end = int(item.get("end_second") or min(duration_seconds, start + self._clip_duration_for_duration(duration_seconds)))
+            item_duration = max(1, min(duration_seconds, end) - start)
+            prompt = item.get("ai_prompt") or item.get("visual") or item.get("screen_text") or ""
+            plan.append(
+                {
+                    "title": str(item.get("screen_text") or item.get("shot_type") or f"第 {index + 1} 段"),
+                    "start_second": int(start),
+                    "duration_seconds": int(item_duration),
+                    "prompt": str(prompt),
+                    "shot_type": str(item.get("shot_type") or ""),
+                    "visual": str(item.get("visual") or ""),
+                    "person_action": str(item.get("person_action") or ""),
+                    "screen_text": str(item.get("screen_text") or ""),
+                    "asset_or_background": str(item.get("asset_or_background") or ""),
+                    "needs_lip_sync": bool(item.get("needs_lip_sync", False)),
                 }
             )
         return plan
@@ -460,6 +622,177 @@ class MediaGenerationClient:
             str(output_path),
         ]
         subprocess.run(command, check=True, capture_output=True)
+        return str(output_path)
+
+    async def compose_dynamic_explainer(
+        self,
+        voiceover: str,
+        storyboard_plan: str | list[dict[str, object]] | None,
+        audio_path: str,
+        portrait_path: Optional[str] = None,
+        duration_seconds: int = 30,
+    ) -> str:
+        from moviepy.editor import AudioFileClip, VideoClip
+        from PIL import Image, ImageDraw, ImageFilter
+        import numpy as np
+
+        audio = AudioFileClip(audio_path)
+        duration = min(max(audio.duration, 6), max(duration_seconds, 6))
+        plan = self._media_storyboard_plan(storyboard_plan, int(duration)) or self.segment_plan(
+            "dynamic explainer",
+            "",
+            int(duration),
+        )
+        output_path = self._asset_path("final", "dynamic-explainer.mp4")
+        frame_size = (720, 1280)
+        title_font = self._load_font(38)
+        body_font = self._load_font(26)
+        small_font = self._load_font(19)
+        subtitle_font = self._load_font(30)
+        portrait = None
+        if portrait_path and self._is_local_path(portrait_path) and Path(portrait_path).exists():
+            portrait = Image.open(portrait_path).convert("RGB")
+            side = min(portrait.size)
+            portrait = portrait.crop(
+                (
+                    (portrait.width - side) // 2,
+                    (portrait.height - side) // 2,
+                    (portrait.width - side) // 2 + side,
+                    (portrait.height - side) // 2 + side,
+                )
+            )
+
+        subtitles = self._subtitle_events(voiceover, duration)
+        palette = [
+            ((16, 74, 95), (15, 118, 110)),
+            ((40, 45, 72), (220, 95, 55)),
+            ((19, 70, 95), (37, 99, 235)),
+            ((49, 70, 52), (22, 163, 74)),
+            ((74, 55, 24), (245, 158, 11)),
+            ((39, 45, 84), (124, 58, 237)),
+        ]
+
+        def scene_for_time(t: float) -> tuple[int, dict[str, object]]:
+            for index, item in enumerate(plan):
+                start = float(item.get("start_second", index * 10))
+                end = start + float(item.get("duration_seconds", 10))
+                if start <= t < end:
+                    return index, item
+            return len(plan) - 1, plan[-1]
+
+        def subtitle_for_time(t: float) -> str:
+            for start, end, text in subtitles:
+                if start <= t < end:
+                    return text
+            return subtitles[-1][2] if subtitles else ""
+
+        def draw_round(draw, box, radius, fill, outline=None, width=1):
+            draw.rounded_rectangle(box, radius=radius, fill=fill, outline=outline, width=width)
+
+        def paste_round(base, image, xy, radius):
+            mask = Image.new("L", image.size, 0)
+            ImageDraw.Draw(mask).rounded_rectangle((0, 0, image.width, image.height), radius=radius, fill=255)
+            base.paste(image, xy, mask)
+
+        def wrap_text(text: str, limit: int, max_lines: int) -> list[str]:
+            lines: list[str] = []
+            current = ""
+            for char in text:
+                current += char
+                if len(current) >= limit:
+                    lines.append(current)
+                    current = ""
+            if current:
+                lines.append(current)
+            return lines[:max_lines]
+
+        def make_frame(t: float):
+            index, scene = scene_for_time(t)
+            bg_rgb, accent_rgb = palette[index % len(palette)]
+            width, height = frame_size
+            base = Image.new("RGB", frame_size, bg_rgb)
+            arr = np.array(base).astype(np.float32)
+            yy = np.linspace(0, 1, height)[:, None]
+            xx = np.linspace(0, 1, width)[None, :]
+            glow = (np.sin(xx * 5 + t * 0.08) + np.cos(yy * 4 - t * 0.06)) * 18
+            arr[..., 0] = np.clip(arr[..., 0] + glow + yy * 28, 0, 255)
+            arr[..., 1] = np.clip(arr[..., 1] + glow * 0.4 + xx * 20, 0, 255)
+            arr[..., 2] = np.clip(arr[..., 2] + 38 * (1 - yy), 0, 255)
+            canvas = Image.fromarray(arr.astype(np.uint8)).convert("RGBA")
+            draw = ImageDraw.Draw(canvas)
+
+            for row in range(8):
+                y = 80 + row * 130 + int(18 * math.sin(t * 0.22 + row))
+                x = -100 + ((t * 22 + row * 97) % (width + 200))
+                draw.line((x, y, x + 260, y + 40), fill=(255, 255, 255, 22), width=2)
+
+            draw_round(draw, (38, 32, 682, 106), 24, (255, 255, 255, 32), (255, 255, 255, 42))
+            draw.text((64, 48), f"镜头 {index + 1:02d}", font=small_font, fill=(205, 236, 255, 235))
+            draw_round(draw, (246, 60, 650, 72), 999, (255, 255, 255, 45))
+            draw_round(draw, (246, 60, 246 + int(404 * t / duration), 72), 999, (*accent_rgb, 235))
+            draw.text((574, 78), f"{int(t // 60):02d}:{int(t % 60):02d}", font=small_font, fill=(226, 232, 240, 230))
+
+            if portrait:
+                draw_round(draw, (64, 136, 656, 638), 42, (255, 255, 255, 28), (255, 255, 255, 48))
+                scale = 1.04 + 0.04 * math.sin(t * 0.16)
+                size = int(500 * scale)
+                face = portrait.resize((size, size), Image.Resampling.LANCZOS)
+                crop_x = max(0, (face.width - 500) // 2 + int(12 * math.sin(t * 0.11)))
+                crop_y = max(0, (face.height - 500) // 2 + int(8 * math.cos(t * 0.13)))
+                face = face.crop((crop_x, crop_y, crop_x + 500, crop_y + 500)).filter(
+                    ImageFilter.UnsharpMask(radius=1, percent=110, threshold=3)
+                )
+                paste_round(canvas, face, (110, 148 + int(4 * math.sin(t * 0.35))), 34)
+                draw_round(draw, (86, 575, 634, 622), 18, (2, 6, 23, 155))
+                draw.text((112, 588), "数字人讲解画面 · 动态镜头", font=small_font, fill=(255, 255, 255, 232))
+                for bar in range(22):
+                    bar_height = int(6 + 20 * abs(math.sin(t * 3 + bar * 0.55)))
+                    x = 458 + bar * 6
+                    draw.rounded_rectangle(
+                        (x, 599 - bar_height // 2, x + 3, 599 + bar_height // 2),
+                        radius=2,
+                        fill=(*accent_rgb, 230),
+                    )
+
+            visual = str(scene.get("visual") or scene.get("title") or "动态讲解")
+            screen_text = str(scene.get("screen_text") or visual[:18])
+            draw_round(draw, (46, 668, 674, 820), 26, (255, 255, 255, 238))
+            draw.text((76, 696), screen_text[:24], font=title_font, fill=(20, 29, 43, 255))
+            draw.line((76, 756, 644, 756), fill=(*accent_rgb, 180), width=4)
+            for line_index, line in enumerate(wrap_text(visual, 22, 2)):
+                draw.text((76, 776 + line_index * 32), line, font=small_font, fill=(71, 85, 105, 255))
+
+            items = [
+                str(scene.get("shot_type") or "dynamic"),
+                str(scene.get("asset_or_background") or "hotel scene"),
+                "字幕与卖点卡片同步",
+            ]
+            for item_index, item in enumerate(items):
+                y = 858 + item_index * 78
+                draw_round(draw, (54, y, 666, y + 58), 18, (255, 255, 255, 218), (255, 255, 255, 90))
+                draw.ellipse((82, y + 18, 106, y + 42), fill=(*accent_rgb, 235))
+                draw.text((126, y + 15), item[:28], font=body_font, fill=(23, 37, 52, 255))
+
+            draw_round(draw, (36, 1128, 684, 1250), 24, (2, 6, 23, 185))
+            for line_index, line in enumerate(wrap_text(subtitle_for_time(t), 18, 3)):
+                draw.text((66, 1152 + line_index * 38), line, font=subtitle_font, fill=(255, 255, 255, 245))
+
+            return np.array(canvas.convert("RGB"))
+
+        clip = VideoClip(make_frame, duration=duration).set_audio(audio.subclip(0, duration))
+        clip.write_videofile(
+            str(output_path),
+            fps=20,
+            codec="libx264",
+            audio_codec="aac",
+            preset="medium",
+            bitrate="2800k",
+            threads=4,
+            verbose=False,
+            logger=None,
+        )
+        audio.close()
+        clip.close()
         return str(output_path)
 
     async def _post_digital_human_media(
@@ -666,6 +999,30 @@ class MediaGenerationClient:
         ]
         index = min(len(lines) - 1, int((t / max(duration, 1)) * len(lines)))
         return lines[index]
+
+    def _subtitle_events(self, text: str, duration: float) -> list[tuple[float, float, str]]:
+        sentences: list[str] = []
+        current = ""
+        for char in text.replace("\n", " "):
+            current += char
+            if char in "。？！；.!?;":
+                if current.strip():
+                    sentences.append(current.strip())
+                current = ""
+        if current.strip():
+            sentences.append(current.strip())
+        if not sentences:
+            return [(0, duration, "")]
+        weights = [max(8, len(sentence)) for sentence in sentences]
+        total_weight = sum(weights)
+        events: list[tuple[float, float, str]] = []
+        start = 0.0
+        for sentence, weight in zip(sentences, weights):
+            end = min(duration, start + duration * weight / total_weight)
+            events.append((start, end, sentence))
+            start = end
+        events[-1] = (events[-1][0], duration, events[-1][2])
+        return events
 
     def _load_font(self, size: int):
         from PIL import ImageFont

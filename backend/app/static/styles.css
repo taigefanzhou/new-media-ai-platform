@@ -909,6 +909,26 @@ button:disabled {
   background: #f0fdfa;
 }
 
+.productionModeBar {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) minmax(0, 1fr);
+  gap: 10px;
+  align-items: end;
+  width: 100%;
+}
+
+.productionModeBar label {
+  margin-bottom: 0;
+}
+
+.productionModeBar span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.45;
+  padding-bottom: 11px;
+}
+
 .titleOption {
   display: grid;
   gap: 6px;
@@ -960,6 +980,34 @@ button:disabled {
 .scriptEditForm textarea {
   min-height: 0;
   line-height: 1.55;
+}
+
+.storyboardPlanBlock {
+  display: grid;
+  gap: 8px;
+}
+
+.storyboardPlanTableWrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.storyboardPlanTable {
+  min-width: 780px;
+}
+
+.storyboardPlanTable th,
+.storyboardPlanTable td {
+  padding: 8px 10px;
+  font-size: 12px;
+  vertical-align: top;
+}
+
+.storyboardPlanTable td:nth-child(1),
+.storyboardPlanTable td:nth-child(2),
+.storyboardPlanTable td:nth-child(5) {
+  white-space: nowrap;
 }
 
 .scriptAdvancedEdit {
@@ -1548,6 +1596,7 @@ button:disabled {
   .creationBriefGrid,
   .creationFooterActions,
   .creationParamBar,
+  .productionModeBar,
   .storageConfigForm,
   .advancedTaskGrid,
   .scriptUtilityGrid,
@@ -1601,6 +1650,7 @@ button:disabled {
   .creationFooterActions,
   .creationBriefGrid,
   .creationParamBar,
+  .productionModeBar,
   .storageConfigForm,
   .advancedTaskGrid,
   .scriptUtilityGrid,

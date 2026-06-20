@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import math
 import platform
 import subprocess
@@ -77,6 +78,8 @@ from app.services.usage import estimate_text_tokens, record_generated_model_usag
 
 
 router = APIRouter()
+
+PRODUCTION_MODES = {"dynamic_explainer", "digital_human", "seedance_scene"}
 
 
 def _active_model_config(session: Session, purpose: str) -> AIModelConfig | None:
@@ -833,6 +836,7 @@ async def generate_script_from_transcription(
         hook=generated.hook,
         voiceover=generated.voiceover,
         storyboard=generated.storyboard,
+        storyboard_plan=json.dumps(getattr(generated, "storyboard_plan", []) or [], ensure_ascii=False),
         seedance_prompt=generated.seedance_prompt,
         title_options=generated.title_options,
         hashtags=generated.hashtags,
@@ -880,12 +884,14 @@ def _create_script_record(
     generated,
     model_config: Optional[AIModelConfig] = None,
 ) -> Script:
+    storyboard_plan = json.dumps(getattr(generated, "storyboard_plan", []) or [], ensure_ascii=False)
     script = Script(
         topic_id=payload.topic_id,
         duration_seconds=payload.duration_seconds,
         hook=generated.hook,
         voiceover=generated.voiceover,
         storyboard=generated.storyboard,
+        storyboard_plan=storyboard_plan,
         seedance_prompt=generated.seedance_prompt,
         title_options=generated.title_options,
         hashtags=generated.hashtags,
@@ -977,19 +983,41 @@ def _estimated_video_segment_count(duration_seconds: int) -> int:
 def _build_video_task(
     script: Script,
     digital_human_id: Optional[int],
+    production_mode: str = "dynamic_explainer",
     status: TaskStatus = TaskStatus.queued,
     audit_notes: str = "",
 ) -> VideoTask:
+    if production_mode not in PRODUCTION_MODES:
+        raise HTTPException(status_code=400, detail="Unknown production mode")
     segment_count = _estimated_video_segment_count(script.duration_seconds)
     return VideoTask(
         script_id=script.id or 0,
         digital_human_id=digital_human_id,
         status=status,
         generation_mode="long" if script.duration_seconds >= 120 else "short",
+        production_mode=production_mode,
         segment_count=segment_count,
         completed_segments=0,
         audit_notes=audit_notes,
     )
+
+
+def _validate_video_task_inputs(
+    session: Session,
+    production_mode: str,
+    digital_human_id: Optional[int],
+) -> None:
+    if production_mode not in PRODUCTION_MODES:
+        raise HTTPException(status_code=400, detail="Unknown production mode")
+    if digital_human_id is None:
+        if production_mode == "digital_human":
+            raise HTTPException(status_code=400, detail="真人数字人口播需要选择数字人，并上传口播源视频。")
+        return
+    human = session.get(DigitalHuman, digital_human_id)
+    if human is None:
+        raise HTTPException(status_code=404, detail="Digital human not found")
+    if production_mode == "digital_human" and human.source_video_material_id is None:
+        raise HTTPException(status_code=400, detail="真人数字人口播需要先上传该数字人的口播源视频。")
 
 
 def _ensure_video_task_can_run(task: VideoTask) -> None:
@@ -1011,9 +1039,8 @@ def create_video_task_from_script(
     script = session.get(Script, script_id)
     if script is None:
         raise HTTPException(status_code=404, detail="Script not found")
-    if payload.digital_human_id is not None and session.get(DigitalHuman, payload.digital_human_id) is None:
-        raise HTTPException(status_code=404, detail="Digital human not found")
-    task = _build_video_task(script, payload.digital_human_id)
+    _validate_video_task_inputs(session, payload.production_mode, payload.digital_human_id)
+    task = _build_video_task(script, payload.digital_human_id, production_mode=payload.production_mode)
     session.add(task)
     session.commit()
     session.refresh(task)
@@ -1031,13 +1058,13 @@ async def approve_script_and_run_video_task(
     script = session.get(Script, script_id)
     if script is None:
         raise HTTPException(status_code=404, detail="Script not found")
-    if payload.digital_human_id is not None and session.get(DigitalHuman, payload.digital_human_id) is None:
-        raise HTTPException(status_code=404, detail="Digital human not found")
+    _validate_video_task_inputs(session, payload.production_mode, payload.digital_human_id)
     task = _build_video_task(
         script,
         payload.digital_human_id,
+        production_mode=payload.production_mode,
         status=TaskStatus.running,
-        audit_notes="脚本已审核通过，系统已自动创建视频任务并进入生成队列。",
+        audit_notes=f"脚本已审核通过，系统已按「{payload.production_mode}」创建视频任务并进入生成队列。",
     )
     session.add(task)
     session.commit()
@@ -1135,9 +1162,8 @@ def create_video_task(payload: VideoTaskCreate, session: Session = Depends(get_s
     script = session.get(Script, payload.script_id)
     if script is None:
         raise HTTPException(status_code=404, detail="Script not found")
-    if payload.digital_human_id is not None and session.get(DigitalHuman, payload.digital_human_id) is None:
-        raise HTTPException(status_code=404, detail="Digital human not found")
-    task = _build_video_task(script, payload.digital_human_id)
+    _validate_video_task_inputs(session, payload.production_mode, payload.digital_human_id)
+    task = _build_video_task(script, payload.digital_human_id, production_mode=payload.production_mode)
     session.add(task)
     session.commit()
     session.refresh(task)
@@ -1146,14 +1172,13 @@ def create_video_task(payload: VideoTaskCreate, session: Session = Depends(get_s
 
 @router.post("/video-tasks/batch-create", response_model=list[VideoTask])
 def batch_create_video_tasks(payload: VideoTaskBatchCreateRequest, session: Session = Depends(get_session)) -> list[VideoTask]:
-    if payload.digital_human_id is not None and session.get(DigitalHuman, payload.digital_human_id) is None:
-        raise HTTPException(status_code=404, detail="Digital human not found")
+    _validate_video_task_inputs(session, payload.production_mode, payload.digital_human_id)
     tasks: list[VideoTask] = []
     for script_id in payload.script_ids:
         script = session.get(Script, script_id)
         if script is None:
             raise HTTPException(status_code=404, detail=f"Script {script_id} not found")
-        task = _build_video_task(script, payload.digital_human_id)
+        task = _build_video_task(script, payload.digital_human_id, production_mode=payload.production_mode)
         session.add(task)
         tasks.append(task)
     session.commit()

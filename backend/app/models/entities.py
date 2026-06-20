@@ -175,6 +175,7 @@ class Script(SQLModel, table=True):
     hook: str
     voiceover: str
     storyboard: str
+    storyboard_plan: str = ""
     seedance_prompt: str
     title_options: str
     hashtags: str
@@ -200,6 +201,7 @@ class VideoTask(SQLModel, table=True):
     digital_human_id: Optional[int] = None
     status: TaskStatus = TaskStatus.draft
     generation_mode: str = "short"
+    production_mode: str = "dynamic_explainer"
     segment_count: int = 1
     completed_segments: int = 0
     output_path: Optional[str] = None
