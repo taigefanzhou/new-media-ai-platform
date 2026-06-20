@@ -134,7 +134,21 @@
                   <option value="en-US">英文</option>
                 </select>
               </label>
-              <label>视频时长<input name="duration_seconds" type="number" min="15" max="360" value="30" /></label>
+              <div class="durationField">
+                <span class="durationFieldTitle">视频时长</span>
+                <div class="durationInputLine">
+                  <input id="scriptDurationInput" name="duration_seconds" type="number" min="15" max="360" value="30" />
+                  <span>秒</span>
+                </div>
+                <div class="durationPresets" aria-label="视频时长快捷选择">
+                  <button type="button" class="durationPreset active" data-duration="30">30秒</button>
+                  <button type="button" class="durationPreset" data-duration="60">1分钟</button>
+                  <button type="button" class="durationPreset" data-duration="180">3分钟</button>
+                  <button type="button" class="durationPreset" data-duration="300">5分钟</button>
+                  <button type="button" class="durationPreset" data-duration="360">6分钟</button>
+                  <button type="button" class="durationPreset" data-duration="custom">自定义</button>
+                </div>
+              </div>
               <button id="scriptSubmitBtn" type="submit">AI 生成创作方案</button>
             </div>
             <div class="creationBatchBar">
@@ -316,6 +330,16 @@
         <section class="panel footerPanel">
           <h2>视频任务列表</h2>
           <div id="taskListTasks" class="taskTableWrap"></div>
+        </section>
+        <section id="taskPreviewPanel" class="panel footerPanel taskPreviewPanel hiddenPanel">
+          <div class="sectionHeader compactSectionHeader">
+            <div>
+              <h2>成片预览</h2>
+              <p id="taskPreviewMeta">选择任务后显示成片。</p>
+            </div>
+            <button id="closeTaskPreviewBtn" type="button" class="secondary">关闭预览</button>
+          </div>
+          <div id="taskPreviewContent" class="taskPreviewContent"></div>
         </section>
       </section>
 

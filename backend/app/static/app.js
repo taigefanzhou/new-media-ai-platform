@@ -54,6 +54,7 @@ const state = {
   users: [],
   currentUser: null,
   currentSettingsSection: "usage",
+  previewTaskId: null,
 };
 
 const settingsSections = {
@@ -508,6 +509,24 @@ function taskVideoSrc(task) {
   return `/api/video-tasks/${task.id}/output`;
 }
 
+function renderTaskOutputPreview(task) {
+  const panel = document.querySelector("#taskPreviewPanel");
+  const meta = document.querySelector("#taskPreviewMeta");
+  const content = document.querySelector("#taskPreviewContent");
+  if (!panel || !meta || !content) return;
+  if (!task) {
+    panel.classList.add("hiddenPanel");
+    content.innerHTML = "";
+    return;
+  }
+  const videoSrc = taskVideoSrc(task);
+  panel.classList.remove("hiddenPanel");
+  meta.textContent = `任务 #${task.id} · ${taskStatusLabel(task.status)} · ${taskSegmentMeta(task)}`;
+  content.innerHTML = videoSrc
+    ? `<video class="taskOutputPreviewVideo" src="${videoSrc}" controls preload="metadata"></video>`
+    : `<div class="item">这个任务还没有可预览的成片。</div>`;
+}
+
 function renderTaskCompact(tasks) {
   const target = document.querySelector("#taskList");
   if (!target) return;
@@ -546,7 +565,6 @@ function renderTaskTable(tasks) {
           <th>脚本</th>
           <th>数字人</th>
           <th>进度</th>
-          <th>成片预览</th>
           <th>操作</th>
         </tr>
       </thead>
@@ -571,10 +589,8 @@ function renderTaskTable(tasks) {
                   ${task.error_message ? `<div class="errorText">${escapeHtml(task.error_message)}</div>` : ""}
                 </td>
                 <td>
-                  ${videoSrc ? `<video class="taskVideoPreview" src="${videoSrc}" controls preload="metadata"></video>` : `<span class="recordMeta">生成后显示视频</span>`}
-                </td>
-                <td>
                   <div class="tableActions">
+                    <button type="button" class="secondary" data-action="preview-video-task" data-id="${task.id}" ${videoSrc ? "" : "disabled"}>${videoSrc ? "成片预览" : "暂无成片"}</button>
                     <button type="button" data-action="run-video-task" data-id="${task.id}">${task.status === "running" ? "生成中" : "开始生成"}</button>
                     <button type="button" class="secondary" data-action="approve-video-task" data-id="${task.id}">审核通过</button>
                     <button type="button" class="secondary" data-action="prepare-publish" data-id="${task.id}">准备发布</button>
@@ -598,6 +614,10 @@ function renderTasks(tasks) {
   }
   renderTaskCompact(tasks);
   renderTaskTable(tasks);
+  if (state.previewTaskId) {
+    const task = tasks.find((item) => item.id === state.previewTaskId);
+    renderTaskOutputPreview(task);
+  }
 }
 
 function renderPublishRecords(records) {
@@ -1303,6 +1323,35 @@ document.querySelector("#scriptForm").addEventListener("submit", async (event) =
   }
 });
 
+function syncDurationPreset() {
+  const input = document.querySelector("#scriptForm [name='duration_seconds']");
+  if (!input) return;
+  const value = String(Number(input.value || 0));
+  const buttons = [...document.querySelectorAll(".durationPreset")];
+  const matched = buttons.some((button) => button.dataset.duration === value);
+  buttons.forEach((button) => {
+    button.classList.toggle(
+      "active",
+      button.dataset.duration === value || (button.dataset.duration === "custom" && !matched),
+    );
+  });
+}
+
+document.querySelectorAll(".durationPreset").forEach((button) => {
+  button.addEventListener("click", () => {
+    const input = document.querySelector("#scriptForm [name='duration_seconds']");
+    if (!input) return;
+    if (button.dataset.duration !== "custom") {
+      input.value = button.dataset.duration;
+    }
+    document.querySelectorAll(".durationPreset").forEach((item) => item.classList.remove("active"));
+    button.classList.add("active");
+    input.focus();
+  });
+});
+
+document.querySelector("#scriptForm [name='duration_seconds']").addEventListener("input", syncDurationPreset);
+
 document.querySelector("#batchScriptBtn").addEventListener("click", async () => {
   const form = document.querySelector("#scriptForm");
   const button = document.querySelector("#batchScriptBtn");
@@ -1490,6 +1539,12 @@ document.querySelectorAll("#taskListTasks, #taskList").forEach((list) => list.ad
   const button = event.target.closest("button[data-action]");
   if (!button) return;
   const id = button.dataset.id;
+  if (button.dataset.action === "preview-video-task") {
+    const task = state.videoTasks.find((item) => item.id === Number(id));
+    state.previewTaskId = task ? task.id : null;
+    renderTaskOutputPreview(task);
+    return;
+  }
   if (button.dataset.action === "run-video-task") {
     button.textContent = "生成中";
     button.disabled = true;
@@ -1523,6 +1578,11 @@ document.querySelectorAll("#taskListTasks, #taskList").forEach((list) => list.ad
   }
   await refresh();
 }));
+
+document.querySelector("#closeTaskPreviewBtn").addEventListener("click", () => {
+  state.previewTaskId = null;
+  renderTaskOutputPreview(null);
+});
 
 document.querySelector("#platformAccountForm").addEventListener("submit", async (event) => {
   event.preventDefault();

@@ -232,13 +232,14 @@ h2 {
 
 .creationParamBar {
   display: grid;
-  grid-template-columns: repeat(3, minmax(140px, 1fr)) minmax(220px, 0.9fr);
+  grid-template-columns: minmax(140px, 0.7fr) minmax(140px, 0.7fr) minmax(320px, 1.2fr) minmax(220px, 0.8fr);
   gap: 12px;
   align-items: end;
 }
 
 .creationParamBar label,
-.creationBriefGrid label {
+.creationBriefGrid label,
+.creationParamBar .durationField {
   margin-bottom: 0;
 }
 
@@ -252,6 +253,56 @@ h2 {
 
 .creationBatchBar label {
   margin-bottom: 0;
+}
+
+.durationField {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.durationFieldTitle {
+  color: #344054;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.durationInputLine {
+  display: grid;
+  grid-template-columns: minmax(90px, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.durationInputLine span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.durationPresets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.durationPreset {
+  width: auto;
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.durationPreset.active {
+  border-color: var(--accent);
+  background: #ecfdf5;
+  color: var(--accent);
 }
 
 .compactSectionHeader {
@@ -858,7 +909,7 @@ button:disabled {
 
 .taskTable {
   width: 100%;
-  min-width: 980px;
+  min-width: 880px;
   border-collapse: collapse;
 }
 
@@ -896,15 +947,6 @@ button:disabled {
   background: var(--accent);
 }
 
-.taskVideoPreview {
-  display: block;
-  width: 150px;
-  aspect-ratio: 9 / 16;
-  border-radius: 6px;
-  background: #eef2f7;
-  object-fit: cover;
-}
-
 .analysisMaterialPreview {
   margin-bottom: 12px;
 }
@@ -930,14 +972,20 @@ button:disabled {
 }
 
 .tableActions {
-  display: grid;
-  grid-template-columns: 1fr;
+  display: flex;
+  flex-wrap: wrap;
   gap: 7px;
-  min-width: 112px;
+  min-width: 260px;
 }
 
 .tableActions button {
+  width: auto;
   min-height: 34px;
+  padding-inline: 10px;
+}
+
+.tableActions button:disabled {
+  cursor: not-allowed;
 }
 
 .errorText {
@@ -1052,6 +1100,32 @@ button:disabled {
 
 .footerPanel {
   margin-top: 14px;
+}
+
+.hiddenPanel {
+  display: none;
+}
+
+.taskPreviewPanel {
+  max-width: 760px;
+}
+
+#closeTaskPreviewBtn {
+  width: auto;
+  min-width: 96px;
+}
+
+.taskPreviewContent {
+  display: grid;
+  justify-items: start;
+}
+
+.taskOutputPreviewVideo {
+  width: min(360px, 100%);
+  aspect-ratio: 9 / 16;
+  border-radius: 8px;
+  background: #eef2f7;
+  object-fit: cover;
 }
 
 .integrationPanel {
