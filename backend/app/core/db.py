@@ -42,6 +42,17 @@ def apply_sqlite_migrations() -> None:
         if human_rows and "source_video_material_id" not in human_columns:
             connection.execute(text("ALTER TABLE digitalhuman ADD COLUMN source_video_material_id INTEGER"))
 
+        video_task_rows = connection.execute(text("PRAGMA table_info(videotask)")).fetchall()
+        video_task_columns = {row[1] for row in video_task_rows}
+        video_task_migrations = {
+            "generation_mode": "ALTER TABLE videotask ADD COLUMN generation_mode VARCHAR DEFAULT 'short'",
+            "segment_count": "ALTER TABLE videotask ADD COLUMN segment_count INTEGER DEFAULT 1",
+            "completed_segments": "ALTER TABLE videotask ADD COLUMN completed_segments INTEGER DEFAULT 0",
+        }
+        for column, statement in video_task_migrations.items():
+            if video_task_rows and column not in video_task_columns:
+                connection.execute(text(statement))
+
 
 def seed_admin_user() -> None:
     with Session(engine) as session:

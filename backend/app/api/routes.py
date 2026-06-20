@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -30,6 +31,7 @@ from app.models.entities import (
     TranscriptionTask,
     User,
     UserRole,
+    VideoSegment,
     VideoTask,
 )
 from app.schemas.requests import (
@@ -853,6 +855,29 @@ def list_scripts(session: Session = Depends(get_session)) -> list[Script]:
     return list(session.exec(select(Script).order_by(Script.created_at.desc())).all())
 
 
+def _estimated_video_segment_count(duration_seconds: int) -> int:
+    clip_duration = 10 if duration_seconds >= 60 else 5
+    return max(1, min(36, math.ceil(max(duration_seconds, clip_duration) / clip_duration)))
+
+
+def _build_video_task(
+    script: Script,
+    digital_human_id: Optional[int],
+    status: TaskStatus = TaskStatus.queued,
+    audit_notes: str = "",
+) -> VideoTask:
+    segment_count = _estimated_video_segment_count(script.duration_seconds)
+    return VideoTask(
+        script_id=script.id or 0,
+        digital_human_id=digital_human_id,
+        status=status,
+        generation_mode="long" if script.duration_seconds >= 120 else "short",
+        segment_count=segment_count,
+        completed_segments=0,
+        audit_notes=audit_notes,
+    )
+
+
 @router.post("/scripts/{script_id}/video-task", response_model=VideoTask)
 def create_video_task_from_script(
     script_id: int,
@@ -860,11 +885,12 @@ def create_video_task_from_script(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
 ) -> VideoTask:
-    if session.get(Script, script_id) is None:
+    script = session.get(Script, script_id)
+    if script is None:
         raise HTTPException(status_code=404, detail="Script not found")
     if payload.digital_human_id is not None and session.get(DigitalHuman, payload.digital_human_id) is None:
         raise HTTPException(status_code=404, detail="Digital human not found")
-    task = VideoTask(script_id=script_id, digital_human_id=payload.digital_human_id, status=TaskStatus.queued)
+    task = _build_video_task(script, payload.digital_human_id)
     session.add(task)
     session.commit()
     session.refresh(task)
@@ -879,13 +905,14 @@ async def approve_script_and_run_video_task(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
 ) -> VideoTask:
-    if session.get(Script, script_id) is None:
+    script = session.get(Script, script_id)
+    if script is None:
         raise HTTPException(status_code=404, detail="Script not found")
     if payload.digital_human_id is not None and session.get(DigitalHuman, payload.digital_human_id) is None:
         raise HTTPException(status_code=404, detail="Digital human not found")
-    task = VideoTask(
-        script_id=script_id,
-        digital_human_id=payload.digital_human_id,
+    task = _build_video_task(
+        script,
+        payload.digital_human_id,
         status=TaskStatus.running,
         audit_notes="脚本已审核通过，系统已自动创建视频任务并进入生成队列。",
     )
@@ -982,11 +1009,12 @@ def delete_digital_human(human_id: int, session: Session = Depends(get_session))
 
 @router.post("/video-tasks", response_model=VideoTask)
 def create_video_task(payload: VideoTaskCreate, session: Session = Depends(get_session)) -> VideoTask:
-    if session.get(Script, payload.script_id) is None:
+    script = session.get(Script, payload.script_id)
+    if script is None:
         raise HTTPException(status_code=404, detail="Script not found")
     if payload.digital_human_id is not None and session.get(DigitalHuman, payload.digital_human_id) is None:
         raise HTTPException(status_code=404, detail="Digital human not found")
-    task = VideoTask(script_id=payload.script_id, digital_human_id=payload.digital_human_id, status=TaskStatus.queued)
+    task = _build_video_task(script, payload.digital_human_id)
     session.add(task)
     session.commit()
     session.refresh(task)
@@ -999,9 +1027,10 @@ def batch_create_video_tasks(payload: VideoTaskBatchCreateRequest, session: Sess
         raise HTTPException(status_code=404, detail="Digital human not found")
     tasks: list[VideoTask] = []
     for script_id in payload.script_ids:
-        if session.get(Script, script_id) is None:
+        script = session.get(Script, script_id)
+        if script is None:
             raise HTTPException(status_code=404, detail=f"Script {script_id} not found")
-        task = VideoTask(script_id=script_id, digital_human_id=payload.digital_human_id, status=TaskStatus.queued)
+        task = _build_video_task(script, payload.digital_human_id)
         session.add(task)
         tasks.append(task)
     session.commit()
@@ -1047,6 +1076,19 @@ def list_video_tasks(session: Session = Depends(get_session)) -> list[VideoTask]
     return list(session.exec(select(VideoTask).order_by(VideoTask.created_at.desc())).all())
 
 
+@router.get("/video-tasks/{task_id}/segments", response_model=list[VideoSegment])
+def list_video_task_segments(task_id: int, session: Session = Depends(get_session)) -> list[VideoSegment]:
+    if session.get(VideoTask, task_id) is None:
+        raise HTTPException(status_code=404, detail="Video task not found")
+    return list(
+        session.exec(
+            select(VideoSegment)
+            .where(VideoSegment.video_task_id == task_id)
+            .order_by(VideoSegment.segment_index.asc())
+        ).all()
+    )
+
+
 @router.get("/video-tasks/{task_id}/output")
 def preview_video_task_output(task_id: int, session: Session = Depends(get_session)) -> FileResponse:
     task = session.get(VideoTask, task_id)
@@ -1064,8 +1106,17 @@ def delete_video_task_output(task_id: int, session: Session = Depends(get_sessio
     if task is None:
         raise HTTPException(status_code=404, detail="Video task not found")
     _delete_local_file(task.output_path)
+    segments = session.exec(select(VideoSegment).where(VideoSegment.video_task_id == task_id)).all()
+    for segment in segments:
+        _delete_local_file(segment.output_path)
+        segment.output_path = None
+        segment.status = TaskStatus.queued
+        segment.error_message = None
+        segment.updated_at = datetime.utcnow()
+        session.add(segment)
     task.output_path = None
     task.status = TaskStatus.queued
+    task.completed_segments = 0
     task.updated_at = datetime.utcnow()
     session.add(task)
     session.commit()
@@ -1080,6 +1131,10 @@ def delete_video_task(task_id: int, session: Session = Depends(get_session)) -> 
     records = session.exec(select(PublishRecord).where(PublishRecord.video_task_id == task_id)).all()
     for record in records:
         session.delete(record)
+    segments = session.exec(select(VideoSegment).where(VideoSegment.video_task_id == task_id)).all()
+    for segment in segments:
+        _delete_local_file(segment.output_path)
+        session.delete(segment)
     _delete_local_file(task.output_path)
     session.delete(task)
     session.commit()

@@ -72,8 +72,9 @@ class ScriptGenerator:
                 "如果 output_language 是 en-US，所有 hook、voiceover、title_options、hashtags、compliance_notes 必须使用英文；否则使用中文",
                 "不要复刻或搬运任何参考视频原文",
                 "适合公司新媒体账号和数字人口播",
-                "严格按 duration_seconds 控制口播长度：30秒约120字中文，60秒约220字中文，180秒约650字中文",
-                "如果 duration_seconds 大于等于60秒，storyboard 必须按每10-15秒拆分镜头；如果是180秒，分镜至少12段",
+                "严格按 duration_seconds 控制口播长度：30秒约120字中文，60秒约220字中文，180秒约650字中文，360秒约1200字中文",
+                "如果 duration_seconds 大于等于60秒，脚本必须是完整连贯结构，不能重复堆砌；按问题、误区、方案、案例、总结推进",
+                "如果 duration_seconds 是180秒，storyboard 至少12段；如果是360秒，storyboard 至少24段，每段10-15秒",
                 "分镜要能转成 Seedance 视频提示词；seedance_prompt 始终使用英文",
                 "必须输出严格 JSON",
             ],
@@ -132,24 +133,16 @@ class ScriptGenerator:
         output_language: str = "zh-CN",
     ) -> GeneratedScript:
         if output_language == "en-US":
+            voiceover = self._stub_voiceover_en(topic, duration_seconds)
+            storyboard = self._stub_storyboard_en(topic, duration_seconds)
             return GeneratedScript(
                 hook=f"The real value of {topic} is not convenience alone, but smarter hotel operations.",
-                voiceover=(
-                    f"In {duration_seconds} seconds, here is why a smart no-card power solution matters for hotels. "
-                    "Guests no longer need to insert a room card to use electricity, so the check-in experience feels smoother. "
-                    "When guests leave the room, the system can automatically reduce unnecessary power consumption from lights and air conditioning. "
-                    "It also connects room status, energy data, and hotel operations, helping hotels improve guest experience while lowering operating costs."
-                ),
-                storyboard=(
-                    "Shot 1: A premium hotel room entrance with a smart power control panel.\n"
-                    "Shot 2: Warm lights turn on automatically as the guest enters.\n"
-                    "Shot 3: Energy usage dashboard shows reduced waste after checkout.\n"
-                    "Shot 4: Clean hotel room atmosphere with a concise business-style ending."
-                ),
+                voiceover=voiceover,
+                storyboard=storyboard,
                 seedance_prompt=(
-                    "Vertical 9:16 modern business hotel technology video, smart no-card power control panel, "
-                    "warm lights turning on automatically, premium hotel room, close-up shot, slow cinematic camera movement, "
-                    "no people, no logos, no readable text."
+                    "Vertical 9:16 long-form business explainer video, consistent modern hotel lobby and guest room, "
+                    "smart operations dashboard, natural talking-head pacing, smooth transitions, professional lighting, "
+                    "continuity across segments, no watermark, no third-party logos."
                 ),
                 title_options=(
                     "1. Smarter Hotel Energy Control\n"
@@ -159,22 +152,16 @@ class ScriptGenerator:
                 hashtags="#HotelTech #SmartHotel #EnergySaving #Hospitality",
                 compliance_notes="Use only licensed visuals and verify that all product claims are accurate before publishing.",
             )
+        voiceover = self._stub_voiceover_zh(topic, duration_seconds)
+        storyboard = self._stub_storyboard_zh(topic, duration_seconds)
         return GeneratedScript(
             hook=f"你有没有发现，{topic}真正影响结果的不是选择多，而是判断标准。",
-            voiceover=(
-                f"今天用{duration_seconds}秒讲清楚：{topic}。"
-                "第一，先看真实需求；第二，比较关键指标；第三，选择能持续交付的方案。"
-                "我们把复杂信息拆成可执行步骤，让客户少走弯路，快速做决定。"
-            ),
-            storyboard=(
-                "镜头1：数字人正面开场，提出痛点。\n"
-                "镜头2：展示产品/服务场景，字幕强调关键指标。\n"
-                "镜头3：对比常见误区和正确做法。\n"
-                "镜头4：数字人总结并引导咨询。"
-            ),
+            voiceover=voiceover,
+            storyboard=storyboard,
             seedance_prompt=(
-                "Vertical 9:16 corporate short video, clean modern office, confident presenter, "
-                "product explanation shots, smooth camera movement, professional lighting, no logos from other brands."
+                "Vertical 9:16 long-form corporate explainer video, consistent presenter and modern business hotel scenes, "
+                "clear chapter-like progression, smart operations interface, smooth transitions, professional lighting, "
+                "realistic live-action style, no third-party logos, no watermark."
             ),
             title_options=(
                 f"1. {topic}怎么选？看这3点\n"
@@ -184,6 +171,70 @@ class ScriptGenerator:
             hashtags=f"#{target_platform} #企业服务 #数字人 #短视频运营",
             compliance_notes="外部素材只可作为选题参考；成片需人工确认无侵权、无夸大承诺。",
         )
+
+    def _stub_voiceover_zh(self, topic: str, duration_seconds: int) -> str:
+        sections = [
+            f"今天我们完整讲清楚：{topic}。先说结论，真正影响客户判断的不是功能堆得多，而是这个方案能不能解决真实运营问题。",
+            "第一段先看场景。很多企业做视频、做获客、做智能化项目时，最容易犯的错，是一开始就讨论工具和价格，却没有把客户旅程、交付边界和后续运营想清楚。",
+            "第二段看痛点。客户真正关心的是投入之后有没有效率提升，有没有可量化的数据，有没有更稳定的体验，以及出了问题有没有人负责。",
+            "第三段看方案。好的方案应该把前端体验、后台管理、数据记录和持续服务连接起来，让管理者能看见过程，员工能按标准执行，客户能感受到变化。",
+            "第四段看落地。不要只讲概念，要把每一步拆成可执行动作：先做需求诊断，再做小范围试点，然后根据真实反馈优化流程，最后再扩大应用。",
+            "第五段看风险。任何宣传都不能夸大承诺，也不能把个别案例说成普遍结果。更稳妥的表达，是说明适用条件、实施周期和预期改善方向。",
+            "最后总结，真正值得选择的方案，不是看起来最热闹的，而是能持续交付、可复盘、可优化，并且能让客户少走弯路的方案。",
+        ]
+        target_chars = 120 if duration_seconds <= 30 else 220 if duration_seconds <= 60 else 650 if duration_seconds <= 180 else 1200
+        text = ""
+        index = 0
+        while len(text) < target_chars:
+            text = f"{text}{sections[index % len(sections)]}"
+            index += 1
+            if duration_seconds <= 60 and index >= 3:
+                break
+        return text[: target_chars + 80]
+
+    def _stub_voiceover_en(self, topic: str, duration_seconds: int) -> str:
+        sections = [
+            f"Today, let us explain {topic} as a practical business decision, not just a feature list.",
+            "First, look at the real operating scenario. A strong solution should reduce friction for users and make daily work easier for the team.",
+            "Second, look at measurable value. Decision makers need clearer data, more stable delivery, and a process that can be reviewed after launch.",
+            "Third, look at implementation. Start with a small pilot, verify the core workflow, collect feedback, and then expand with a repeatable standard.",
+            "Fourth, look at risk control. Claims should be accurate, examples should be authorized, and the final video should avoid exaggerated promises.",
+            "In summary, the best solution is the one that can keep delivering value after the first launch.",
+        ]
+        target_chars = 260 if duration_seconds <= 30 else 520 if duration_seconds <= 60 else 1500 if duration_seconds <= 180 else 2800
+        text = ""
+        index = 0
+        while len(text) < target_chars:
+            text = f"{text} {sections[index % len(sections)]}"
+            index += 1
+            if duration_seconds <= 60 and index >= 3:
+                break
+        return text.strip()[: target_chars + 120]
+
+    def _stub_storyboard_zh(self, topic: str, duration_seconds: int) -> str:
+        segment_count = self._script_segment_count(duration_seconds)
+        shots = []
+        for index in range(segment_count):
+            start = index * 10
+            end = min(duration_seconds, start + 10)
+            shots.append(
+                f"镜头{index + 1} {start}-{end}s：围绕“{topic}”推进第{index + 1}段内容，保持同一人物、同一商务场景和统一字幕风格。"
+            )
+        return "\n".join(shots)
+
+    def _stub_storyboard_en(self, topic: str, duration_seconds: int) -> str:
+        segment_count = self._script_segment_count(duration_seconds)
+        shots = []
+        for index in range(segment_count):
+            start = index * 10
+            end = min(duration_seconds, start + 10)
+            shots.append(
+                f"Shot {index + 1} {start}-{end}s: Continue the explanation of {topic}, same presenter, same business setting, consistent subtitles and pacing."
+            )
+        return "\n".join(shots)
+
+    def _script_segment_count(self, duration_seconds: int) -> int:
+        return max(4, min(36, math.ceil(max(duration_seconds, 30) / 10)))
 
 
 class MediaGenerationClient:
@@ -279,38 +330,67 @@ class MediaGenerationClient:
         return self._extract_media_url(result, "digital_human_video")
 
     async def generate_seedance_clips(self, prompt: str, duration_seconds: int = 30) -> list[str]:
-        clip_count = self._clip_count_for_duration(duration_seconds)
-        clip_duration = self._clip_duration_for_duration(duration_seconds)
+        plan = self.segment_plan(prompt, "", duration_seconds)
+        return [
+            await self.generate_video_segment(item["prompt"], item["duration_seconds"], index, len(plan))
+            for index, item in enumerate(plan)
+        ]
+
+    async def generate_video_segment(
+        self,
+        prompt: str,
+        duration_seconds: int,
+        index: int,
+        total: int,
+    ) -> str:
         if self.video_model_config and self.video_model_config.provider == "seedance":
-            return [
-                await self._generate_seedance_clip_via_ark(
-                    self._segment_prompt(prompt, index, clip_count),
-                    clip_duration,
-                )
-                for index in range(clip_count)
-            ]
+            return await self._generate_seedance_clip_via_ark(
+                self._segment_prompt(prompt, index, total),
+                duration_seconds,
+            )
 
         provider = self.settings.video_generation_provider
         if provider == "seedance" and self.settings.seedance_api_base:
-            return [
-                await self._generate_seedance_clip_via_ark(
-                    self._segment_prompt(prompt, index, clip_count),
-                    clip_duration,
-                )
-                for index in range(clip_count)
-            ]
+            return await self._generate_seedance_clip_via_ark(
+                self._segment_prompt(prompt, index, total),
+                duration_seconds,
+            )
 
         if provider == "comfyui" and self.settings.comfyui_api_base:
             payload = {
                 "prompt": prompt,
                 "duration_seconds": duration_seconds,
-                "clip_count": clip_count,
+                "segment_index": index + 1,
+                "segment_count": total,
                 "workflow": "default-video-generation",
             }
             result = await self._post_media(self.settings.comfyui_api_base, "/prompt", payload)
-            return [self._extract_media_url(result, "comfyui_job")]
+            return self._extract_media_url(result, "comfyui_job")
 
-        return [self._mock_asset("seedance", f"clip-{index + 1}.mp4") for index in range(max(2, clip_count))]
+        return self._mock_asset("seedance", f"clip-{index + 1}.mp4")
+
+    def segment_plan(self, prompt: str, storyboard: str, duration_seconds: int = 30) -> list[dict[str, object]]:
+        clip_count = self._clip_count_for_duration(duration_seconds)
+        clip_duration = self._clip_duration_for_duration(duration_seconds)
+        storyboard_lines = [line.strip() for line in storyboard.splitlines() if line.strip()]
+        plan: list[dict[str, object]] = []
+        for index in range(clip_count):
+            start = index * clip_duration
+            remaining = max(clip_duration, duration_seconds - start)
+            item_duration = min(clip_duration, remaining)
+            storyboard_hint = storyboard_lines[index] if index < len(storyboard_lines) else ""
+            segment_prompt = (
+                f"{prompt.strip()}\n"
+                f"Segment brief: {storyboard_hint or f'continue chapter {index + 1} with clear visual continuity'}"
+            )
+            plan.append(
+                {
+                    "title": f"第 {index + 1} 段",
+                    "duration_seconds": int(item_duration),
+                    "prompt": segment_prompt,
+                }
+            )
+        return plan
 
     async def compose_final_video(self, clips: list[str], avatar_clip: str) -> str:
         if self.settings.composition_provider != "ffmpeg":
@@ -489,7 +569,7 @@ class MediaGenerationClient:
             wav_file.setnchannels(1)
             wav_file.setsampwidth(2)
             wav_file.setframerate(22050)
-            wav_file.writeframes(b"\x00\x00" * 22050 * max(8, min(180, len(text) // 6)))
+            wav_file.writeframes(b"\x00\x00" * 22050 * max(8, min(360, len(text) // 6)))
         return str(wav_path)
 
     def _local_talking_avatar_preview(self, portrait_path: str, audio_path: str) -> str:
@@ -498,7 +578,7 @@ class MediaGenerationClient:
         import numpy as np
 
         audio = AudioFileClip(audio_path)
-        duration = min(max(audio.duration, 6), 180)
+        duration = min(max(audio.duration, 6), 360)
         output_path = self._asset_path("digital-human", "talking-avatar-preview.mp4")
         portrait = Image.open(portrait_path).convert("RGB")
         frame_size = (1080, 1920)
@@ -589,7 +669,7 @@ class MediaGenerationClient:
 
     def _clip_count_for_duration(self, duration_seconds: int) -> int:
         clip_duration = self._clip_duration_for_duration(duration_seconds)
-        return max(1, min(24, math.ceil(max(duration_seconds, clip_duration) / clip_duration)))
+        return max(1, min(36, math.ceil(max(duration_seconds, clip_duration) / clip_duration)))
 
     def _segment_prompt(self, prompt: str, index: int, total: int) -> str:
         if total <= 1:

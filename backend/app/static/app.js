@@ -459,7 +459,12 @@ function taskStatusLabel(status) {
   }[status] || status;
 }
 
-function taskProgress(status) {
+function taskProgress(task) {
+  if (task.status === "running" && Number(task.segment_count || 0) > 1) {
+    const completed = Number(task.completed_segments || 0);
+    const total = Number(task.segment_count || 1);
+    return Math.min(84, 25 + Math.round((completed / total) * 58));
+  }
   return {
     draft: 8,
     queued: 25,
@@ -468,7 +473,15 @@ function taskProgress(status) {
     approved: 100,
     rejected: 100,
     failed: 100,
-  }[status] || 0;
+  }[task.status] || 0;
+}
+
+function taskSegmentMeta(task) {
+  const total = Number(task.segment_count || 1);
+  if (total <= 1) return "短视频";
+  const completed = Number(task.completed_segments || 0);
+  const mode = task.generation_mode === "long" ? "长视频" : "分段视频";
+  return `${mode} · ${completed}/${total} 段`;
 }
 
 function humanName(id) {
@@ -503,6 +516,7 @@ function renderTaskCompact(tasks) {
           <strong>任务 #${task.id}</strong>
           <div>${escapeHtml(scriptName(task.script_id)).slice(0, 54)}</div>
           <span class="status">${taskStatusLabel(task.status)}</span>
+          <div class="recordMeta">${taskSegmentMeta(task)}</div>
         </div>
       `,
     )
@@ -532,7 +546,7 @@ function renderTaskTable(tasks) {
       <tbody>
         ${tasks
           .map((task) => {
-            const progress = taskProgress(task.status);
+            const progress = taskProgress(task);
             const videoSrc = taskVideoSrc(task);
             return `
               <tr>
@@ -546,6 +560,7 @@ function renderTaskTable(tasks) {
                 <td>
                   <div class="progressBar"><span style="width:${progress}%"></span></div>
                   <div class="recordMeta">${progress}% · ${taskStatusLabel(task.status)}</div>
+                  <div class="recordMeta">${taskSegmentMeta(task)}</div>
                   ${task.error_message ? `<div class="errorText">${escapeHtml(task.error_message)}</div>` : ""}
                 </td>
                 <td>

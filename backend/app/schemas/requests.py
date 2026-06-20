@@ -100,7 +100,7 @@ class ScriptGenerateRequest(BaseModel):
     topic_id: Optional[int] = None
     topic: str = Field(..., description="选题或产品卖点")
     brand_voice: str = "专业、可信、短视频口播风格"
-    duration_seconds: int = 30
+    duration_seconds: int = Field(default=30, ge=15, le=360)
     target_platform: str = "douyin"
     output_language: str = "zh-CN"
 

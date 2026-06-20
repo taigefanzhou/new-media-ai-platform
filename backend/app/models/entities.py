@@ -193,9 +193,26 @@ class VideoTask(SQLModel, table=True):
     script_id: int
     digital_human_id: Optional[int] = None
     status: TaskStatus = TaskStatus.draft
+    generation_mode: str = "short"
+    segment_count: int = 1
+    completed_segments: int = 0
     output_path: Optional[str] = None
     error_message: Optional[str] = None
     audit_notes: str = ""
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class VideoSegment(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    video_task_id: int = Field(index=True)
+    segment_index: int
+    title: str = ""
+    duration_seconds: int = 10
+    prompt: str = ""
+    status: TaskStatus = TaskStatus.queued
+    output_path: Optional[str] = None
+    error_message: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
