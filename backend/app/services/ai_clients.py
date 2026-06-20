@@ -238,12 +238,18 @@ class ScriptGenerator:
 
 
 class MediaGenerationClient:
-    def __init__(self, video_model_config=None, tts_model_config=None, digital_human_model_config=None) -> None:
+    def __init__(
+        self,
+        video_model_config=None,
+        tts_model_config=None,
+        digital_human_model_config=None,
+        storage_dir: str | Path | None = None,
+    ) -> None:
         self.settings = get_settings()
         self.video_model_config = video_model_config
         self.tts_model_config = tts_model_config
         self.digital_human_model_config = digital_human_model_config
-        self.storage_dir = Path(self.settings.storage_dir)
+        self.storage_dir = Path(storage_dir or self.settings.storage_dir)
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 
     async def synthesize_voice(self, text: str, voice: Optional[str] = None) -> str:

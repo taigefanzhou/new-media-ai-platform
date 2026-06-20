@@ -481,9 +481,17 @@
             <div class="sectionHeader compactSectionHeader">
               <div>
                 <h2>视频存储位置</h2>
-                <p>查看系统生成的成片、分段视频、数字人口播和音频文件在本机的保存位置。</p>
+                <p>选择系统生成的成片、分段视频、数字人口播和音频文件保存在电脑哪个文件夹。</p>
               </div>
             </div>
+            <form id="videoStorageForm" class="storageConfigForm">
+              <label>电脑保存位置
+                <input id="videoStorageRootInput" name="storage_root" placeholder="/Users/Admin/Movies/AI视频输出" />
+              </label>
+              <button id="chooseStorageFolderBtn" type="button" class="secondary">选择文件夹</button>
+              <button type="submit">保存位置</button>
+            </form>
+            <div id="storagePresetList" class="storagePresetList"></div>
             <div id="videoStoragePaths" class="storagePathGrid"></div>
           </section>
           <section class="panel footerPanel">

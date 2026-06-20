@@ -4,6 +4,7 @@ from datetime import datetime
 from sqlmodel import select
 from sqlmodel import Session
 from app.core.config import get_settings
+from app.core.storage import get_storage_root
 from app.models.entities import AIModelConfig, DigitalHuman, Material, Script, TaskStatus, VideoSegment, VideoTask
 from app.services.ai_clients import MediaGenerationClient
 from app.services.usage import estimate_text_tokens, record_model_usage
@@ -21,6 +22,7 @@ class VideoPipeline:
             self.video_model_config,
             self.tts_model_config,
             self.digital_human_model_config,
+            storage_dir=get_storage_root(session),
         )
 
     async def run(self, task: VideoTask) -> VideoTask:

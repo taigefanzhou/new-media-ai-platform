@@ -57,6 +57,10 @@ class UserPublic(BaseModel):
     created_at: datetime
 
 
+class StorageSettingsUpdate(BaseModel):
+    storage_root: str = Field(..., min_length=1)
+
+
 class TrendingSearchCreate(BaseModel):
     platform: TrendingSource
     keyword: str

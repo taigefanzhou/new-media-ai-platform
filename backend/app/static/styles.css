@@ -483,6 +483,40 @@ h2 {
   gap: 8px;
 }
 
+.storageConfigForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 132px 132px;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 10px;
+}
+
+.storageConfigForm label {
+  margin-bottom: 0;
+}
+
+.storageConfigForm button {
+  min-height: 42px;
+}
+
+.storagePresetList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.storagePresetList button {
+  width: auto;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  background: #fbfcfd;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 900;
+}
+
 .storagePathRow {
   display: grid;
   grid-template-columns: 120px minmax(0, 1fr) auto;
@@ -1514,6 +1548,7 @@ button:disabled {
   .creationBriefGrid,
   .creationFooterActions,
   .creationParamBar,
+  .storageConfigForm,
   .advancedTaskGrid,
   .scriptUtilityGrid,
   .scriptMetaGrid,
@@ -1566,6 +1601,7 @@ button:disabled {
   .creationFooterActions,
   .creationBriefGrid,
   .creationParamBar,
+  .storageConfigForm,
   .advancedTaskGrid,
   .scriptUtilityGrid,
   .scriptEditGrid,

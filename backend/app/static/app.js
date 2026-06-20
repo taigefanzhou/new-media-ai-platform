@@ -1124,6 +1124,8 @@ function renderModelUsage(report) {
 function renderVideoStorage(report) {
   const summaryTarget = document.querySelector("#videoStorageSummary");
   const pathsTarget = document.querySelector("#videoStoragePaths");
+  const form = document.querySelector("#videoStorageForm");
+  const presetTarget = document.querySelector("#storagePresetList");
   const listTarget = document.querySelector("#videoStorageList");
   if (!summaryTarget || !pathsTarget || !listTarget) return;
   const totals = report?.totals || {};
@@ -1143,6 +1145,24 @@ function renderVideoStorage(report) {
       `,
     )
     .join("");
+
+  if (form) {
+    const input = form.querySelector("[name='storage_root']");
+    if (input) input.value = report.storage_root || "";
+  }
+
+  if (presetTarget) {
+    const presets = report?.suggested_roots || [];
+    presetTarget.innerHTML = presets
+      .map(
+        (item) => `
+          <button type="button" data-action="use-storage-preset" data-path="${escapeHtml(item.path || "")}">
+            ${escapeHtml(item.label || "目录")}
+          </button>
+        `,
+      )
+      .join("");
+  }
 
   const pathRows = [
     ["存储根目录", report.storage_root],
@@ -1479,6 +1499,53 @@ document.querySelector("#videoStoragePaths").addEventListener("click", async (ev
     toast("路径已复制");
   } catch {
     toast(path);
+  }
+});
+
+document.querySelector("#storagePresetList").addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-action='use-storage-preset']");
+  if (!button) return;
+  const input = document.querySelector("#videoStorageRootInput");
+  if (input) {
+    input.value = button.dataset.path || "";
+    input.focus();
+  }
+});
+
+document.querySelector("#chooseStorageFolderBtn").addEventListener("click", async () => {
+  const button = document.querySelector("#chooseStorageFolderBtn");
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "选择中...";
+  try {
+    const result = await api.post("/settings/video-storage/choose-folder");
+    const input = document.querySelector("#videoStorageRootInput");
+    if (input) input.value = result.storage_root || "";
+    toast("已选择文件夹，点击保存位置后生效");
+  } catch (error) {
+    toast("无法打开系统选择窗口，请手动输入文件夹路径");
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
+});
+
+document.querySelector("#videoStorageForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const button = event.currentTarget.querySelector("button[type='submit']");
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "保存中...";
+  try {
+    const report = await api.patch("/settings/video-storage", formData(event.currentTarget));
+    state.videoStorage = report;
+    renderVideoStorage(report);
+    toast("视频保存位置已更新");
+  } catch (error) {
+    toast("保存失败，请确认这个文件夹可访问、可写入");
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
   }
 });
 

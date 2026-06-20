@@ -107,6 +107,12 @@ class AIModelUsage(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+class SystemSetting(SQLModel, table=True):
+    key: str = Field(primary_key=True)
+    value: str = ""
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 class TrendingSearch(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     platform: TrendingSource

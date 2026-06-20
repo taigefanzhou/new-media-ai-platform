@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import math
+import platform
+import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -12,6 +14,7 @@ from app.core.config import get_settings
 from app.core.auth import current_user
 from app.core.db import engine, get_session
 from app.core.security import create_token, hash_password
+from app.core.storage import STORAGE_ROOT_KEY, get_storage_root, save_storage_root
 from app.models.entities import (
     AIModelConfig,
     AIModelUsage,
@@ -24,6 +27,7 @@ from app.models.entities import (
     PlatformCredential,
     PublishRecord,
     Script,
+    SystemSetting,
     TaskStatus,
     Topic,
     TrendingSearch,
@@ -51,6 +55,7 @@ from app.schemas.requests import (
     ScriptGenerateRequest,
     ScriptUpdate,
     ScriptVideoTaskCreate,
+    StorageSettingsUpdate,
     TopicCreate,
     TrendingSearchCreate,
     TrendingVideoCreate,
@@ -281,8 +286,15 @@ def video_storage_summary(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
 ) -> dict[str, object]:
-    settings = get_settings()
-    storage_root = Path(settings.storage_dir).resolve()
+    storage_root = get_storage_root(session)
+    storage_setting = session.get(SystemSetting, STORAGE_ROOT_KEY)
+    home_dir = Path.home()
+    suggested_roots = [
+        {"label": "当前保存位置", "path": str(storage_root)},
+        {"label": "桌面：AI 视频成片", "path": str(home_dir / "Desktop" / "AI视频成片")},
+        {"label": "文档：AI 视频素材", "path": str(home_dir / "Documents" / "AI视频素材")},
+        {"label": "影片：AI 视频输出", "path": str(home_dir / "Movies" / "AI视频输出")},
+    ]
     tasks = session.exec(select(VideoTask).order_by(VideoTask.created_at.desc())).all()
     videos = []
     total_size = 0
@@ -317,8 +329,9 @@ def video_storage_summary(
         "segment_video_dir": str(storage_root / "seedance"),
         "digital_human_dir": str(storage_root / "digital-human"),
         "voice_dir": str(storage_root / "voice"),
-        "configured_by": "STORAGE_DIR",
+        "configured_by": "后台设置" if storage_setting and storage_setting.value else "STORAGE_DIR",
         "final_video_pattern": str(storage_root / "final" / "{自动生成ID}" / "final-video.mp4"),
+        "suggested_roots": suggested_roots,
         "totals": {
             "video_count": len(videos),
             "existing_count": existing_count,
@@ -327,6 +340,44 @@ def video_storage_summary(
         },
         "videos": videos,
     }
+
+
+@router.patch("/settings/video-storage")
+def update_video_storage(
+    payload: StorageSettingsUpdate,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> dict[str, object]:
+    try:
+        save_storage_root(session, payload.storage_root)
+    except OSError as exc:
+        raise HTTPException(status_code=400, detail=f"无法使用这个目录：{exc}") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return video_storage_summary(session=session, user=user)
+
+
+@router.post("/settings/video-storage/choose-folder")
+def choose_video_storage_folder(user: User = Depends(current_user)) -> dict[str, str]:
+    if platform.system() != "Darwin":
+        raise HTTPException(status_code=400, detail="当前环境不支持系统文件夹选择，请手动输入本机目录。")
+    script = 'POSIX path of (choose folder with prompt "请选择 AI 视频文件保存位置")'
+    try:
+        result = subprocess.run(
+            ["osascript", "-e", script],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise HTTPException(status_code=400, detail="选择文件夹超时，请重试或手动输入目录。") from exc
+    except subprocess.CalledProcessError as exc:
+        raise HTTPException(status_code=400, detail="没有选择文件夹。") from exc
+    selected_path = result.stdout.strip()
+    if not selected_path:
+        raise HTTPException(status_code=400, detail="没有选择文件夹。")
+    return {"storage_root": str(Path(selected_path).expanduser().resolve())}
 
 
 @router.post("/settings/models", response_model=AIModelConfig)
@@ -575,10 +626,9 @@ async def _save_uploaded_material(
     copyright_status: CopyrightStatus = CopyrightStatus.owned,
     tags: str = "",
 ) -> Material:
-    settings = get_settings()
     original_name = file.filename or "upload.bin"
     suffix = Path(original_name).suffix
-    storage_dir = Path(settings.storage_dir) / "materials" / uuid4().hex
+    storage_dir = get_storage_root(session) / "materials" / uuid4().hex
     storage_dir.mkdir(parents=True, exist_ok=True)
     file_path = storage_dir / f"source{suffix}"
     file_path.write_bytes(await file.read())
