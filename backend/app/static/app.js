@@ -235,7 +235,7 @@ function renderScripts(scripts) {
       target.textContent = "还没有脚本";
     });
     if (resultStatus) {
-      resultStatus.textContent = "点击标题可复制";
+      resultStatus.textContent = "点击标题会按该方向重写";
       resultStatus.classList.remove("isGenerating");
     }
     return;
@@ -316,21 +316,32 @@ function renderScriptDetail(script, isFresh = false) {
   }
 }
 
-function renderScriptLoading() {
+function renderScriptLoading(message = "AI 正在生成标题、口播稿、分镜和视频提示词...", keepTitles = false) {
   const titleTarget = document.querySelector("#titleSuggestionList");
   const creationTarget = document.querySelector("#scriptPreviewCreation");
   const resultStatus = document.querySelector("#scriptResultStatus");
-  if (titleTarget) {
+  if (titleTarget && !keepTitles) {
     titleTarget.innerHTML = `<div class="item">正在生成标题建议...</div>`;
   }
   if (creationTarget) {
     creationTarget.className = "scriptResult scriptResultFresh";
-    creationTarget.innerHTML = `<div class="scriptLoading">AI 正在生成标题、口播稿、分镜和视频提示词...</div>`;
+    creationTarget.innerHTML = `<div class="scriptLoading">${escapeHtml(message)}</div>`;
   }
   if (resultStatus) {
     resultStatus.textContent = "生成中...";
     resultStatus.classList.add("isGenerating");
   }
+}
+
+function applyGeneratedScript(script) {
+  state.latestScriptId = script.id;
+  state.highlightedScriptId = script.id;
+  state.scripts = [script, ...state.scripts.filter((item) => item.id !== script.id)];
+  const scriptInput = document.querySelector("[name='script_id']");
+  if (scriptInput) scriptInput.value = script.id;
+  renderScriptSelects(state.scripts);
+  renderTitleSuggestions(script);
+  renderScriptDetail(script, true);
 }
 
 function renderScriptSelects(scripts) {
@@ -1049,14 +1060,7 @@ document.querySelector("#scriptForm").addEventListener("submit", async (event) =
   renderScriptLoading();
   try {
     const script = await api.post("/scripts/generate", payload);
-    state.latestScriptId = script.id;
-    state.highlightedScriptId = script.id;
-    state.scripts = [script, ...state.scripts.filter((item) => item.id !== script.id)];
-    const scriptInput = document.querySelector("[name='script_id']");
-    if (scriptInput) scriptInput.value = script.id;
-    renderScriptSelects(state.scripts);
-    renderTitleSuggestions(script);
-    renderScriptDetail(script, true);
+    applyGeneratedScript(script);
     toast(`脚本已生成 #${script.id}`);
     await refresh();
   } catch (error) {
@@ -1112,15 +1116,33 @@ document.querySelector("#titleSuggestionList").addEventListener("click", async (
   const title = button.dataset.title;
   document.querySelectorAll(".titleOption").forEach((item) => item.classList.remove("selectedTitle"));
   button.classList.add("selectedTitle");
+  const form = document.querySelector("#scriptForm");
+  const payload = formData(form);
+  payload.topic = `按这个标题重写完整脚本：${title}\n原始创作需求：${payload.topic}`;
+  payload.duration_seconds = Number(payload.duration_seconds);
+  document.querySelectorAll(".titleOption").forEach((item) => {
+    item.disabled = true;
+  });
+  renderScriptLoading(`正在按标题「${title}」重写口播稿、分镜和视频提示词...`, true);
   try {
     if (navigator.clipboard) {
-      await navigator.clipboard.writeText(title);
-      toast("标题已复制");
-      return;
+      try {
+        await navigator.clipboard.writeText(title);
+      } catch {
+        // Copying is a convenience only; script rewriting should still run.
+      }
     }
-    toast("标题已选中");
-  } catch {
-    toast("标题已选中");
+    const script = await api.post("/scripts/generate", payload);
+    applyGeneratedScript(script);
+    toast(`已按所选标题重写脚本 #${script.id}`);
+    await refresh();
+  } catch (error) {
+    toast("按标题重写失败，请稍后重试");
+    renderScripts(state.scripts);
+  } finally {
+    document.querySelectorAll(".titleOption").forEach((item) => {
+      item.disabled = false;
+    });
   }
 });
 
