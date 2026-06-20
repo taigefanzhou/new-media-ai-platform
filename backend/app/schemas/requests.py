@@ -80,6 +80,11 @@ class ScriptGenerateRequest(BaseModel):
     output_language: str = "zh-CN"
 
 
+class ScriptBatchGenerateRequest(ScriptGenerateRequest):
+    count: int = Field(default=3, ge=1, le=20)
+    topics: list[str] = Field(default_factory=list)
+
+
 class DigitalHumanCreate(BaseModel):
     name: str
     role: Optional[str] = None
@@ -97,6 +102,15 @@ class VideoTaskCreate(BaseModel):
 
 class ScriptVideoTaskCreate(BaseModel):
     digital_human_id: Optional[int] = None
+
+
+class VideoTaskBatchCreateRequest(BaseModel):
+    script_ids: list[int] = Field(..., min_length=1, max_length=50)
+    digital_human_id: Optional[int] = None
+
+
+class VideoTaskBatchRunRequest(BaseModel):
+    task_ids: list[int] = Field(..., min_length=1, max_length=20)
 
 
 class PlatformAccountCreate(BaseModel):

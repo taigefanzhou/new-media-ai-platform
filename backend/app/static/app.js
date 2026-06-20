@@ -346,12 +346,22 @@ function applyGeneratedScript(script) {
 
 function renderScriptSelects(scripts) {
   const select = document.querySelector("#taskScriptSelect");
-  if (!select) return;
-  const current = select.value;
-  select.innerHTML = `<option value="">先生成脚本</option>${scripts
+  const batchSelect = document.querySelector("#batchScriptSelect");
+  const options = scripts
     .map((script) => `<option value="${script.id}">#${script.id} ${escapeHtml(script.hook || "未命名脚本").slice(0, 44)}</option>`)
-    .join("")}`;
-  select.value = current || state.latestScriptId || "";
+    .join("");
+  if (select) {
+    const current = select.value;
+    select.innerHTML = `<option value="">先生成脚本</option>${options}`;
+    select.value = current || state.latestScriptId || "";
+  }
+  if (batchSelect) {
+    const selected = new Set([...batchSelect.selectedOptions].map((item) => item.value));
+    batchSelect.innerHTML = options || `<option value="">先生成脚本</option>`;
+    [...batchSelect.options].forEach((option) => {
+      option.selected = selected.has(option.value);
+    });
+  }
 }
 
 function renderTitleSuggestions(script) {
@@ -450,6 +460,7 @@ function renderTaskTable(tasks) {
     <table class="taskTable">
       <thead>
         <tr>
+          <th>选择</th>
           <th>任务</th>
           <th>脚本</th>
           <th>数字人</th>
@@ -465,6 +476,7 @@ function renderTaskTable(tasks) {
             const videoSrc = taskVideoSrc(task);
             return `
               <tr>
+                <td><input type="checkbox" class="taskSelectCheckbox" value="${task.id}" /></td>
                 <td>
                   <strong>#${task.id}</strong>
                   <span class="status">${taskStatusLabel(task.status)}</span>
@@ -721,12 +733,16 @@ function renderAnalysisMaterialPreview() {
 
 function renderHumanSelects(humans) {
   const select = document.querySelector("#taskHumanSelect");
-  if (!select) return;
-  const current = select.value;
-  select.innerHTML = `<option value="">不使用数字人露脸</option>${humans
+  const batchSelect = document.querySelector("#batchHumanSelect");
+  const creationSelect = document.querySelector("#creationHumanSelect");
+  const options = humans
     .map((human) => `<option value="${human.id}">#${human.id} ${escapeHtml(human.name)}</option>`)
-    .join("")}`;
-  select.value = current || state.latestHumanId || "";
+    .join("");
+  [select, batchSelect, creationSelect].filter(Boolean).forEach((target) => {
+    const current = target.value;
+    target.innerHTML = `<option value="">不使用数字人露脸</option>${options}`;
+    target.value = current || state.latestHumanId || "";
+  });
 }
 
 function renderDigitalHumans(humans) {
@@ -1072,6 +1088,32 @@ document.querySelector("#scriptForm").addEventListener("submit", async (event) =
   }
 });
 
+document.querySelector("#batchScriptBtn").addEventListener("click", async () => {
+  const form = document.querySelector("#scriptForm");
+  const button = document.querySelector("#batchScriptBtn");
+  const originalText = button.textContent;
+  const payload = formData(form);
+  payload.duration_seconds = Number(payload.duration_seconds);
+  payload.count = Number(document.querySelector("#batchScriptCount").value || 5);
+  button.disabled = true;
+  button.textContent = "生成候选中...";
+  renderScriptLoading(`AI 正在生成 ${payload.count} 条候选脚本，审核人只需选择满意的一版...`);
+  try {
+    const scripts = await api.post("/scripts/batch-generate", payload);
+    state.scripts = [...scripts, ...state.scripts.filter((item) => !scripts.some((script) => script.id === item.id))];
+    applyGeneratedScript(scripts[0]);
+    renderScriptSelects(state.scripts);
+    toast(`已生成 ${scripts.length} 条候选脚本`);
+    await refresh();
+  } catch (error) {
+    toast("候选脚本生成失败，请检查模型配置或稍后重试");
+    renderScripts(state.scripts);
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
+});
+
 document.querySelector("#taskForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const payload = formData(event.currentTarget);
@@ -1083,25 +1125,56 @@ document.querySelector("#taskForm").addEventListener("submit", async (event) => 
   await refresh();
 });
 
+document.querySelector("#batchCreateTasksBtn").addEventListener("click", async () => {
+  const scriptIds = [...document.querySelector("#batchScriptSelect").selectedOptions]
+    .map((option) => Number(option.value))
+    .filter(Boolean);
+  if (!scriptIds.length) {
+    toast("请先选择要批量生成视频的脚本");
+    return;
+  }
+  const humanValue = document.querySelector("#batchHumanSelect").value;
+  const payload = {
+    script_ids: scriptIds,
+    digital_human_id: humanValue ? Number(humanValue) : null,
+  };
+  const tasks = await api.post("/video-tasks/batch-create", payload);
+  toast(`已批量创建 ${tasks.length} 个视频任务`);
+  await refresh();
+  switchPage("tasks");
+});
+
 document.querySelector("#createTaskFromScriptBtn").addEventListener("click", async () => {
   if (!state.latestScriptId) {
     toast("请先生成脚本");
     return;
   }
-  const humanInput = document.querySelector("#taskForm [name='digital_human_id']");
+  const button = document.querySelector("#createTaskFromScriptBtn");
+  const originalText = button.textContent;
+  const humanInput = document.querySelector("#creationHumanSelect");
   const payload = {};
   if (humanInput.value) {
     payload.digital_human_id = Number(humanInput.value);
   }
-  const task = await api.post(`/scripts/${state.latestScriptId}/video-task`, payload);
-  state.latestTaskId = task.id;
-  document.querySelector("#taskForm [name='script_id']").value = task.script_id;
-  if (task.digital_human_id) {
-    humanInput.value = task.digital_human_id;
+  button.disabled = true;
+  button.textContent = "进入生成队列...";
+  try {
+    const task = await api.post(`/scripts/${state.latestScriptId}/auto-video-task`, payload);
+    state.latestTaskId = task.id;
+    document.querySelector("#taskForm [name='script_id']").value = task.script_id;
+    const taskHumanInput = document.querySelector("#taskForm [name='digital_human_id']");
+    if (task.digital_human_id && taskHumanInput) {
+      taskHumanInput.value = task.digital_human_id;
+    }
+    toast(`已进入自动生成队列 #${task.id}`);
+    await refresh();
+    switchPage("tasks");
+  } catch (error) {
+    toast("自动生成视频失败，请检查视频模型或素材配置");
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
   }
-  toast(`视频任务已创建 #${task.id}`);
-  await refresh();
-  switchPage("tasks");
 });
 
 document.querySelector("#goTaskPageBtn").addEventListener("click", () => switchPage("tasks"));
@@ -1154,6 +1227,30 @@ document.querySelector("#runTaskBtn").addEventListener("click", async () => {
   const task = await api.post(`/video-tasks/${state.latestTaskId}/run`);
   toast(`任务已运行：${task.status}`);
   await refresh();
+});
+
+document.querySelector("#batchRunSelectedTasksBtn").addEventListener("click", async () => {
+  const taskIds = [...document.querySelectorAll(".taskSelectCheckbox:checked")]
+    .map((input) => Number(input.value))
+    .filter(Boolean);
+  if (!taskIds.length) {
+    toast("请先勾选要运行的视频任务");
+    return;
+  }
+  const button = document.querySelector("#batchRunSelectedTasksBtn");
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "批量运行中...";
+  try {
+    const tasks = await api.post("/video-tasks/batch-run", { task_ids: taskIds });
+    toast(`已运行 ${tasks.length} 个视频任务`);
+    await refresh();
+  } catch (error) {
+    toast("批量运行失败，请检查任务状态或视频模型配置");
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
 });
 
 document.querySelector("#materialList").addEventListener("click", async (event) => {

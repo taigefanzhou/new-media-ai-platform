@@ -34,7 +34,7 @@ class VideoPipeline:
             voice = await self._voice_for_human(human, source_video, task)
             audio = await self.media.synthesize_voice(script.voiceover, voice)
             avatar = await self.media.generate_talking_avatar(portrait, audio, source_video)
-            clips = await self.media.generate_seedance_clips(script.seedance_prompt)
+            clips = await self.media.generate_seedance_clips(script.seedance_prompt, script.duration_seconds)
             task.output_path = await self.media.compose_final_video(clips, avatar)
             task.status = TaskStatus.needs_review
             task.updated_at = datetime.utcnow()

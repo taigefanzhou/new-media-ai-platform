@@ -4,6 +4,7 @@ import json
 import subprocess
 import asyncio
 import wave
+import math
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Optional
@@ -68,6 +69,8 @@ class ScriptGenerator:
                 "如果 output_language 是 en-US，所有 hook、voiceover、title_options、hashtags、compliance_notes 必须使用英文；否则使用中文",
                 "不要复刻或搬运任何参考视频原文",
                 "适合公司新媒体账号和数字人口播",
+                "严格按 duration_seconds 控制口播长度：30秒约120字中文，60秒约220字中文，180秒约650字中文",
+                "如果 duration_seconds 大于等于60秒，storyboard 必须按每10-15秒拆分镜头；如果是180秒，分镜至少12段",
                 "分镜要能转成 Seedance 视频提示词；seedance_prompt 始终使用英文",
                 "必须输出严格 JSON",
             ],
@@ -268,23 +271,39 @@ class MediaGenerationClient:
         )
         return self._extract_media_url(result, "digital_human_video")
 
-    async def generate_seedance_clips(self, prompt: str) -> list[str]:
+    async def generate_seedance_clips(self, prompt: str, duration_seconds: int = 30) -> list[str]:
+        clip_count = self._clip_count_for_duration(duration_seconds)
+        clip_duration = self._clip_duration_for_duration(duration_seconds)
         if self.video_model_config and self.video_model_config.provider == "seedance":
-            return [await self._generate_seedance_clip_via_ark(prompt)]
+            return [
+                await self._generate_seedance_clip_via_ark(
+                    self._segment_prompt(prompt, index, clip_count),
+                    clip_duration,
+                )
+                for index in range(clip_count)
+            ]
 
         provider = self.settings.video_generation_provider
         if provider == "seedance" and self.settings.seedance_api_base:
-            return [await self._generate_seedance_clip_via_ark(prompt)]
+            return [
+                await self._generate_seedance_clip_via_ark(
+                    self._segment_prompt(prompt, index, clip_count),
+                    clip_duration,
+                )
+                for index in range(clip_count)
+            ]
 
         if provider == "comfyui" and self.settings.comfyui_api_base:
-            payload = {"prompt": prompt, "workflow": "default-video-generation"}
+            payload = {
+                "prompt": prompt,
+                "duration_seconds": duration_seconds,
+                "clip_count": clip_count,
+                "workflow": "default-video-generation",
+            }
             result = await self._post_media(self.settings.comfyui_api_base, "/prompt", payload)
             return [self._extract_media_url(result, "comfyui_job")]
 
-        return [
-            self._mock_asset("seedance", "clip-1.mp4"),
-            self._mock_asset("seedance", "clip-2.mp4"),
-        ]
+        return [self._mock_asset("seedance", f"clip-{index + 1}.mp4") for index in range(max(2, clip_count))]
 
     async def compose_final_video(self, clips: list[str], avatar_clip: str) -> str:
         if self.settings.composition_provider != "ffmpeg":
@@ -388,7 +407,7 @@ class MediaGenerationClient:
                 return response.content
             return response.json()
 
-    async def _generate_seedance_clip_via_ark(self, prompt: str) -> str:
+    async def _generate_seedance_clip_via_ark(self, prompt: str, duration_seconds: int = 5) -> str:
         config = self.video_model_config
         api_base = config.api_base if config and config.api_base else self.settings.seedance_api_base
         api_key = config.api_key if config and config.api_key else self.settings.seedance_api_key
@@ -401,7 +420,7 @@ class MediaGenerationClient:
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
         payload = {
             "model": model_name,
-            "content": [{"type": "text", "text": self._seedance_prompt(prompt)}],
+            "content": [{"type": "text", "text": self._seedance_prompt(prompt, duration_seconds)}],
         }
         async with httpx.AsyncClient(timeout=180) as client:
             response = await client.post(
@@ -463,7 +482,7 @@ class MediaGenerationClient:
             wav_file.setnchannels(1)
             wav_file.setsampwidth(2)
             wav_file.setframerate(22050)
-            wav_file.writeframes(b"\x00\x00" * 22050 * max(8, min(60, len(text) // 6)))
+            wav_file.writeframes(b"\x00\x00" * 22050 * max(8, min(180, len(text) // 6)))
         return str(wav_path)
 
     def _local_talking_avatar_preview(self, portrait_path: str, audio_path: str) -> str:
@@ -472,7 +491,7 @@ class MediaGenerationClient:
         import numpy as np
 
         audio = AudioFileClip(audio_path)
-        duration = min(max(audio.duration, 6), 75)
+        duration = min(max(audio.duration, 6), 180)
         output_path = self._asset_path("digital-human", "talking-avatar-preview.mp4")
         portrait = Image.open(portrait_path).convert("RGB")
         frame_size = (1080, 1920)
@@ -558,8 +577,25 @@ class MediaGenerationClient:
         folder.mkdir(parents=True, exist_ok=True)
         return folder / filename
 
-    def _seedance_prompt(self, prompt: str) -> str:
-        controls = "--ratio 9:16 --resolution 480p --dur 5 --fps 24"
+    def _clip_duration_for_duration(self, duration_seconds: int) -> int:
+        return 10 if duration_seconds >= 60 else 5
+
+    def _clip_count_for_duration(self, duration_seconds: int) -> int:
+        clip_duration = self._clip_duration_for_duration(duration_seconds)
+        return max(1, min(24, math.ceil(max(duration_seconds, clip_duration) / clip_duration)))
+
+    def _segment_prompt(self, prompt: str, index: int, total: int) -> str:
+        if total <= 1:
+            return prompt
+        return (
+            f"{prompt.strip()}\n"
+            f"Segment {index + 1} of {total}: create only this part of the video, "
+            "keep visual continuity, avoid ending cards until the final segment."
+        )
+
+    def _seedance_prompt(self, prompt: str, duration_seconds: int = 5) -> str:
+        safe_duration = max(5, min(10, duration_seconds))
+        controls = f"--ratio 9:16 --resolution 480p --dur {safe_duration} --fps 24"
         if "--ratio" in prompt or "--resolution" in prompt or "--dur" in prompt:
             return prompt
         return f"{prompt.strip()} {controls}"

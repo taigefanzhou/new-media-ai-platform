@@ -214,6 +214,18 @@ h2 {
   margin-bottom: 0;
 }
 
+.creationBatchBar {
+  display: grid;
+  grid-template-columns: minmax(150px, 190px) minmax(180px, 260px) minmax(180px, 220px);
+  gap: 12px;
+  align-items: end;
+  margin-top: 12px;
+}
+
+.creationBatchBar label {
+  margin-bottom: 0;
+}
+
 .compactSectionHeader {
   margin-bottom: 12px;
 }
@@ -725,6 +737,27 @@ button:disabled {
   overflow-x: auto;
 }
 
+.taskFlowPanel {
+  margin-bottom: 14px;
+}
+
+.advancedTaskPanel {
+  margin-bottom: 14px;
+}
+
+.advancedTaskPanel summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-weight: 900;
+}
+
+.advancedTaskGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.9fr);
+  gap: 14px;
+  margin-top: 16px;
+}
+
 .taskTable {
   width: 100%;
   min-width: 980px;
@@ -744,6 +777,10 @@ button:disabled {
   font-size: 12px;
   font-weight: 900;
   background: #f8fafc;
+}
+
+.taskSelectCheckbox {
+  width: auto;
 }
 
 .progressBar {
@@ -999,8 +1036,10 @@ button:disabled {
   }
 
   .creationBriefGrid,
+  .creationBatchBar,
   .creationFooterActions,
   .creationParamBar,
+  .advancedTaskGrid,
   .scriptUtilityGrid,
   .scriptMetaGrid {
     grid-template-columns: 1fr;
@@ -1044,7 +1083,9 @@ button:disabled {
   .creationActions,
   .creationFooterActions,
   .creationBriefGrid,
+  .creationBatchBar,
   .creationParamBar,
+  .advancedTaskGrid,
   .scriptUtilityGrid,
   .statusBoard,
   .publishActions,

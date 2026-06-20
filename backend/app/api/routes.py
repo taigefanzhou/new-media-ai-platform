@@ -4,12 +4,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 from uuid import uuid4
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlmodel import Session, func, select
 from app.core.config import get_settings
 from app.core.auth import current_user
-from app.core.db import get_session
+from app.core.db import engine, get_session
 from app.core.security import create_token, hash_password
 from app.models.entities import (
     AIModelConfig,
@@ -43,12 +43,15 @@ from app.schemas.requests import (
     PlatformCredentialUpdate,
     PublishPrepareRequest,
     PublishRecordUpdate,
+    ScriptBatchGenerateRequest,
     ScriptGenerateRequest,
     ScriptVideoTaskCreate,
     TopicCreate,
     TrendingSearchCreate,
     TrendingVideoCreate,
     TranscriptionTaskCreate,
+    VideoTaskBatchCreateRequest,
+    VideoTaskBatchRunRequest,
     VideoTaskPublishPrepareRequest,
     VideoTaskCreate,
 )
@@ -59,6 +62,13 @@ from app.services.trending import TrendingCollector
 
 
 router = APIRouter()
+
+
+async def _run_video_task_background(task_id: int) -> None:
+    with Session(engine) as session:
+        task = session.get(VideoTask, task_id)
+        if task is not None:
+            await VideoPipeline(session).run(task)
 
 
 @router.get("/health")
@@ -580,18 +590,11 @@ def list_topics(session: Session = Depends(get_session)) -> list[Topic]:
     return list(session.exec(select(Topic).order_by(Topic.created_at.desc())).all())
 
 
-@router.post("/scripts/generate", response_model=Script)
-async def generate_script(payload: ScriptGenerateRequest, session: Session = Depends(get_session)) -> Script:
-    active_model = session.exec(
-        select(AIModelConfig).where(AIModelConfig.purpose == "script", AIModelConfig.is_active == True)
-    ).first()
-    generated = await ScriptGenerator(active_model).generate(
-        topic=payload.topic,
-        brand_voice=payload.brand_voice,
-        duration_seconds=payload.duration_seconds,
-        target_platform=payload.target_platform,
-        output_language=payload.output_language,
-    )
+def _create_script_record(
+    session: Session,
+    payload: ScriptGenerateRequest,
+    generated,
+) -> Script:
     script = Script(
         topic_id=payload.topic_id,
         duration_seconds=payload.duration_seconds,
@@ -607,6 +610,53 @@ async def generate_script(payload: ScriptGenerateRequest, session: Session = Dep
     session.commit()
     session.refresh(script)
     return script
+
+
+@router.post("/scripts/generate", response_model=Script)
+async def generate_script(payload: ScriptGenerateRequest, session: Session = Depends(get_session)) -> Script:
+    active_model = session.exec(
+        select(AIModelConfig).where(AIModelConfig.purpose == "script", AIModelConfig.is_active == True)
+    ).first()
+    generated = await ScriptGenerator(active_model).generate(
+        topic=payload.topic,
+        brand_voice=payload.brand_voice,
+        duration_seconds=payload.duration_seconds,
+        target_platform=payload.target_platform,
+        output_language=payload.output_language,
+    )
+    return _create_script_record(session, payload, generated)
+
+
+@router.post("/scripts/batch-generate", response_model=list[Script])
+async def batch_generate_scripts(payload: ScriptBatchGenerateRequest, session: Session = Depends(get_session)) -> list[Script]:
+    active_model = session.exec(
+        select(AIModelConfig).where(AIModelConfig.purpose == "script", AIModelConfig.is_active == True)
+    ).first()
+    generator = ScriptGenerator(active_model)
+    topics = [item.strip() for item in payload.topics if item.strip()] or [
+        f"{payload.topic}\n批量生成第 {index + 1} 条：请换一个标题角度、开头钩子和分镜结构，避免与其他脚本重复。"
+        for index in range(payload.count)
+    ]
+    scripts: list[Script] = []
+    for index, topic in enumerate(topics[: payload.count]):
+        generated = await generator.generate(
+            topic=topic,
+            brand_voice=payload.brand_voice,
+            duration_seconds=payload.duration_seconds,
+            target_platform=payload.target_platform,
+            output_language=payload.output_language,
+        )
+        item_payload = ScriptGenerateRequest(
+            topic_id=payload.topic_id,
+            topic=topic,
+            brand_voice=payload.brand_voice,
+            duration_seconds=payload.duration_seconds,
+            target_platform=payload.target_platform,
+            output_language=payload.output_language,
+        )
+        script = _create_script_record(session, item_payload, generated)
+        scripts.append(script)
+    return scripts
 
 
 @router.get("/scripts", response_model=list[Script])
@@ -629,6 +679,31 @@ def create_video_task_from_script(
     session.add(task)
     session.commit()
     session.refresh(task)
+    return task
+
+
+@router.post("/scripts/{script_id}/auto-video-task", response_model=VideoTask)
+async def approve_script_and_run_video_task(
+    script_id: int,
+    payload: ScriptVideoTaskCreate,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> VideoTask:
+    if session.get(Script, script_id) is None:
+        raise HTTPException(status_code=404, detail="Script not found")
+    if payload.digital_human_id is not None and session.get(DigitalHuman, payload.digital_human_id) is None:
+        raise HTTPException(status_code=404, detail="Digital human not found")
+    task = VideoTask(
+        script_id=script_id,
+        digital_human_id=payload.digital_human_id,
+        status=TaskStatus.running,
+        audit_notes="脚本已审核通过，系统已自动创建视频任务并进入生成队列。",
+    )
+    session.add(task)
+    session.commit()
+    session.refresh(task)
+    background_tasks.add_task(_run_video_task_background, task.id)
     return task
 
 
@@ -727,6 +802,35 @@ def create_video_task(payload: VideoTaskCreate, session: Session = Depends(get_s
     session.commit()
     session.refresh(task)
     return task
+
+
+@router.post("/video-tasks/batch-create", response_model=list[VideoTask])
+def batch_create_video_tasks(payload: VideoTaskBatchCreateRequest, session: Session = Depends(get_session)) -> list[VideoTask]:
+    if payload.digital_human_id is not None and session.get(DigitalHuman, payload.digital_human_id) is None:
+        raise HTTPException(status_code=404, detail="Digital human not found")
+    tasks: list[VideoTask] = []
+    for script_id in payload.script_ids:
+        if session.get(Script, script_id) is None:
+            raise HTTPException(status_code=404, detail=f"Script {script_id} not found")
+        task = VideoTask(script_id=script_id, digital_human_id=payload.digital_human_id, status=TaskStatus.queued)
+        session.add(task)
+        tasks.append(task)
+    session.commit()
+    for task in tasks:
+        session.refresh(task)
+    return tasks
+
+
+@router.post("/video-tasks/batch-run", response_model=list[VideoTask])
+async def batch_run_video_tasks(payload: VideoTaskBatchRunRequest, session: Session = Depends(get_session)) -> list[VideoTask]:
+    pipeline = VideoPipeline(session)
+    results: list[VideoTask] = []
+    for task_id in payload.task_ids:
+        task = session.get(VideoTask, task_id)
+        if task is None:
+            raise HTTPException(status_code=404, detail=f"Video task {task_id} not found")
+        results.append(await pipeline.run(task))
+    return results
 
 
 @router.post("/video-tasks/{task_id}/run", response_model=VideoTask)
