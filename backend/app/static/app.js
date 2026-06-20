@@ -351,10 +351,10 @@ function renderScripts(scripts) {
 
 function productionModeLabel(mode) {
   return {
-    dynamic_explainer: "动态讲解",
+    dynamic_explainer: "图文草稿",
     digital_human: "真人口播",
-    seedance_scene: "Seedance 分段",
-  }[mode] || "动态讲解";
+    seedance_scene: "Seedance 实景",
+  }[mode] || "Seedance 实景";
 }
 
 function parseStoryboardPlan(script) {
@@ -1740,9 +1740,9 @@ function syncProductionModeHint() {
   const hint = document.querySelector("#productionModeHint");
   if (!select || !hint) return;
   hint.textContent = {
-    dynamic_explainer: "会按分镜表生成动态画面、字幕和卖点卡片，适合先出样片。",
+    dynamic_explainer: "低成本图文草稿，只用于快速预览节奏，不作为正式成片。",
     digital_human: "需要选择已上传口播源视频的数字人，用于后续真人嘴型驱动。",
-    seedance_scene: "会把分镜表拆成多个视频模型提示词，适合生成场景化画面。",
+    seedance_scene: "会把分镜表拆成多个 Seedance 镜头，生成 AI 实景画面后自动拼接。",
   }[select.value] || "";
 }
 

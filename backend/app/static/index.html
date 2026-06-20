@@ -176,12 +176,12 @@
               <div class="productionModeBar">
                 <label>成片方式
                   <select id="creationProductionModeSelect">
-                    <option value="dynamic_explainer">动态讲解视频（当前推荐）</option>
+                    <option value="seedance_scene">Seedance AI 实景视频（当前推荐）</option>
                     <option value="digital_human">真人数字人口播（需源视频）</option>
-                    <option value="seedance_scene">Seedance 分段视频</option>
+                    <option value="dynamic_explainer">图文草稿预览（不建议成片）</option>
                   </select>
                 </label>
-                <span id="productionModeHint">会按分镜表生成动态画面、字幕和卖点卡片。</span>
+                <span id="productionModeHint">会按分镜表调用 Seedance 生成 AI 实景镜头，并自动拼接成片。</span>
               </div>
               <div class="nextStepBar">
                 <span>1. 选方案</span>
@@ -318,9 +318,9 @@
               </label>
               <label>成片方式
                 <select name="production_mode">
-                  <option value="dynamic_explainer">动态讲解视频</option>
+                  <option value="seedance_scene">Seedance AI 实景视频</option>
                   <option value="digital_human">真人数字人口播</option>
-                  <option value="seedance_scene">Seedance 分段视频</option>
+                  <option value="dynamic_explainer">图文草稿预览</option>
                 </select>
               </label>
               <div class="actions">
@@ -340,9 +340,9 @@
               </label>
               <label>成片方式
                 <select id="batchProductionModeSelect">
-                  <option value="dynamic_explainer">动态讲解视频</option>
+                  <option value="seedance_scene">Seedance AI 实景视频</option>
                   <option value="digital_human">真人数字人口播</option>
-                  <option value="seedance_scene">Seedance 分段视频</option>
+                  <option value="dynamic_explainer">图文草稿预览</option>
                 </select>
               </label>
               <div class="actions">

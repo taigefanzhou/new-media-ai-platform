@@ -624,6 +624,62 @@ class MediaGenerationClient:
         subprocess.run(command, check=True, capture_output=True)
         return str(output_path)
 
+    async def compose_scene_video(
+        self,
+        clips: list[str],
+        audio_path: Optional[str] = None,
+    ) -> str:
+        from moviepy.editor import AudioFileClip, VideoFileClip, concatenate_videoclips
+        from PIL import Image
+
+        local_inputs = [item for item in clips if self._is_local_path(item) and Path(item).exists()]
+        if not local_inputs:
+            return self._mock_asset("final", "seedance-scene.mp4")
+
+        if not hasattr(Image, "ANTIALIAS"):
+            Image.ANTIALIAS = Image.Resampling.LANCZOS
+        output_path = self._asset_path("final", "seedance-scene.mp4")
+        target_width, target_height = 720, 1280
+        scene_clips = []
+        audio = None
+        final_clip = None
+        try:
+            for path in local_inputs:
+                clip = VideoFileClip(path).without_audio()
+                scale = max(target_width / clip.w, target_height / clip.h)
+                clip = clip.resize(scale)
+                clip = clip.crop(
+                    x_center=clip.w / 2,
+                    y_center=clip.h / 2,
+                    width=target_width,
+                    height=target_height,
+                )
+                scene_clips.append(clip)
+
+            final_clip = concatenate_videoclips(scene_clips, method="compose")
+            if audio_path and self._is_local_path(audio_path) and Path(audio_path).exists():
+                audio = AudioFileClip(audio_path)
+                final_clip = final_clip.set_audio(audio.subclip(0, min(audio.duration, final_clip.duration)))
+            final_clip.write_videofile(
+                str(output_path),
+                fps=24,
+                codec="libx264",
+                audio_codec="aac",
+                preset="medium",
+                bitrate="3500k",
+                threads=4,
+                verbose=False,
+                logger=None,
+            )
+        finally:
+            if final_clip is not None:
+                final_clip.close()
+            if audio is not None:
+                audio.close()
+            for clip in scene_clips:
+                clip.close()
+        return str(output_path)
+
     async def compose_dynamic_explainer(
         self,
         voiceover: str,

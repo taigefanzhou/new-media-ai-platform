@@ -983,7 +983,7 @@ def _estimated_video_segment_count(duration_seconds: int) -> int:
 def _build_video_task(
     script: Script,
     digital_human_id: Optional[int],
-    production_mode: str = "dynamic_explainer",
+    production_mode: str = "seedance_scene",
     status: TaskStatus = TaskStatus.queued,
     audit_notes: str = "",
 ) -> VideoTask:

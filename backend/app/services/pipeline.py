@@ -61,6 +61,18 @@ class VideoPipeline:
             source_video = self._source_video_path(human)
             voice = await self._voice_for_human(human, source_video, task)
             audio = await self._synthesize_voice(script, voice)
+            if task.production_mode == "seedance_scene":
+                clips = []
+                for segment in segments:
+                    clip_path = await self._run_segment(segment, task)
+                    clips.append(clip_path)
+                task.output_path = await self.media.compose_scene_video(clips, audio)
+                task.status = TaskStatus.needs_review
+                task.updated_at = datetime.utcnow()
+                self.session.add(task)
+                self.session.commit()
+                self.session.refresh(task)
+                return task
             if task.production_mode == "dynamic_explainer":
                 task.output_path = await self.media.compose_dynamic_explainer(
                     script.voiceover,
