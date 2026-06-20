@@ -92,6 +92,33 @@ def _active_model_config(session: Session, purpose: str) -> AIModelConfig | None
     ).first()
 
 
+def _configured_model_status(
+    session: Session,
+    purpose: str,
+    fallback_provider: str,
+    fallback_model: str = "",
+    fallback_configured: bool = False,
+) -> dict[str, object]:
+    config = _active_model_config(session, purpose)
+    if config:
+        if config.provider in {"local", "mock"}:
+            configured = True
+        elif purpose in {"digital_human", "voice_clone"} and config.provider in {"sadtalker", "http-json"}:
+            configured = bool(config.api_base)
+        else:
+            configured = bool(config.api_base and config.api_key)
+        return {
+            "provider": config.provider,
+            "configured": configured,
+            "model": config.model_name,
+        }
+    return {
+        "provider": fallback_provider,
+        "configured": fallback_configured,
+        "model": fallback_model,
+    }
+
+
 async def _run_video_task_background(task_id: int) -> None:
     with Session(engine) as session:
         task = session.get(VideoTask, task_id)
@@ -610,46 +637,49 @@ def _platform_credential_public(credential: PlatformCredential) -> PlatformCrede
 @router.get("/integrations/status")
 def integrations_status(session: Session = Depends(get_session)) -> dict[str, dict[str, object]]:
     settings = get_settings()
-    video_understanding_model = _active_model_config(session, "video_understanding")
     return {
-        "script_model": {
-            "provider": settings.llm_provider,
-            "configured": bool(settings.llm_api_base and settings.llm_api_key) or settings.llm_provider == "stub",
-            "model": settings.llm_model,
-        },
-        "tts": {
-            "provider": settings.tts_provider,
-            "configured": bool(settings.tts_api_base) or settings.tts_provider == "mock",
-            "voice": settings.tts_voice,
-        },
-        "digital_human": {
-            "provider": settings.digital_human_provider,
-            "configured": bool(settings.digital_human_api_base) or settings.digital_human_provider == "mock",
-        },
-        "voice_clone": {
-            "provider": settings.voice_clone_provider,
-            "configured": bool(settings.voice_clone_api_base and settings.voice_clone_api_key),
-        },
-        "video_generation": {
-            "provider": settings.video_generation_provider,
-            "configured": (
-                settings.video_generation_provider == "mock"
-                or bool(settings.seedance_api_base)
-                or bool(settings.comfyui_api_base)
-            ),
-            "model": settings.seedance_model,
-        },
-        "video_understanding": {
-            "provider": video_understanding_model.provider if video_understanding_model else "local",
-            "configured": bool(
-                video_understanding_model
-                and (
-                    video_understanding_model.provider == "local"
-                    or (video_understanding_model.api_base and video_understanding_model.api_key)
-                )
-            ),
-            "model": video_understanding_model.model_name if video_understanding_model else "local-video-analyzer",
-        },
+        "script_model": _configured_model_status(
+            session,
+            "script",
+            settings.llm_provider,
+            settings.llm_model,
+            bool(settings.llm_api_base and settings.llm_api_key) or settings.llm_provider == "stub",
+        ),
+        "tts": _configured_model_status(
+            session,
+            "tts",
+            settings.tts_provider,
+            settings.tts_voice,
+            bool(settings.tts_api_base) or settings.tts_provider == "mock",
+        ),
+        "digital_human": _configured_model_status(
+            session,
+            "digital_human",
+            settings.digital_human_provider,
+            settings.digital_human_provider,
+            bool(settings.digital_human_api_base) or settings.digital_human_provider == "mock",
+        ),
+        "voice_clone": _configured_model_status(
+            session,
+            "voice_clone",
+            settings.voice_clone_provider,
+            settings.voice_clone_provider,
+            bool(settings.voice_clone_api_base and settings.voice_clone_api_key),
+        ),
+        "video_generation": _configured_model_status(
+            session,
+            "video",
+            settings.video_generation_provider,
+            settings.seedance_model,
+            settings.video_generation_provider == "mock" or bool(settings.seedance_api_base) or bool(settings.comfyui_api_base),
+        ),
+        "video_understanding": _configured_model_status(
+            session,
+            "video_understanding",
+            "local",
+            "local-video-analyzer",
+            False,
+        ),
         "composition": {
             "provider": settings.composition_provider,
             "configured": settings.composition_provider in ("mock", "ffmpeg"),
@@ -658,11 +688,13 @@ def integrations_status(session: Session = Depends(get_session)) -> dict[str, di
             "provider": settings.trending_search_provider,
             "configured": settings.trending_search_provider == "mock" or bool(settings.trending_search_api_base),
         },
-        "asr": {
-            "provider": settings.asr_provider,
-            "configured": settings.asr_provider == "mock" or bool(settings.asr_api_base),
-            "model": settings.asr_model,
-        },
+        "asr": _configured_model_status(
+            session,
+            "asr",
+            settings.asr_provider,
+            settings.asr_model,
+            settings.asr_provider == "mock" or bool(settings.asr_api_base),
+        ),
     }
 
 
