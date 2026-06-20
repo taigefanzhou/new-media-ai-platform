@@ -183,14 +183,17 @@ h2 {
   margin-top: 14px;
 }
 
-.creationWorkspace {
+.creationFlow {
   display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(300px, 0.75fr);
   gap: 14px;
 }
 
 .creationBrief textarea[name="topic"] {
-  min-height: 132px;
+  min-height: 110px;
+}
+
+.compactFormGrid {
+  grid-template-columns: minmax(280px, 1.2fr) repeat(3, minmax(160px, 0.8fr));
 }
 
 .sectionHeader {
@@ -220,43 +223,33 @@ h2 {
   white-space: nowrap;
 }
 
-.aiCapabilityPanel {
-  align-self: start;
+.aiAssistStrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 14px;
 }
 
-.aiCapabilityGrid {
-  display: grid;
-  gap: 10px;
-}
-
-.aiCapability {
-  display: grid;
-  gap: 4px;
+.aiAssistStrip span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
   border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 12px;
+  border-radius: 999px;
   background: #fbfcfd;
-}
-
-.aiCapability strong {
   color: var(--accent);
+  font-size: 12px;
+  font-weight: 900;
 }
 
-.aiCapability span,
 .resultHint {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.45;
 }
 
-.creationResults {
-  display: grid;
-  grid-template-columns: minmax(260px, 0.85fr) minmax(0, 1.45fr) minmax(260px, 0.75fr);
-  gap: 14px;
-  margin-top: 14px;
-}
-
-.resultPanel {
+.creationResultPanel {
   min-width: 0;
 }
 
@@ -497,16 +490,18 @@ button:disabled {
 
 .titleGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 12px;
+  margin-bottom: 14px;
 }
 
 .titleOption {
   display: grid;
   gap: 8px;
-  min-height: 108px;
+  min-height: 96px;
   padding: 12px;
   border: 1px solid var(--line);
+  border-radius: 6px;
   background: #fbfcfd;
   color: var(--ink);
   text-align: left;
@@ -520,6 +515,7 @@ button:disabled {
 
 .titleOption strong {
   line-height: 1.45;
+  word-break: break-word;
 }
 
 .selectedTitle {
@@ -563,7 +559,7 @@ button:disabled {
 
 .scriptMetaGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 10px;
 }
 
@@ -571,16 +567,27 @@ button:disabled {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.nextStepList {
+.creationFooterActions {
   display: grid;
+  grid-template-columns: minmax(260px, 0.9fr) minmax(360px, 1.1fr);
   gap: 10px;
+  margin-top: 14px;
+  align-items: center;
 }
 
-.nextStepList span {
-  display: block;
+.nextStepBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.nextStepBar span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
   border: 1px solid var(--line);
   border-radius: 6px;
-  padding: 12px;
+  padding: 0 12px;
   background: #fbfcfd;
   font-weight: 800;
 }
@@ -880,8 +887,8 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
-  .creationWorkspace,
-  .creationResults,
+  .compactFormGrid,
+  .creationFooterActions,
   .scriptMetaGrid {
     grid-template-columns: 1fr;
   }
@@ -922,9 +929,9 @@ button:disabled {
 
   .formGrid,
   .creationActions,
+  .creationFooterActions,
   .statusBoard,
   .publishActions,
-  .titleGrid,
   .workflowSteps,
   .materialGrid,
   .humanGrid {

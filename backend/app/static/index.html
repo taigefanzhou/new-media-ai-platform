@@ -101,17 +101,17 @@
       </section>
 
       <section id="page-creation" class="page">
-        <section class="creationWorkspace">
+        <section class="creationFlow">
           <form id="scriptForm" class="panel creationBrief">
             <div class="sectionHeader">
               <div>
-                <h2>AI 创作 brief</h2>
-                <p>输入产品、卖点、人群和平台，AI 会一次生成标题、口播脚本、分镜和视频提示词。</p>
+                <h2>AI 内容创作</h2>
+                <p>填写创作需求，AI 会生成标题、口播稿、分镜和视频提示词。</p>
               </div>
               <span class="aiBadge">AI Writer</span>
             </div>
-            <label>想做什么视频<textarea name="topic">企业短视频数字人获客</textarea></label>
-            <div class="formGrid">
+            <label>创作需求<textarea name="topic">企业短视频数字人获客</textarea></label>
+            <div class="formGrid compactFormGrid">
               <label>品牌语气<textarea name="brand_voice">专业、可信、适合公司负责人口播，减少 AI 味，接近真实实拍表达</textarea></label>
               <label>目标平台
                 <select name="target_platform">
@@ -128,49 +128,38 @@
               </label>
               <label>视频时长<input name="duration_seconds" type="number" min="15" max="120" value="30" /></label>
             </div>
+            <div class="aiAssistStrip">
+              <span>标题建议</span>
+              <span>口播脚本</span>
+              <span>分镜结构</span>
+              <span>视频提示词</span>
+            </div>
             <button type="submit">AI 生成创作方案</button>
           </form>
-          <aside class="panel aiCapabilityPanel">
-            <h2>AI 会生成</h2>
-            <div class="aiCapabilityGrid">
-              <div class="aiCapability"><strong>标题</strong><span>适合抖音/视频号的 3 个标题方向</span></div>
-              <div class="aiCapability"><strong>口播稿</strong><span>负责人或数字人可直接朗读的脚本</span></div>
-              <div class="aiCapability"><strong>分镜</strong><span>镜头结构、画面建议和 Seedance 提示词</span></div>
-            </div>
-          </aside>
-        </section>
-        <section class="creationResults">
-          <section class="panel resultPanel">
+
+          <section class="panel creationResultPanel">
             <div class="sectionHeader">
-              <h2>AI 标题建议</h2>
+              <div>
+                <h2>AI 生成结果</h2>
+                <p>先选择标题，再审核脚本，确认后创建视频任务。</p>
+              </div>
               <span class="resultHint">点击标题可复制</span>
             </div>
             <div id="titleSuggestionList" class="titleGrid"></div>
-          </section>
-          <section class="panel resultPanel">
-            <div class="sectionHeader">
-              <h2>AI 脚本方案</h2>
-              <span class="resultHint">生成后可直接创建视频任务</span>
-            </div>
             <div id="scriptPreviewCreation" class="scriptResult empty">还没有脚本</div>
-            <div class="itemActions creationActions">
-              <button id="regenerateScriptBtn" type="button" class="secondary">重新生成</button>
-              <button id="createTaskFromScriptBtn" type="button">创建视频任务</button>
-              <button id="goTaskPageBtn" type="button" class="secondary">查看任务</button>
+            <div class="creationFooterActions">
+              <div class="nextStepBar">
+                <span>1. 选标题</span>
+                <span>2. 审口播</span>
+                <span>3. 建任务</span>
+              </div>
+              <div class="itemActions creationActions">
+                <button id="regenerateScriptBtn" type="button" class="secondary">重新生成</button>
+                <button id="createTaskFromScriptBtn" type="button">创建视频任务</button>
+                <button id="goTaskPageBtn" type="button" class="secondary">查看任务</button>
+              </div>
             </div>
           </section>
-          <div class="panel resultPanel">
-            <div class="sectionHeader">
-              <h2>下一步</h2>
-              <span class="resultHint">推荐流程</span>
-            </div>
-            <div class="nextStepList">
-              <span>1. 选择标题</span>
-              <span>2. 审核口播稿</span>
-              <span>3. 创建视频任务</span>
-              <span>4. 生成并审核成片</span>
-            </div>
-          </div>
         </section>
       </section>
 
