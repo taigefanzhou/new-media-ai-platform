@@ -162,6 +162,7 @@
               <label>候选数<input id="batchScriptCount" type="number" min="2" max="20" value="3" /></label>
               <button id="scriptSubmitBtn" type="submit">AI 生成候选方案</button>
             </div>
+            <div id="creationExportProfileHint" class="creationProfileHint">输出规格会按目标平台自动匹配。</div>
           </form>
 
           <section class="panel creationResultPanel">
@@ -332,6 +333,11 @@
                   <option value="dynamic_explainer">图文草稿预览</option>
                 </select>
               </label>
+              <label>导出规格
+                <select name="export_profile" id="taskExportProfileSelect">
+                  <option value="">按脚本平台自动匹配</option>
+                </select>
+              </label>
               <div class="actions">
                 <button type="submit">创建任务</button>
                 <button id="runTaskBtn" type="button" class="secondary">运行任务</button>
@@ -353,6 +359,11 @@
                   <option value="seedance_scene">Seedance AI 实景/B-roll</option>
                   <option value="digital_human">真人数字人口播</option>
                   <option value="dynamic_explainer">图文草稿预览</option>
+                </select>
+              </label>
+              <label>导出规格
+                <select id="batchExportProfileSelect">
+                  <option value="">按脚本平台自动匹配</option>
                 </select>
               </label>
               <div class="actions">

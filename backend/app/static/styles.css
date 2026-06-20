@@ -258,6 +258,14 @@ h2 {
   line-height: 1.4;
 }
 
+.creationProfileHint {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
 .scriptDetailPanel {
   min-width: 0;
 }
@@ -560,12 +568,12 @@ h2 {
   min-width: 980px;
 }
 
-.storageTable td:nth-child(5) {
+.storageTable td:nth-child(6) {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-.storageTable td:nth-child(6) {
+.storageTable td:nth-child(7) {
   max-width: 360px;
 }
 
@@ -1253,7 +1261,7 @@ button:disabled {
 
 .taskTable {
   width: 100%;
-  min-width: 880px;
+  min-width: 980px;
   border-collapse: collapse;
 }
 
@@ -1326,6 +1334,14 @@ button:disabled {
 .taskTable td:nth-child(4) {
   max-width: 150px;
   font-size: 13px;
+}
+
+.taskExportPill {
+  display: inline-flex;
+  margin-bottom: 3px;
+  color: var(--ink);
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .progressBar {

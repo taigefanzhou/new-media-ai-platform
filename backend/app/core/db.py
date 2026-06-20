@@ -44,12 +44,21 @@ def apply_sqlite_migrations() -> None:
 
         script_rows = connection.execute(text("PRAGMA table_info(script)")).fetchall()
         script_columns = {row[1] for row in script_rows}
-        if script_rows and "storyboard_plan" not in script_columns:
-            connection.execute(text("ALTER TABLE script ADD COLUMN storyboard_plan VARCHAR DEFAULT ''"))
+        script_migrations = {
+            "storyboard_plan": "ALTER TABLE script ADD COLUMN storyboard_plan VARCHAR DEFAULT ''",
+            "target_platform": "ALTER TABLE script ADD COLUMN target_platform VARCHAR DEFAULT 'douyin'",
+        }
+        for column, statement in script_migrations.items():
+            if script_rows and column not in script_columns:
+                connection.execute(text(statement))
 
         video_task_rows = connection.execute(text("PRAGMA table_info(videotask)")).fetchall()
         video_task_columns = {row[1] for row in video_task_rows}
         video_task_migrations = {
+            "target_platform": "ALTER TABLE videotask ADD COLUMN target_platform VARCHAR DEFAULT 'douyin'",
+            "export_profile": "ALTER TABLE videotask ADD COLUMN export_profile VARCHAR DEFAULT 'douyin_vertical'",
+            "export_width": "ALTER TABLE videotask ADD COLUMN export_width INTEGER DEFAULT 1080",
+            "export_height": "ALTER TABLE videotask ADD COLUMN export_height INTEGER DEFAULT 1920",
             "generation_mode": "ALTER TABLE videotask ADD COLUMN generation_mode VARCHAR DEFAULT 'short'",
             "production_mode": "ALTER TABLE videotask ADD COLUMN production_mode VARCHAR DEFAULT 'talking_head_template'",
             "segment_count": "ALTER TABLE videotask ADD COLUMN segment_count INTEGER DEFAULT 1",

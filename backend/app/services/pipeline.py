@@ -7,6 +7,7 @@ from app.core.config import get_settings
 from app.core.storage import get_storage_root
 from app.models.entities import AIModelConfig, DigitalHuman, Material, Script, TaskStatus, VideoSegment, VideoTask
 from app.services.ai_clients import MediaGenerationClient
+from app.services.export_profiles import resolve_export_profile
 from app.services.usage import estimate_text_tokens, record_model_usage
 
 
@@ -41,6 +42,11 @@ class VideoPipeline:
             return task
 
         try:
+            profile = resolve_export_profile(task.export_profile, task.target_platform or script.target_platform)
+            task.target_platform = task.target_platform or script.target_platform or profile.platform
+            task.export_profile = profile.key
+            task.export_width = profile.width
+            task.export_height = profile.height
             segment_specs = self.media.segment_plan(
                 script.seedance_prompt,
                 script.storyboard,
@@ -76,6 +82,7 @@ class VideoPipeline:
                     speaker_role=self._speaker_role(human),
                     duration_seconds=script.duration_seconds,
                     audio_path=audio,
+                    export_profile=task.export_profile,
                 )
                 for segment in segments:
                     segment.status = TaskStatus.needs_review
@@ -94,7 +101,7 @@ class VideoPipeline:
                 for segment in segments:
                     clip_path = await self._run_segment(segment, task)
                     clips.append(clip_path)
-                task.output_path = await self.media.compose_scene_video(clips, audio)
+                task.output_path = await self.media.compose_scene_video(clips, audio, export_profile=task.export_profile)
                 task.status = TaskStatus.needs_review
                 task.updated_at = datetime.utcnow()
                 self.session.add(task)
@@ -108,6 +115,7 @@ class VideoPipeline:
                     audio,
                     portrait,
                     duration_seconds=script.duration_seconds,
+                    export_profile=task.export_profile,
                 )
                 for segment in segments:
                     segment.status = TaskStatus.needs_review
@@ -128,7 +136,7 @@ class VideoPipeline:
             for segment in segments:
                 clip_path = await self._run_segment(segment, task)
                 clips.append(clip_path)
-            task.output_path = await self.media.compose_final_video(clips, avatar)
+            task.output_path = await self.media.compose_final_video(clips, avatar, export_profile=task.export_profile)
             task.status = TaskStatus.needs_review
             task.updated_at = datetime.utcnow()
             self.session.add(task)
@@ -178,6 +186,7 @@ class VideoPipeline:
                 segment.duration_seconds,
                 segment.segment_index - 1,
                 task.segment_count,
+                task.export_profile,
             )
             self._record_usage(
                 "video",
@@ -217,9 +226,11 @@ class VideoPipeline:
 
     def _task_plan_notes(self, task: VideoTask, script: Script) -> str:
         base_note = task.audit_notes.strip()
+        profile = resolve_export_profile(task.export_profile, task.target_platform)
         plan_note = (
             f"成片方式：{task.production_mode}。长视频分段计划：脚本时长 {script.duration_seconds} 秒，"
             f"共 {task.segment_count} 段，每段约 10 秒，可用于后续分段预览和失败段重跑。"
+            f"导出规格：{profile.label}，{profile.width}x{profile.height}，{profile.notes}"
         )
         return f"{base_note}\n{plan_note}".strip() if base_note else plan_note
 

@@ -50,6 +50,7 @@ const state = {
   publishRecords: [],
   platformCredentials: [],
   digitalHumans: [],
+  exportProfiles: [],
   modelUsage: null,
   videoStorage: null,
   users: [],
@@ -378,6 +379,56 @@ function productionModeLabel(mode) {
   }[mode] || "口播模板";
 }
 
+function exportProfileLabel(profileKey) {
+  const profile = state.exportProfiles.find((item) => item.key === profileKey);
+  return profile ? profile.label : (profileKey || "自动匹配");
+}
+
+function exportProfileMeta(task) {
+  const profile = state.exportProfiles.find((item) => item.key === task.export_profile);
+  if (profile) {
+    return `${profile.label} · ${profile.width}x${profile.height}`;
+  }
+  if (task.export_width && task.export_height) {
+    return `${task.export_width}x${task.export_height}`;
+  }
+  return exportProfileLabel(task.export_profile);
+}
+
+function defaultExportProfileForPlatform(platform) {
+  if (platform === "wechat_channels") return "wechat_channels_vertical";
+  if (platform === "manual") return "archive_landscape";
+  return "douyin_vertical";
+}
+
+function renderExportProfileSelects(profiles) {
+  state.exportProfiles = profiles || [];
+  const options = state.exportProfiles
+    .map((profile) => (
+      `<option value="${profile.key}">${escapeHtml(profile.label)} · ${profile.width}x${profile.height}</option>`
+    ))
+    .join("");
+  document.querySelectorAll("#taskExportProfileSelect, #batchExportProfileSelect").forEach((select) => {
+    const current = select.value;
+    select.innerHTML = `<option value="">按脚本平台自动匹配</option>${options}`;
+    select.value = current || "";
+  });
+  syncCreationExportProfileHint();
+}
+
+function syncCreationExportProfileHint() {
+  const target = document.querySelector("#creationExportProfileHint");
+  const platformSelect = document.querySelector("#scriptForm [name='target_platform']");
+  if (!target || !platformSelect) return;
+  const key = defaultExportProfileForPlatform(platformSelect.value);
+  const profile = state.exportProfiles.find((item) => item.key === key);
+  if (!profile) {
+    target.textContent = "输出规格会按目标平台自动匹配。";
+    return;
+  }
+  target.textContent = `${platformLabel(platformSelect.value)}默认导出：${profile.label}，${profile.width}x${profile.height}，${profile.notes}`;
+}
+
 function parseStoryboardPlan(script) {
   if (!script?.storyboard_plan) return storyboardRowsFromText(script?.storyboard || "", script?.duration_seconds || 30);
   try {
@@ -700,6 +751,10 @@ function taskSegmentMeta(task) {
   return `${modeLabel} · ${mode} · ${completed}/${total} 段`;
 }
 
+function taskTargetPlatformLabel(task) {
+  return platformLabel(task.target_platform || "douyin");
+}
+
 function humanName(id) {
   if (!id) return "不露脸";
   const human = state.digitalHumans.find((item) => item.id === id);
@@ -774,7 +829,7 @@ function renderTaskOutputPreview(task) {
   }
   const videoSrc = taskVideoSrc(task);
   panel.classList.remove("hiddenPanel");
-  meta.textContent = `任务 #${task.id} · ${taskStatusLabel(task.status)} · ${taskSegmentMeta(task)}`;
+  meta.textContent = `任务 #${task.id} · ${taskStatusLabel(task.status)} · ${taskSegmentMeta(task)} · ${exportProfileMeta(task)}`;
   content.innerHTML = videoSrc
     ? `<video class="taskOutputPreviewVideo" src="${videoSrc}" controls preload="metadata"></video>`
     : `<div class="item">这个任务还没有可预览的成片。</div>`;
@@ -818,6 +873,7 @@ function renderTaskTable(tasks) {
           <th>脚本</th>
           <th>数字人</th>
           <th>方式</th>
+          <th>规格</th>
           <th>进度</th>
           <th>操作</th>
         </tr>
@@ -838,6 +894,10 @@ function renderTaskTable(tasks) {
                 <td>${escapeHtml(scriptName(task.script_id)).slice(0, 72)}</td>
                 <td>${escapeHtml(humanName(task.digital_human_id))}</td>
                 <td>${productionModeLabel(task.production_mode)}</td>
+                <td>
+                  <strong class="taskExportPill">${escapeHtml(taskTargetPlatformLabel(task))}</strong>
+                  <div class="recordMeta">${escapeHtml(exportProfileMeta(task))}</div>
+                </td>
                 <td>
                   <div class="progressBar"><span style="width:${progress}%"></span></div>
                   <div class="recordMeta">${progress}% · ${taskStatusLabel(task.status)}</div>
@@ -1327,6 +1387,7 @@ function renderVideoStorage(report) {
           <th>任务</th>
           <th>脚本</th>
           <th>状态</th>
+          <th>规格</th>
           <th>文件</th>
           <th>大小</th>
           <th>保存路径</th>
@@ -1341,6 +1402,7 @@ function renderVideoStorage(report) {
                 <td>#${video.task_id}</td>
                 <td>${escapeHtml(video.script_title || `脚本 #${video.script_id}`).slice(0, 40)}</td>
                 <td><span class="status taskStatus ${taskStatusClass(video.status)}">${taskStatusLabel(video.status)}</span></td>
+                <td>${escapeHtml(exportProfileLabel(video.export_profile))}<div class="recordMeta">${video.export_width || "-"}x${video.export_height || "-"}</div></td>
                 <td><span class="storageFileState ${video.exists ? "storageFileOk" : "storageFileMissing"}">${video.exists ? "存在" : "缺失"}</span></td>
                 <td>${formatBytes(video.size_bytes)}</td>
                 <td><code class="pathCode" title="${escapeHtml(video.output_path)}">${escapeHtml(video.output_path)}</code></td>
@@ -1555,11 +1617,13 @@ function setLoginState(user) {
 }
 
 async function refresh() {
-  const [dashboard, integrations, materials] = await Promise.all([
+  const [dashboard, integrations, materials, exportProfiles] = await Promise.all([
     api.get("/dashboard"),
     api.get("/integrations/status"),
     api.get("/materials"),
+    api.get("/video-export-profiles"),
   ]);
+  renderExportProfileSelects(exportProfiles);
   state.materials = materials;
   renderMetrics(dashboard.counts);
   renderIntegrations(integrations);
@@ -1777,6 +1841,7 @@ document.querySelectorAll(".durationPreset").forEach((button) => {
 });
 
 document.querySelector("#scriptForm [name='duration_seconds']").addEventListener("input", syncDurationPreset);
+document.querySelector("#scriptForm [name='target_platform']").addEventListener("change", syncCreationExportProfileHint);
 
 function selectedCreationProductionMode() {
   const select = document.querySelector("#creationProductionModeSelect");
@@ -1832,8 +1897,13 @@ async function createVideoFromScript(scriptId, button) {
   renderScriptCandidates(state.scripts);
   const originalText = button.textContent;
   const humanInput = document.querySelector("#creationHumanSelect");
+  const platformInput = document.querySelector("#scriptForm [name='target_platform']");
   const productionMode = selectedCreationProductionMode();
-  const payload = { production_mode: productionMode };
+  const payload = {
+    production_mode: productionMode,
+    target_platform: platformInput?.value || script.target_platform || "douyin",
+    export_profile: defaultExportProfileForPlatform(platformInput?.value || script.target_platform || "douyin"),
+  };
   if (humanInput.value) {
     payload.digital_human_id = Number(humanInput.value);
   }
@@ -1905,6 +1975,7 @@ document.querySelector("#taskForm").addEventListener("submit", async (event) => 
   const payload = formData(event.currentTarget);
   payload.script_id = Number(payload.script_id || state.latestScriptId);
   payload.digital_human_id = payload.digital_human_id ? Number(payload.digital_human_id) : null;
+  if (!payload.export_profile) delete payload.export_profile;
   const task = await api.post("/video-tasks", payload);
   state.latestTaskId = task.id;
   toast(`视频任务已创建 #${task.id}`);
@@ -1925,7 +1996,9 @@ document.querySelector("#batchCreateTasksBtn").addEventListener("click", async (
     script_ids: scriptIds,
     digital_human_id: humanValue ? Number(humanValue) : null,
     production_mode: productionMode,
+    export_profile: document.querySelector("#batchExportProfileSelect").value || null,
   };
+  if (!payload.export_profile) delete payload.export_profile;
   const tasks = await api.post("/video-tasks/batch-create", payload);
   toast(`已批量创建 ${tasks.length} 个视频任务`);
   await refresh();

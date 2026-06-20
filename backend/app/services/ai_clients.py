@@ -11,6 +11,7 @@ from typing import Optional
 from uuid import uuid4
 import httpx
 from app.core.config import get_settings
+from app.services.export_profiles import resolve_export_profile
 
 
 @dataclass
@@ -87,14 +88,24 @@ class ScriptGenerator:
         api_key = self.model_config.api_key if self.model_config else self.settings.llm_api_key
         model_name = self.model_config.model_name if self.model_config else self.settings.llm_model
         if not api_base or not api_key:
-            return self._stub(topic, brand_voice, duration_seconds, target_platform)
+            return self._stub(topic, brand_voice, duration_seconds, target_platform, output_language)
 
+        profile = resolve_export_profile(platform=target_platform)
         prompt = {
             "topic": topic,
             "brand_voice": brand_voice,
             "duration_seconds": duration_seconds,
             "target_platform": target_platform,
             "output_language": output_language,
+            "export_profile": {
+                "label": profile.label,
+                "final_width": profile.width,
+                "final_height": profile.height,
+                "final_aspect_ratio": profile.aspect_ratio,
+                "video_generation_ratio": profile.generation_ratio,
+                "fit_mode": profile.fit_mode,
+                "notes": profile.notes,
+            },
             "built_in_realism_preset": SCRIPT_REALISM_PRESET,
             "requirements": [
                 "如果 output_language 是 en-US，所有 hook、voiceover、title_options、hashtags、compliance_notes 必须使用英文；否则使用中文",
@@ -108,8 +119,9 @@ class ScriptGenerator:
                 "storyboard_plan 必须是数组，每段 10-20 秒，180秒至少9段，360秒至少18段",
                 "storyboard_plan 每项必须包含：start_second,end_second,shot_type,visual,person_action,screen_text,asset_or_background,ai_prompt,needs_lip_sync",
                 "分镜要能真正执行：说明镜头如何动、画面元素如何变化、屏幕文字如何出现；不能只写“继续讲解”",
-                "ai_prompt 始终使用英文，适合 Seedance 或其他视频模型；必须包含自然皮肤、真实灯光、非塑料感、非机械感等真实口播要求",
-                "seedance_prompt 始终使用英文，必须包含 realistic live-action talking-head style、natural skin texture、natural speech rhythm、no watermark",
+                "所有画面策划必须符合 export_profile；最终画幅按 final_width/final_height 输出，视频生成提示词按 video_generation_ratio 生成",
+                "ai_prompt 始终使用英文，适合 Seedance 或其他视频模型；必须包含目标画幅、自然皮肤、真实灯光、非塑料感、非机械感等真实口播要求",
+                "seedance_prompt 始终使用英文，必须包含 realistic live-action talking-head style、natural skin texture、natural speech rhythm、no watermark 和 video_generation_ratio",
                 "必须输出严格 JSON",
             ],
             "json_schema": {
@@ -181,17 +193,22 @@ class ScriptGenerator:
         target_platform: str,
         output_language: str = "zh-CN",
     ) -> GeneratedScript:
+        profile = resolve_export_profile(platform=target_platform)
+        profile_prompt = (
+            f"target generation ratio {profile.generation_ratio}, final export {profile.width}x{profile.height} "
+            f"{profile.aspect_ratio}, {profile.label}"
+        )
         if output_language == "en-US":
             voiceover = self._stub_voiceover_en(topic, duration_seconds)
             storyboard = self._stub_storyboard_en(topic, duration_seconds)
-            storyboard_plan = self._stub_storyboard_plan(topic, duration_seconds, "en-US")
+            storyboard_plan = self._stub_storyboard_plan(topic, duration_seconds, "en-US", target_platform)
             return GeneratedScript(
                 hook=f"The real value of {topic} is not convenience alone, but smarter hotel operations.",
                 voiceover=voiceover,
                 storyboard=storyboard,
                 storyboard_plan=storyboard_plan,
                 seedance_prompt=(
-                    "Vertical 9:16 long-form business explainer video, consistent modern hotel lobby and guest room, "
+                    f"{profile_prompt}, long-form business explainer video, consistent modern hotel lobby and guest room, "
                     "smart operations dashboard, realistic live-action talking-head style, natural skin texture, "
                     "relaxed facial expression, natural speech rhythm, smooth transitions, professional lighting, "
                     "continuity across segments, no plastic skin, no robotic pose, no watermark, no third-party logos."
@@ -206,14 +223,14 @@ class ScriptGenerator:
             )
         voiceover = self._stub_voiceover_zh(topic, duration_seconds)
         storyboard = self._stub_storyboard_zh(topic, duration_seconds)
-        storyboard_plan = self._stub_storyboard_plan(topic, duration_seconds, "zh-CN")
+        storyboard_plan = self._stub_storyboard_plan(topic, duration_seconds, "zh-CN", target_platform)
         return GeneratedScript(
             hook=f"你有没有发现，{topic}真正影响结果的不是选择多，而是判断标准。",
             voiceover=voiceover,
             storyboard=storyboard,
             storyboard_plan=storyboard_plan,
             seedance_prompt=(
-                "Vertical 9:16 long-form corporate explainer video, consistent presenter and modern business hotel scenes, "
+                f"{profile_prompt}, long-form corporate explainer video, consistent presenter and modern business hotel scenes, "
                 "clear chapter-like progression, smart operations interface, realistic live-action talking-head style, "
                 "natural skin texture, relaxed facial expression, medium speech pace, smooth transitions, professional lighting, "
                 "no plastic skin, no robotic pose, no third-party logos, no watermark."
@@ -281,7 +298,14 @@ class ScriptGenerator:
             )
         return lines
 
-    def _stub_storyboard_plan(self, topic: str, duration_seconds: int, output_language: str) -> list[dict[str, object]]:
+    def _stub_storyboard_plan(
+        self,
+        topic: str,
+        duration_seconds: int,
+        output_language: str,
+        target_platform: str | None = None,
+    ) -> list[dict[str, object]]:
+        profile = resolve_export_profile(platform=target_platform)
         segment_count = max(4, min(24, math.ceil(max(duration_seconds, 30) / 18)))
         segment_length = math.ceil(duration_seconds / segment_count)
         zh_templates = [
@@ -322,7 +346,7 @@ class ScriptGenerator:
                     "screen_text": screen_text,
                     "asset_or_background": "modern business hotel, guest room, smart room control dashboard",
                     "ai_prompt": (
-                        f"Vertical 9:16 realistic business hotel video, {shot_type}, {visual}, "
+                        f"{profile.label}, generation ratio {profile.generation_ratio}, realistic business hotel video, {shot_type}, {visual}, "
                         f"topic: {topic}, natural skin texture, relaxed facial expression, medium speech pace, "
                         "smooth motion, clean subtitles, professional lighting, no plastic skin, no robotic pose, no watermark"
                     ),
@@ -546,11 +570,13 @@ class MediaGenerationClient:
         duration_seconds: int,
         index: int,
         total: int,
+        export_profile: str | None = None,
     ) -> str:
         if self.video_model_config and self.video_model_config.provider == "seedance":
             return await self._generate_seedance_clip_via_ark(
                 self._segment_prompt(prompt, index, total),
                 duration_seconds,
+                export_profile,
             )
 
         provider = self.settings.video_generation_provider
@@ -558,6 +584,7 @@ class MediaGenerationClient:
             return await self._generate_seedance_clip_via_ark(
                 self._segment_prompt(prompt, index, total),
                 duration_seconds,
+                export_profile,
             )
 
         if provider == "comfyui" and self.settings.comfyui_api_base:
@@ -641,13 +668,18 @@ class MediaGenerationClient:
             )
         return plan
 
-    async def compose_final_video(self, clips: list[str], avatar_clip: str) -> str:
+    async def compose_final_video(
+        self,
+        clips: list[str],
+        avatar_clip: str,
+        export_profile: str | None = None,
+    ) -> str:
         if self.settings.composition_provider != "ffmpeg":
             if self._is_local_path(avatar_clip):
-                return avatar_clip
+                return self._export_to_profile(avatar_clip, export_profile)
             local_clip = next((item for item in clips if self._is_local_path(item)), None)
             if local_clip:
-                return local_clip
+                return self._export_to_profile(local_clip, export_profile)
             return self._mock_asset("final", "final-video.mp4")
 
         local_inputs = [item for item in [avatar_clip, *clips] if self._is_local_path(item)]
@@ -674,12 +706,13 @@ class MediaGenerationClient:
             str(output_path),
         ]
         subprocess.run(command, check=True, capture_output=True)
-        return str(output_path)
+        return self._export_to_profile(str(output_path), export_profile)
 
     async def compose_scene_video(
         self,
         clips: list[str],
         audio_path: Optional[str] = None,
+        export_profile: str | None = None,
     ) -> str:
         from moviepy.editor import AudioFileClip, VideoFileClip, concatenate_videoclips
         from PIL import Image
@@ -730,7 +763,7 @@ class MediaGenerationClient:
                 audio.close()
             for clip in scene_clips:
                 clip.close()
-        return str(output_path)
+        return self._export_to_profile(str(output_path), export_profile)
 
     async def compose_talking_head_template(
         self,
@@ -742,6 +775,7 @@ class MediaGenerationClient:
         speaker_role: str,
         duration_seconds: int = 60,
         audio_path: Optional[str] = None,
+        export_profile: str | None = None,
     ) -> str:
         from moviepy.editor import AudioFileClip, VideoClip, VideoFileClip
         from PIL import Image, ImageDraw, ImageFilter
@@ -904,7 +938,7 @@ class MediaGenerationClient:
             talking_clip.close()
             if external_audio is not None:
                 external_audio.close()
-        return str(output_path)
+        return self._export_to_profile(str(output_path), export_profile)
 
     async def compose_dynamic_explainer(
         self,
@@ -913,6 +947,7 @@ class MediaGenerationClient:
         audio_path: str,
         portrait_path: Optional[str] = None,
         duration_seconds: int = 30,
+        export_profile: str | None = None,
     ) -> str:
         from moviepy.editor import AudioFileClip, VideoClip
         from PIL import Image, ImageDraw, ImageFilter
@@ -1075,7 +1110,7 @@ class MediaGenerationClient:
         )
         audio.close()
         clip.close()
-        return str(output_path)
+        return self._export_to_profile(str(output_path), export_profile)
 
     async def _post_digital_human_media(
         self,
@@ -1154,7 +1189,12 @@ class MediaGenerationClient:
                 return response.content
             return response.json()
 
-    async def _generate_seedance_clip_via_ark(self, prompt: str, duration_seconds: int = 5) -> str:
+    async def _generate_seedance_clip_via_ark(
+        self,
+        prompt: str,
+        duration_seconds: int = 5,
+        export_profile: str | None = None,
+    ) -> str:
         config = self.video_model_config
         api_base = config.api_base if config and config.api_base else self.settings.seedance_api_base
         api_key = config.api_key if config and config.api_key else self.settings.seedance_api_key
@@ -1167,7 +1207,7 @@ class MediaGenerationClient:
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
         payload = {
             "model": model_name,
-            "content": [{"type": "text", "text": self._seedance_prompt(prompt, duration_seconds)}],
+            "content": [{"type": "text", "text": self._seedance_prompt(prompt, duration_seconds, export_profile)}],
         }
         async with httpx.AsyncClient(timeout=180) as client:
             response = await client.post(
@@ -1384,6 +1424,70 @@ class MediaGenerationClient:
             draw.text((x, y), line, fill=(255, 255, 255, 245), font=font)
             y += 58
 
+    def _export_to_profile(self, input_path: str, export_profile: str | None = None) -> str:
+        if not export_profile or not self._is_local_path(input_path):
+            return input_path
+        source_path = Path(input_path)
+        if not source_path.exists() or not source_path.is_file():
+            return input_path
+
+        from moviepy.editor import VideoClip, VideoFileClip
+        from PIL import Image, ImageEnhance, ImageFilter
+        import numpy as np
+
+        profile = resolve_export_profile(export_profile)
+        output_path = self._asset_path("final", f"{profile.key}.mp4")
+        source = VideoFileClip(str(source_path))
+        target_size = (profile.width, profile.height)
+        if source.w == profile.width and source.h == profile.height:
+            source.close()
+            return input_path
+
+        fps = max(20, min(30, int(getattr(source, "fps", 24) or 24)))
+
+        def cover_frame(image: Image.Image) -> Image.Image:
+            scale = max(profile.width / image.width, profile.height / image.height)
+            resized = image.resize((int(image.width * scale), int(image.height * scale)), Image.Resampling.LANCZOS)
+            left = max(0, (resized.width - profile.width) // 2)
+            top = max(0, (resized.height - profile.height) // 2)
+            return resized.crop((left, top, left + profile.width, top + profile.height))
+
+        def contain_blur_frame(image: Image.Image) -> Image.Image:
+            background = cover_frame(image).filter(ImageFilter.GaussianBlur(radius=28))
+            background = ImageEnhance.Brightness(background).enhance(0.58)
+            scale = min(profile.width / image.width, profile.height / image.height)
+            foreground = image.resize((int(image.width * scale), int(image.height * scale)), Image.Resampling.LANCZOS)
+            canvas = background.convert("RGBA")
+            x = (profile.width - foreground.width) // 2
+            y = (profile.height - foreground.height) // 2
+            canvas.paste(foreground, (x, y))
+            return canvas.convert("RGB")
+
+        def make_frame(t: float):
+            frame = Image.fromarray(source.get_frame(min(t, source.duration - 0.05))).convert("RGB")
+            image = cover_frame(frame) if profile.fit_mode == "crop" else contain_blur_frame(frame)
+            return np.array(image.convert("RGB"))
+
+        exported = VideoClip(make_frame, duration=source.duration)
+        if source.audio is not None:
+            exported = exported.set_audio(source.audio)
+        try:
+            exported.write_videofile(
+                str(output_path),
+                fps=fps,
+                codec="libx264",
+                audio_codec="aac",
+                preset="medium",
+                bitrate="5200k" if profile.width >= 1080 else "3500k",
+                threads=4,
+                verbose=False,
+                logger=None,
+            )
+        finally:
+            exported.close()
+            source.close()
+        return str(output_path)
+
     def _asset_path(self, category: str, filename: str) -> Path:
         folder = self.storage_dir / category / uuid4().hex
         folder.mkdir(parents=True, exist_ok=True)
@@ -1405,9 +1509,15 @@ class MediaGenerationClient:
             "keep visual continuity, avoid ending cards until the final segment."
         )
 
-    def _seedance_prompt(self, prompt: str, duration_seconds: int = 5) -> str:
+    def _seedance_prompt(
+        self,
+        prompt: str,
+        duration_seconds: int = 5,
+        export_profile: str | None = None,
+    ) -> str:
         safe_duration = max(5, min(10, duration_seconds))
-        controls = f"--ratio 9:16 --resolution 480p --dur {safe_duration} --fps 24"
+        profile = resolve_export_profile(export_profile)
+        controls = f"--ratio {profile.generation_ratio} --resolution 720p --dur {safe_duration} --fps 24"
         if "--ratio" in prompt or "--resolution" in prompt or "--dur" in prompt:
             return prompt
         return f"{prompt.strip()} {controls}"

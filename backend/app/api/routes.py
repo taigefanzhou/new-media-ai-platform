@@ -72,6 +72,7 @@ from app.schemas.requests import (
 )
 from app.services.ai_clients import ScriptGenerator
 from app.services.asr import ASRClient
+from app.services.export_profiles import export_profile_options, resolve_export_profile
 from app.services.pipeline import VideoPipeline
 from app.services.trending import TrendingCollector
 from app.services.usage import estimate_text_tokens, record_generated_model_usage, record_model_usage
@@ -319,6 +320,10 @@ def video_storage_summary(
                 "script_id": task.script_id,
                 "script_title": script.hook if script else f"脚本 #{task.script_id}",
                 "status": task.status,
+                "target_platform": task.target_platform,
+                "export_profile": task.export_profile,
+                "export_width": task.export_width,
+                "export_height": task.export_height,
                 "output_path": str(path.resolve()) if path else output_path,
                 "exists": exists,
                 "size_bytes": size_bytes,
@@ -593,6 +598,11 @@ def integrations_status() -> dict[str, dict[str, object]]:
     }
 
 
+@router.get("/video-export-profiles")
+def list_video_export_profiles() -> list[dict[str, object]]:
+    return export_profile_options()
+
+
 @router.post("/materials", response_model=Material)
 def create_material(payload: MaterialCreate, session: Session = Depends(get_session)) -> Material:
     material = Material.model_validate(payload)
@@ -832,6 +842,7 @@ async def generate_script_from_transcription(
     )
     script = Script(
         topic_id=None,
+        target_platform="douyin",
         duration_seconds=30,
         hook=generated.hook,
         voiceover=generated.voiceover,
@@ -887,6 +898,7 @@ def _create_script_record(
     storyboard_plan = json.dumps(getattr(generated, "storyboard_plan", []) or [], ensure_ascii=False)
     script = Script(
         topic_id=payload.topic_id,
+        target_platform=payload.target_platform,
         duration_seconds=payload.duration_seconds,
         hook=generated.hook,
         voiceover=generated.voiceover,
@@ -984,16 +996,24 @@ def _build_video_task(
     script: Script,
     digital_human_id: Optional[int],
     production_mode: str = "talking_head_template",
+    target_platform: Optional[str] = None,
+    export_profile: Optional[str] = None,
     status: TaskStatus = TaskStatus.queued,
     audit_notes: str = "",
 ) -> VideoTask:
     if production_mode not in PRODUCTION_MODES:
         raise HTTPException(status_code=400, detail="Unknown production mode")
     segment_count = _estimated_video_segment_count(script.duration_seconds)
+    platform_name = target_platform or script.target_platform or "douyin"
+    profile = resolve_export_profile(export_profile, platform_name)
     return VideoTask(
         script_id=script.id or 0,
         digital_human_id=digital_human_id,
         status=status,
+        target_platform=platform_name,
+        export_profile=profile.key,
+        export_width=profile.width,
+        export_height=profile.height,
         generation_mode="long" if script.duration_seconds >= 120 else "short",
         production_mode=production_mode,
         segment_count=segment_count,
@@ -1050,7 +1070,13 @@ def create_video_task_from_script(
     if script is None:
         raise HTTPException(status_code=404, detail="Script not found")
     _validate_video_task_inputs(session, payload.production_mode, payload.digital_human_id)
-    task = _build_video_task(script, payload.digital_human_id, production_mode=payload.production_mode)
+    task = _build_video_task(
+        script,
+        payload.digital_human_id,
+        production_mode=payload.production_mode,
+        target_platform=payload.target_platform,
+        export_profile=payload.export_profile,
+    )
     session.add(task)
     session.commit()
     session.refresh(task)
@@ -1073,6 +1099,8 @@ async def approve_script_and_run_video_task(
         script,
         payload.digital_human_id,
         production_mode=payload.production_mode,
+        target_platform=payload.target_platform,
+        export_profile=payload.export_profile,
         status=TaskStatus.running,
         audit_notes=f"脚本已审核通过，系统已按「{payload.production_mode}」创建视频任务并进入生成队列。",
     )
@@ -1173,7 +1201,13 @@ def create_video_task(payload: VideoTaskCreate, session: Session = Depends(get_s
     if script is None:
         raise HTTPException(status_code=404, detail="Script not found")
     _validate_video_task_inputs(session, payload.production_mode, payload.digital_human_id)
-    task = _build_video_task(script, payload.digital_human_id, production_mode=payload.production_mode)
+    task = _build_video_task(
+        script,
+        payload.digital_human_id,
+        production_mode=payload.production_mode,
+        target_platform=payload.target_platform,
+        export_profile=payload.export_profile,
+    )
     session.add(task)
     session.commit()
     session.refresh(task)
@@ -1188,7 +1222,13 @@ def batch_create_video_tasks(payload: VideoTaskBatchCreateRequest, session: Sess
         script = session.get(Script, script_id)
         if script is None:
             raise HTTPException(status_code=404, detail=f"Script {script_id} not found")
-        task = _build_video_task(script, payload.digital_human_id, production_mode=payload.production_mode)
+        task = _build_video_task(
+            script,
+            payload.digital_human_id,
+            production_mode=payload.production_mode,
+            target_platform=payload.target_platform,
+            export_profile=payload.export_profile,
+        )
         session.add(task)
         tasks.append(task)
     session.commit()

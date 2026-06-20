@@ -171,6 +171,7 @@ class Topic(SQLModel, table=True):
 class Script(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     topic_id: Optional[int] = None
+    target_platform: str = "douyin"
     duration_seconds: int = 30
     hook: str
     voiceover: str
@@ -200,6 +201,10 @@ class VideoTask(SQLModel, table=True):
     script_id: int
     digital_human_id: Optional[int] = None
     status: TaskStatus = TaskStatus.draft
+    target_platform: str = "douyin"
+    export_profile: str = "douyin_vertical"
+    export_width: int = 1080
+    export_height: int = 1920
     generation_mode: str = "short"
     production_mode: str = "talking_head_template"
     segment_count: int = 1
