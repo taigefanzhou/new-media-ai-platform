@@ -232,9 +232,16 @@ h2 {
 
 .creationParamBar {
   display: grid;
-  grid-template-columns: minmax(140px, 0.7fr) minmax(140px, 0.7fr) minmax(320px, 1.2fr) minmax(220px, 0.8fr);
-  gap: 12px;
+  grid-template-columns:
+    minmax(120px, 0.55fr)
+    minmax(120px, 0.55fr)
+    minmax(110px, 0.45fr)
+    minmax(210px, 0.9fr)
+    minmax(330px, 1.25fr)
+    minmax(210px, 0.75fr);
+  gap: 10px;
   align-items: end;
+  margin-top: 12px;
 }
 
 .creationParamBar label,
@@ -243,16 +250,17 @@ h2 {
   margin-bottom: 0;
 }
 
-.creationBatchBar {
-  display: grid;
-  grid-template-columns: minmax(150px, 190px) minmax(180px, 260px) minmax(180px, 220px);
-  gap: 12px;
-  align-items: end;
-  margin-top: 12px;
+.creationParamBar > button {
+  min-height: 44px;
+  align-self: end;
 }
 
-.creationBatchBar label {
-  margin-bottom: 0;
+.creationBatchHint {
+  margin-top: 9px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.4;
 }
 
 .durationField {
@@ -268,10 +276,13 @@ h2 {
 }
 
 .durationInputLine {
-  display: grid;
-  grid-template-columns: minmax(90px, 1fr) auto;
+  display: flex;
   gap: 8px;
   align-items: center;
+}
+
+.durationInputLine input {
+  max-width: 116px;
 }
 
 .durationInputLine span {
@@ -284,7 +295,7 @@ h2 {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-top: 6px;
+  margin-top: 4px;
 }
 
 .durationPreset {
@@ -812,6 +823,58 @@ button:disabled {
   margin-bottom: 12px;
 }
 
+.scriptCandidateList {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.candidateHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.candidateHeader strong {
+  color: var(--ink);
+}
+
+.candidateGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.candidateCard {
+  display: grid;
+  gap: 5px;
+  min-height: 78px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 9px 10px;
+  background: #fbfcfd;
+  color: var(--ink);
+  text-align: left;
+}
+
+.candidateCard span,
+.candidateCard em {
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.candidateCard strong {
+  line-height: 1.35;
+}
+
+.selectedCandidate {
+  border-color: var(--accent);
+  background: #f0fdfa;
+}
+
 .titleOption {
   display: grid;
   gap: 6px;
@@ -843,6 +906,55 @@ button:disabled {
 .scriptResult {
   display: grid;
   gap: 10px;
+}
+
+.scriptEditForm {
+  display: grid;
+  gap: 10px;
+}
+
+.scriptEditGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(220px, 0.8fr);
+  gap: 10px;
+}
+
+.scriptEditForm label {
+  margin-bottom: 0;
+}
+
+.scriptEditForm textarea {
+  min-height: 0;
+  line-height: 1.55;
+}
+
+.scriptAdvancedEdit {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px;
+  background: #fbfcfd;
+}
+
+.scriptAdvancedEdit summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-weight: 900;
+}
+
+.scriptAdvancedEdit label {
+  margin-top: 10px;
+}
+
+.scriptEditActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.scriptEditActions button {
+  width: auto;
+  min-width: 132px;
 }
 
 .scriptBlock,
@@ -1379,6 +1491,16 @@ button:disabled {
   opacity: 1;
 }
 
+@media (max-width: 1550px) {
+  .creationParamBar {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .creationParamBar .durationField {
+    grid-column: span 2;
+  }
+}
+
 @media (max-width: 1100px) {
   .metrics,
   .grid {
@@ -1390,14 +1512,18 @@ button:disabled {
   }
 
   .creationBriefGrid,
-  .creationBatchBar,
   .creationFooterActions,
   .creationParamBar,
   .advancedTaskGrid,
   .scriptUtilityGrid,
   .scriptMetaGrid,
+  .scriptEditGrid,
   .settingsAccountForm {
     grid-template-columns: 1fr;
+  }
+
+  .creationParamBar .durationField {
+    grid-column: auto;
   }
 
   .statusBoard,
@@ -1439,10 +1565,10 @@ button:disabled {
   .creationActions,
   .creationFooterActions,
   .creationBriefGrid,
-  .creationBatchBar,
   .creationParamBar,
   .advancedTaskGrid,
   .scriptUtilityGrid,
+  .scriptEditGrid,
   .settingsAccountForm,
   .statusBoard,
   .publishActions,

@@ -308,6 +308,7 @@ function renderScripts(scripts) {
   const creationTarget = document.querySelector("#scriptPreviewCreation");
   const resultStatus = document.querySelector("#scriptResultStatus");
   if (!scripts.length) {
+    renderScriptCandidates([]);
     renderTitleSuggestions(null);
     [overviewTarget, creationTarget].filter(Boolean).forEach((target) => {
       target.className = "preview empty";
@@ -319,10 +320,11 @@ function renderScripts(scripts) {
     }
     return;
   }
-  const script = scripts[0];
+  const script = scripts.find((item) => item.id === state.highlightedScriptId) || scripts[0];
   state.latestScriptId = script.id;
   const taskScriptSelect = document.querySelector("[name='script_id']");
   if (taskScriptSelect) taskScriptSelect.value = script.id;
+  renderScriptCandidates(scripts);
   renderTitleSuggestions(script);
   const content = [
     `脚本 ID: ${script.id}`,
@@ -351,43 +353,26 @@ function renderScriptDetail(script, isFresh = false) {
   const creationTarget = document.querySelector("#scriptPreviewCreation");
   const resultStatus = document.querySelector("#scriptResultStatus");
   if (!creationTarget) return;
-
-  const tags = String(script.hashtags || "")
-    .split(/\s+/)
-    .map((tag) => tag.trim())
-    .filter(Boolean);
-  const tagHtml = tags.length
-    ? tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")
-    : `<span>暂无标签</span>`;
-
   creationTarget.className = `scriptResult${isFresh ? " scriptResultFresh" : ""}`;
   creationTarget.innerHTML = `
-    <div class="scriptBlock compactScriptBlock">
-      <span>开头钩子</span>
-      <strong>${escapeHtml(script.hook)}</strong>
-    </div>
-    <div class="scriptBlock primaryScriptBlock">
-      <span>口播稿</span>
-      <p>${escapeHtml(script.voiceover)}</p>
-    </div>
-    <div class="scriptBlock compactScriptBlock">
-      <span>分镜/画面</span>
-      <p>${escapeHtml(script.storyboard)}</p>
-    </div>
-    <div class="scriptUtilityGrid">
-      <details>
-        <summary>视频提示词</summary>
-        <p>${escapeHtml(script.seedance_prompt)}</p>
+    <form id="scriptEditForm" class="scriptEditForm" data-script-id="${script.id}" data-dirty="false">
+      <div class="scriptEditGrid">
+        <label>开头钩子<textarea name="hook" rows="2">${escapeHtml(script.hook)}</textarea></label>
+        <label>标签<input name="hashtags" value="${escapeHtml(script.hashtags)}" /></label>
+      </div>
+      <label>口播稿<textarea name="voiceover" rows="8">${escapeHtml(script.voiceover)}</textarea></label>
+      <label>分镜/画面<textarea name="storyboard" rows="5">${escapeHtml(script.storyboard)}</textarea></label>
+      <details class="scriptAdvancedEdit">
+        <summary>视频提示词、标题和合规提醒</summary>
+        <label>视频提示词<textarea name="seedance_prompt" rows="5">${escapeHtml(script.seedance_prompt)}</textarea></label>
+        <label>标题建议<textarea name="title_options" rows="4">${escapeHtml(script.title_options)}</textarea></label>
+        <label>合规提醒<textarea name="compliance_notes" rows="4">${escapeHtml(script.compliance_notes)}</textarea></label>
       </details>
-      <details>
-        <summary>标签</summary>
-        <div class="tagChips">${tagHtml}</div>
-      </details>
-      <details>
-        <summary>合规提醒</summary>
-        <p>${escapeHtml(script.compliance_notes)}</p>
-      </details>
-    </div>
+      <div class="scriptEditActions">
+        <button type="submit">保存脚本修改</button>
+        <span id="scriptEditSaveState" class="resultHint">可直接修改，生成视频前会自动保存。</span>
+      </div>
+    </form>
   `;
   if (resultStatus) {
     resultStatus.textContent = isFresh ? `脚本 #${script.id} · 刚刚生成` : `脚本 #${script.id}`;
@@ -397,8 +382,12 @@ function renderScriptDetail(script, isFresh = false) {
 
 function renderScriptLoading(message = "AI 正在生成标题、口播稿、分镜和视频提示词...", keepTitles = false) {
   const titleTarget = document.querySelector("#titleSuggestionList");
+  const candidateTarget = document.querySelector("#scriptCandidateList");
   const creationTarget = document.querySelector("#scriptPreviewCreation");
   const resultStatus = document.querySelector("#scriptResultStatus");
+  if (candidateTarget && !keepTitles) {
+    candidateTarget.innerHTML = `<div class="item">正在生成候选方案...</div>`;
+  }
   if (titleTarget && !keepTitles) {
     titleTarget.innerHTML = `<div class="item">正在生成标题建议...</div>`;
   }
@@ -419,8 +408,38 @@ function applyGeneratedScript(script) {
   const scriptInput = document.querySelector("[name='script_id']");
   if (scriptInput) scriptInput.value = script.id;
   renderScriptSelects(state.scripts);
+  renderScriptCandidates(state.scripts);
   renderTitleSuggestions(script);
   renderScriptDetail(script, true);
+}
+
+function renderScriptCandidates(scripts) {
+  const target = document.querySelector("#scriptCandidateList");
+  if (!target) return;
+  if (!scripts.length) {
+    target.innerHTML = `<div class="item">生成候选方案后，可在这里选择一版继续优化。</div>`;
+    return;
+  }
+  target.innerHTML = `
+    <div class="candidateHeader">
+      <strong>候选方案</strong>
+      <span>选择一版后，可在下方直接修改脚本。</span>
+    </div>
+    <div class="candidateGrid">
+      ${scripts
+        .slice(0, 6)
+        .map(
+          (script, index) => `
+            <button type="button" class="candidateCard ${script.id === state.latestScriptId ? "selectedCandidate" : ""}" data-script-id="${script.id}">
+              <span>方案 ${index + 1} · #${script.id}</span>
+              <strong>${escapeHtml(script.hook || "未命名方案")}</strong>
+              <em>${script.duration_seconds || 30}s · ${escapeHtml((script.voiceover || "").slice(0, 48))}</em>
+            </button>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
 }
 
 function renderScriptSelects(scripts) {
@@ -464,6 +483,44 @@ function renderTitleSuggestions(script) {
         `)
         .join("")
     : `<div class="item">这次脚本没有返回标题建议</div>`;
+}
+
+function currentScriptEditForm() {
+  return document.querySelector("#scriptEditForm");
+}
+
+function updateScriptInState(script) {
+  const exists = state.scripts.some((item) => item.id === script.id);
+  state.scripts = exists
+    ? state.scripts.map((item) => (item.id === script.id ? script : item))
+    : [script, ...state.scripts];
+  state.latestScriptId = script.id;
+  state.highlightedScriptId = script.id;
+  renderScriptSelects(state.scripts);
+  renderScriptCandidates(state.scripts);
+}
+
+async function saveCurrentScriptEdits(options = {}) {
+  const form = currentScriptEditForm();
+  if (!form || form.dataset.dirty !== "true") {
+    return state.scripts.find((item) => item.id === state.latestScriptId) || null;
+  }
+  const scriptId = Number(form.dataset.scriptId);
+  const saveState = form.querySelector("#scriptEditSaveState");
+  const submitButton = form.querySelector("button[type='submit']");
+  if (saveState) saveState.textContent = "正在保存修改...";
+  if (submitButton) submitButton.disabled = true;
+  const payload = formData(form);
+  try {
+    const script = await api.patch(`/scripts/${scriptId}`, payload);
+    updateScriptInState(script);
+    renderTitleSuggestions(script);
+    renderScriptDetail(script);
+    if (!options.silent) toast("脚本修改已保存");
+    return script;
+  } finally {
+    if (submitButton) submitButton.disabled = false;
+  }
 }
 
 function taskStatusLabel(status) {
@@ -1462,28 +1519,36 @@ document.querySelector("#humanAssetForm").addEventListener("submit", async (even
   await refresh();
 });
 
-document.querySelector("#scriptForm").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const submitButton = form.querySelector("button[type='submit']");
-  const originalText = submitButton.textContent;
+async function generateScriptCandidates(button) {
+  const form = document.querySelector("#scriptForm");
+  const originalText = button.textContent;
   const payload = formData(form);
   payload.duration_seconds = Number(payload.duration_seconds);
-  submitButton.disabled = true;
-  submitButton.textContent = "生成中...";
-  renderScriptLoading();
+  payload.count = Number(document.querySelector("#batchScriptCount").value || 3);
+  button.disabled = true;
+  button.textContent = "生成候选中...";
+  renderScriptLoading(`AI 正在生成 ${payload.count} 条候选方案，审核人只需选择满意的一版...`);
   try {
-    const script = await api.post("/scripts/generate", payload);
-    applyGeneratedScript(script);
-    toast(`脚本已生成 #${script.id}`);
+    const scripts = await api.post("/scripts/batch-generate", payload);
+    state.scripts = [...scripts, ...state.scripts.filter((item) => !scripts.some((script) => script.id === item.id))];
+    applyGeneratedScript(scripts[0]);
+    renderScriptSelects(state.scripts);
+    renderScriptCandidates(state.scripts);
+    toast(`已生成 ${scripts.length} 条候选方案`);
     await refresh();
   } catch (error) {
-    toast("脚本生成失败，请检查模型配置或稍后重试");
+    toast("候选方案生成失败，请检查模型配置或稍后重试");
     renderScripts(state.scripts);
   } finally {
-    submitButton.disabled = false;
-    submitButton.textContent = originalText;
+    button.disabled = false;
+    button.textContent = originalText;
   }
+}
+
+document.querySelector("#scriptForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  await saveCurrentScriptEdits({ silent: true });
+  await generateScriptCandidates(event.currentTarget.querySelector("button[type='submit']"));
 });
 
 function syncDurationPreset() {
@@ -1515,30 +1580,37 @@ document.querySelectorAll(".durationPreset").forEach((button) => {
 
 document.querySelector("#scriptForm [name='duration_seconds']").addEventListener("input", syncDurationPreset);
 
-document.querySelector("#batchScriptBtn").addEventListener("click", async () => {
-  const form = document.querySelector("#scriptForm");
-  const button = document.querySelector("#batchScriptBtn");
-  const originalText = button.textContent;
-  const payload = formData(form);
-  payload.duration_seconds = Number(payload.duration_seconds);
-  payload.count = Number(document.querySelector("#batchScriptCount").value || 5);
-  button.disabled = true;
-  button.textContent = "生成候选中...";
-  renderScriptLoading(`AI 正在生成 ${payload.count} 条候选脚本，审核人只需选择满意的一版...`);
+document.querySelector("#scriptCandidateList").addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-script-id]");
+  if (!button) return;
+  const scriptId = Number(button.dataset.scriptId);
   try {
-    const scripts = await api.post("/scripts/batch-generate", payload);
-    state.scripts = [...scripts, ...state.scripts.filter((item) => !scripts.some((script) => script.id === item.id))];
-    applyGeneratedScript(scripts[0]);
-    renderScriptSelects(state.scripts);
-    toast(`已生成 ${scripts.length} 条候选脚本`);
-    await refresh();
+    await saveCurrentScriptEdits({ silent: true });
   } catch (error) {
-    toast("候选脚本生成失败，请检查模型配置或稍后重试");
-    renderScripts(state.scripts);
-  } finally {
-    button.disabled = false;
-    button.textContent = originalText;
+    toast("当前脚本保存失败，请先检查内容");
+    return;
   }
+  const script = state.scripts.find((item) => item.id === scriptId);
+  if (!script) return;
+  state.latestScriptId = script.id;
+  state.highlightedScriptId = script.id;
+  renderScriptCandidates(state.scripts);
+  renderTitleSuggestions(script);
+  renderScriptDetail(script);
+});
+
+document.querySelector("#scriptPreviewCreation").addEventListener("input", (event) => {
+  const form = event.target.closest("#scriptEditForm");
+  if (!form) return;
+  form.dataset.dirty = "true";
+  const saveState = form.querySelector("#scriptEditSaveState");
+  if (saveState) saveState.textContent = "有未保存修改，生成视频前会自动保存。";
+});
+
+document.querySelector("#scriptPreviewCreation").addEventListener("submit", async (event) => {
+  if (event.target.id !== "scriptEditForm") return;
+  event.preventDefault();
+  await saveCurrentScriptEdits();
 });
 
 document.querySelector("#taskForm").addEventListener("submit", async (event) => {
@@ -1586,6 +1658,7 @@ document.querySelector("#createTaskFromScriptBtn").addEventListener("click", asy
   button.disabled = true;
   button.textContent = "进入生成队列...";
   try {
+    await saveCurrentScriptEdits({ silent: true });
     const task = await api.post(`/scripts/${state.latestScriptId}/auto-video-task`, payload);
     state.latestTaskId = task.id;
     document.querySelector("#taskForm [name='script_id']").value = task.script_id;
@@ -1606,7 +1679,8 @@ document.querySelector("#createTaskFromScriptBtn").addEventListener("click", asy
 
 document.querySelector("#goTaskPageBtn").addEventListener("click", () => switchPage("tasks"));
 
-document.querySelector("#regenerateScriptBtn").addEventListener("click", () => {
+document.querySelector("#regenerateScriptBtn").addEventListener("click", async () => {
+  await saveCurrentScriptEdits({ silent: true });
   document.querySelector("#scriptForm").requestSubmit();
 });
 
@@ -1614,6 +1688,12 @@ document.querySelector("#titleSuggestionList").addEventListener("click", async (
   const button = event.target.closest("button[data-title]");
   if (!button) return;
   const title = button.dataset.title;
+  try {
+    await saveCurrentScriptEdits({ silent: true });
+  } catch (error) {
+    toast("当前脚本保存失败，请先检查内容");
+    return;
+  }
   document.querySelectorAll(".titleOption").forEach((item) => item.classList.remove("selectedTitle"));
   button.classList.add("selectedTitle");
   const form = document.querySelector("#scriptForm");

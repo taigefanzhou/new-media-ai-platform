@@ -110,6 +110,16 @@ class ScriptBatchGenerateRequest(ScriptGenerateRequest):
     topics: list[str] = Field(default_factory=list)
 
 
+class ScriptUpdate(BaseModel):
+    hook: Optional[str] = None
+    voiceover: Optional[str] = None
+    storyboard: Optional[str] = None
+    seedance_prompt: Optional[str] = None
+    title_options: Optional[str] = None
+    hashtags: Optional[str] = None
+    compliance_notes: Optional[str] = None
+
+
 class DigitalHumanCreate(BaseModel):
     name: str
     role: Optional[str] = None

@@ -49,6 +49,7 @@ from app.schemas.requests import (
     PublishRecordUpdate,
     ScriptBatchGenerateRequest,
     ScriptGenerateRequest,
+    ScriptUpdate,
     ScriptVideoTaskCreate,
     TopicCreate,
     TrendingSearchCreate,
@@ -901,6 +902,21 @@ async def batch_generate_scripts(payload: ScriptBatchGenerateRequest, session: S
 @router.get("/scripts", response_model=list[Script])
 def list_scripts(session: Session = Depends(get_session)) -> list[Script]:
     return list(session.exec(select(Script).order_by(Script.created_at.desc())).all())
+
+
+@router.patch("/scripts/{script_id}", response_model=Script)
+def update_script(script_id: int, payload: ScriptUpdate, session: Session = Depends(get_session)) -> Script:
+    script = session.get(Script, script_id)
+    if script is None:
+        raise HTTPException(status_code=404, detail="Script not found")
+    update_data = payload.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        if value is not None:
+            setattr(script, key, value)
+    session.add(script)
+    session.commit()
+    session.refresh(script)
+    return script
 
 
 def _estimated_video_segment_count(duration_seconds: int) -> int:
