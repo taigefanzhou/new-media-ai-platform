@@ -138,18 +138,18 @@ class DigitalHumanCreate(BaseModel):
 class VideoTaskCreate(BaseModel):
     script_id: int
     digital_human_id: Optional[int] = None
-    production_mode: str = "seedance_scene"
+    production_mode: str = "talking_head_template"
 
 
 class ScriptVideoTaskCreate(BaseModel):
     digital_human_id: Optional[int] = None
-    production_mode: str = "seedance_scene"
+    production_mode: str = "talking_head_template"
 
 
 class VideoTaskBatchCreateRequest(BaseModel):
     script_ids: list[int] = Field(..., min_length=1, max_length=50)
     digital_human_id: Optional[int] = None
-    production_mode: str = "seedance_scene"
+    production_mode: str = "talking_head_template"
 
 
 class VideoTaskBatchRunRequest(BaseModel):

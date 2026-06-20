@@ -51,7 +51,7 @@ def apply_sqlite_migrations() -> None:
         video_task_columns = {row[1] for row in video_task_rows}
         video_task_migrations = {
             "generation_mode": "ALTER TABLE videotask ADD COLUMN generation_mode VARCHAR DEFAULT 'short'",
-            "production_mode": "ALTER TABLE videotask ADD COLUMN production_mode VARCHAR DEFAULT 'seedance_scene'",
+            "production_mode": "ALTER TABLE videotask ADD COLUMN production_mode VARCHAR DEFAULT 'talking_head_template'",
             "segment_count": "ALTER TABLE videotask ADD COLUMN segment_count INTEGER DEFAULT 1",
             "completed_segments": "ALTER TABLE videotask ADD COLUMN completed_segments INTEGER DEFAULT 0",
         }

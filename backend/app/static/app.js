@@ -354,7 +354,8 @@ function productionModeLabel(mode) {
     dynamic_explainer: "图文草稿",
     digital_human: "真人口播",
     seedance_scene: "Seedance 实景",
-  }[mode] || "Seedance 实景";
+    talking_head_template: "口播模板",
+  }[mode] || "口播模板";
 }
 
 function parseStoryboardPlan(script) {
@@ -1743,6 +1744,7 @@ function syncProductionModeHint() {
     dynamic_explainer: "低成本图文草稿，只用于快速预览节奏，不作为正式成片。",
     digital_human: "需要选择已上传口播源视频的数字人，用于后续真人嘴型驱动。",
     seedance_scene: "会把分镜表拆成多个 Seedance 镜头，生成 AI 实景画面后自动拼接。",
+    talking_head_template: "需要真实数字人驱动接口，会生成顶部标题、底部身份条、字幕和解释页的口播模板。",
   }[select.value] || "";
 }
 
@@ -1826,8 +1828,8 @@ document.querySelector("#createTaskFromScriptBtn").addEventListener("click", asy
   if (humanInput.value) {
     payload.digital_human_id = Number(humanInput.value);
   }
-  if (productionMode === "digital_human" && !payload.digital_human_id) {
-    toast("真人数字人口播需要先选择有口播源视频的数字人");
+  if (["digital_human", "talking_head_template"].includes(productionMode) && !payload.digital_human_id) {
+    toast("数字人口播需要先选择有口播源视频的数字人");
     return;
   }
   button.disabled = true;

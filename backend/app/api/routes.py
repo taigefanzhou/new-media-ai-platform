@@ -79,7 +79,7 @@ from app.services.usage import estimate_text_tokens, record_generated_model_usag
 
 router = APIRouter()
 
-PRODUCTION_MODES = {"dynamic_explainer", "digital_human", "seedance_scene"}
+PRODUCTION_MODES = {"dynamic_explainer", "digital_human", "seedance_scene", "talking_head_template"}
 
 
 def _active_model_config(session: Session, purpose: str) -> AIModelConfig | None:
@@ -983,7 +983,7 @@ def _estimated_video_segment_count(duration_seconds: int) -> int:
 def _build_video_task(
     script: Script,
     digital_human_id: Optional[int],
-    production_mode: str = "seedance_scene",
+    production_mode: str = "talking_head_template",
     status: TaskStatus = TaskStatus.queued,
     audit_notes: str = "",
 ) -> VideoTask:
@@ -1010,14 +1010,24 @@ def _validate_video_task_inputs(
     if production_mode not in PRODUCTION_MODES:
         raise HTTPException(status_code=400, detail="Unknown production mode")
     if digital_human_id is None:
-        if production_mode == "digital_human":
-            raise HTTPException(status_code=400, detail="真人数字人口播需要选择数字人，并上传口播源视频。")
+        if production_mode in {"digital_human", "talking_head_template"}:
+            raise HTTPException(status_code=400, detail="数字人口播需要选择数字人，并上传口播源视频。")
         return
     human = session.get(DigitalHuman, digital_human_id)
     if human is None:
         raise HTTPException(status_code=404, detail="Digital human not found")
-    if production_mode == "digital_human" and human.source_video_material_id is None:
-        raise HTTPException(status_code=400, detail="真人数字人口播需要先上传该数字人的口播源视频。")
+    if production_mode in {"digital_human", "talking_head_template"} and human.source_video_material_id is None:
+        raise HTTPException(status_code=400, detail="数字人口播需要先上传该数字人的口播源视频。")
+    if production_mode in {"digital_human", "talking_head_template"} and not _digital_human_service_ready(session):
+        raise HTTPException(status_code=400, detail="数字人口播需要先在系统设置里配置真实数字人驱动接口。")
+
+
+def _digital_human_service_ready(session: Session) -> bool:
+    model_config = _active_model_config(session, "digital_human")
+    settings = get_settings()
+    api_base = model_config.api_base if model_config and model_config.api_base else settings.digital_human_api_base
+    provider = model_config.provider if model_config else settings.digital_human_provider
+    return bool(api_base) and provider != "mock"
 
 
 def _ensure_video_task_can_run(task: VideoTask) -> None:

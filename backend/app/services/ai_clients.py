@@ -481,6 +481,19 @@ class MediaGenerationClient:
         )
         return self._extract_media_url(result, "digital_human_video")
 
+    def can_generate_talking_avatar(self) -> bool:
+        api_base = (
+            self.digital_human_model_config.api_base
+            if self.digital_human_model_config and self.digital_human_model_config.api_base
+            else self.settings.digital_human_api_base
+        )
+        provider = (
+            self.digital_human_model_config.provider
+            if self.digital_human_model_config
+            else self.settings.digital_human_provider
+        )
+        return bool(api_base) and provider != "mock"
+
     async def generate_seedance_clips(self, prompt: str, duration_seconds: int = 30) -> list[str]:
         plan = self.segment_plan(prompt, "", duration_seconds)
         return [
@@ -678,6 +691,180 @@ class MediaGenerationClient:
                 audio.close()
             for clip in scene_clips:
                 clip.close()
+        return str(output_path)
+
+    async def compose_talking_head_template(
+        self,
+        talking_clip_path: str,
+        voiceover: str,
+        storyboard_plan: str | list[dict[str, object]] | None,
+        title: str,
+        speaker_name: str,
+        speaker_role: str,
+        duration_seconds: int = 60,
+        audio_path: Optional[str] = None,
+    ) -> str:
+        from moviepy.editor import AudioFileClip, VideoClip, VideoFileClip
+        from PIL import Image, ImageDraw, ImageFilter
+        import numpy as np
+
+        if not self._is_local_path(talking_clip_path) or not Path(talking_clip_path).exists():
+            raise RuntimeError("Digital human talking video was not generated")
+
+        talking_clip = VideoFileClip(talking_clip_path)
+        external_audio = None
+        duration = min(max(talking_clip.duration, 6), max(duration_seconds, 6))
+        if talking_clip.audio is None and audio_path and self._is_local_path(audio_path) and Path(audio_path).exists():
+            external_audio = AudioFileClip(audio_path)
+            duration = min(duration, external_audio.duration)
+
+        output_path = self._asset_path("final", "talking-head-template.mp4")
+        frame_size = (720, 1280)
+        top_h = 238
+        bottom_y = 1064
+        main_h = bottom_y - top_h
+        bg_color = (9, 38, 54)
+        yellow = (238, 190, 72)
+        white = (248, 250, 252)
+        title_font = self._load_font(42)
+        title_font_small = self._load_font(36)
+        subtitle_font = self._load_font(34)
+        meta_font = self._load_font(24)
+        small_font = self._load_font(20)
+        card_title_font = self._load_font(38)
+        card_body_font = self._load_font(25)
+        title_lines = self._template_title_lines(title or "公司方案讲解")
+        subtitles = self._subtitle_events(voiceover, duration)
+        cards = self._template_card_segments(storyboard_plan, duration)
+
+        def video_image(t: float, size: tuple[int, int]) -> Image.Image:
+            frame = talking_clip.get_frame(min(t, talking_clip.duration - 0.05))
+            image = Image.fromarray(frame).convert("RGB")
+            scale = max(size[0] / image.width, size[1] / image.height)
+            resized = image.resize((int(image.width * scale), int(image.height * scale)), Image.Resampling.LANCZOS)
+            x = max(0, (resized.width - size[0]) // 2)
+            y = max(0, (resized.height - size[1]) // 2)
+            return resized.crop((x, y, x + size[0], y + size[1]))
+
+        def card_for_time(t: float) -> dict[str, object] | None:
+            for card in cards:
+                start = float(card.get("start_second", 0))
+                end = start + float(card.get("duration_seconds", 5))
+                if start <= t < end:
+                    return card
+            return None
+
+        def wrap_text(text: str, limit: int, max_lines: int) -> list[str]:
+            text = str(text or "").replace("\n", " ").strip()
+            lines: list[str] = []
+            current = ""
+            for char in text:
+                current += char
+                if len(current) >= limit:
+                    lines.append(current)
+                    current = ""
+            if current:
+                lines.append(current)
+            return lines[:max_lines]
+
+        def subtitle_for_time(t: float) -> str:
+            for start, end, text in subtitles:
+                if start <= t < end:
+                    return text
+            return ""
+
+        def draw_shadow_text(draw, xy, text, font, fill, shadow=(0, 0, 0, 160), stroke=2):
+            x, y = xy
+            draw.text((x + 2, y + 3), text, font=font, fill=shadow, stroke_width=stroke, stroke_fill=shadow)
+            draw.text((x, y), text, font=font, fill=fill, stroke_width=stroke, stroke_fill=(0, 0, 0, 120))
+
+        def draw_centered(draw, text, y, font, fill, stroke_width=0):
+            bbox = draw.textbbox((0, 0), text, font=font, stroke_width=stroke_width)
+            x = (frame_size[0] - (bbox[2] - bbox[0])) // 2
+            draw.text((x, y), text, font=font, fill=fill, stroke_width=stroke_width, stroke_fill=(0, 0, 0, 150))
+
+        def draw_template_chrome(draw):
+            draw.rectangle((0, 0, frame_size[0], top_h), fill=bg_color)
+            draw.rectangle((0, bottom_y, frame_size[0], frame_size[1]), fill=bg_color)
+            draw_centered(draw, title_lines[0], 70, title_font if len(title_lines[0]) <= 14 else title_font_small, white, 2)
+            draw_centered(draw, title_lines[1], 132, title_font if len(title_lines[1]) <= 14 else title_font_small, yellow, 2)
+            draw.text((50, 1130), "AI\n生\n成", font=small_font, fill=(148, 163, 184, 190), spacing=6)
+            draw.text((238, 1120), speaker_name or "数字人", font=self._load_font(38), fill=white)
+            draw.line((330, 1118, 330, 1192), fill=(226, 232, 240, 210), width=2)
+            for index, line in enumerate(wrap_text(speaker_role or "品牌顾问", 15, 3)):
+                draw.text((352, 1116 + index * 28), line, font=meta_font, fill=white)
+
+        def draw_subtitle(draw, text: str):
+            lines = wrap_text(text, 15, 2)
+            y = 908 if len(lines) == 1 else 875
+            for line in lines:
+                bbox = draw.textbbox((0, 0), line, font=subtitle_font, stroke_width=2)
+                x = (frame_size[0] - (bbox[2] - bbox[0])) // 2
+                draw_shadow_text(draw, (x, y), line, subtitle_font, white)
+                y += 44
+
+        def draw_card(canvas: Image.Image, draw, card: dict[str, object], t: float):
+            card_bg = Image.new("RGB", (720, main_h), (222, 244, 247))
+            bg_draw = ImageDraw.Draw(card_bg)
+            for i in range(10):
+                y = 80 + i * 70 + int(6 * math.sin(t * 0.8 + i))
+                bg_draw.line((90, y, 630, y + 28), fill=(164, 213, 220), width=2)
+            bg_draw.rounded_rectangle((94, 108, 626, 590), radius=24, fill=(248, 252, 252), outline=(185, 220, 225), width=2)
+            screen_text = str(card.get("title") or card.get("screen_text") or "方案要点")
+            visual = str(card.get("visual") or card.get("prompt") or "")
+            draw_center = ImageDraw.Draw(card_bg)
+            for idx, line in enumerate(wrap_text(screen_text, 12, 2)):
+                bbox = draw_center.textbbox((0, 0), line, font=card_title_font)
+                draw_center.text(((720 - (bbox[2] - bbox[0])) // 2, 238 + idx * 48), line, font=card_title_font, fill=(15, 23, 42))
+            bg_draw.line((236, 360, 484, 360), fill=(15, 118, 110), width=3)
+            for idx, line in enumerate(wrap_text(visual, 18, 3)):
+                bbox = draw_center.textbbox((0, 0), line, font=card_body_font)
+                draw_center.text(((720 - (bbox[2] - bbox[0])) // 2, 392 + idx * 36), line, font=card_body_font, fill=(51, 65, 85))
+
+            mini = video_image(t, (160, 270)).filter(ImageFilter.UnsharpMask(radius=1, percent=110, threshold=3))
+            card_bg.paste(mini, (52, main_h - 300))
+            canvas.paste(card_bg, (0, top_h))
+            draw.rectangle((0, top_h, 720, bottom_y), outline=(255, 255, 255, 30), width=1)
+
+        def make_frame(t: float):
+            canvas = Image.new("RGB", frame_size, bg_color).convert("RGBA")
+            card = card_for_time(t)
+            draw = ImageDraw.Draw(canvas)
+            if card:
+                draw_card(canvas, draw, card, t)
+            else:
+                main = video_image(t, (720, main_h))
+                canvas.paste(main, (0, top_h))
+            overlay = Image.new("RGBA", frame_size, (0, 0, 0, 0))
+            overlay_draw = ImageDraw.Draw(overlay)
+            overlay_draw.rectangle((0, bottom_y - 92, 720, bottom_y), fill=(0, 0, 0, 45))
+            canvas = Image.alpha_composite(canvas, overlay)
+            draw = ImageDraw.Draw(canvas)
+            draw_template_chrome(draw)
+            draw_subtitle(draw, subtitle_for_time(t))
+            return np.array(canvas.convert("RGB"))
+
+        try:
+            clip = VideoClip(make_frame, duration=duration)
+            audio = talking_clip.audio or external_audio
+            if audio is not None:
+                clip = clip.set_audio(audio.subclip(0, min(audio.duration, duration)))
+            clip.write_videofile(
+                str(output_path),
+                fps=24,
+                codec="libx264",
+                audio_codec="aac",
+                preset="medium",
+                bitrate="4200k",
+                threads=4,
+                verbose=False,
+                logger=None,
+            )
+            clip.close()
+        finally:
+            talking_clip.close()
+            if external_audio is not None:
+                external_audio.close()
         return str(output_path)
 
     async def compose_dynamic_explainer(
@@ -1079,6 +1266,47 @@ class MediaGenerationClient:
             start = end
         events[-1] = (events[-1][0], duration, events[-1][2])
         return events
+
+    def _template_title_lines(self, title: str) -> tuple[str, str]:
+        cleaned = str(title or "").replace("\n", " ").strip()
+        for delimiter in ("，", "？", "！", "：", " ", ",", "?", "!", ":"):
+            if delimiter in cleaned and len(cleaned) > 14:
+                parts = [part.strip() for part in cleaned.split(delimiter) if part.strip()]
+                if len(parts) >= 2:
+                    return parts[0][:18], "".join(parts[1:])[:18]
+        midpoint = max(6, min(len(cleaned) - 1, len(cleaned) // 2))
+        return cleaned[:midpoint][:18] or "公司方案讲解", cleaned[midpoint:][:18] or "数字人口播模板"
+
+    def _template_card_segments(
+        self,
+        storyboard_plan: str | list[dict[str, object]] | None,
+        duration: float,
+    ) -> list[dict[str, object]]:
+        structured = self._media_storyboard_plan(storyboard_plan, int(duration))
+        cards = [
+            item
+            for item in structured
+            if str(item.get("shot_type") or "").lower() not in {"talking_head", "person", "host"}
+        ]
+        if cards:
+            return cards[:6]
+        default_starts = [duration * 0.12, duration * 0.32, duration * 0.62]
+        default_titles = ["核心流程", "关键数据", "落地价值"]
+        default_visuals = [
+            "用一张流程图讲清系统如何联动。",
+            "用看板或表格展示运营变化。",
+            "用三点总结让用户记住方案。",
+        ]
+        return [
+            {
+                "title": default_titles[index],
+                "screen_text": default_titles[index],
+                "visual": default_visuals[index],
+                "start_second": int(start),
+                "duration_seconds": max(4, min(8, int(duration * 0.11))),
+            }
+            for index, start in enumerate(default_starts)
+        ]
 
     def _load_font(self, size: int):
         from PIL import ImageFont

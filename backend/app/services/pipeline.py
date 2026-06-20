@@ -61,6 +61,34 @@ class VideoPipeline:
             source_video = self._source_video_path(human)
             voice = await self._voice_for_human(human, source_video, task)
             audio = await self._synthesize_voice(script, voice)
+            if task.production_mode == "talking_head_template":
+                if human is None or source_video is None:
+                    raise RuntimeError("数字人口播模板需要选择已绑定口播源视频的数字人。")
+                if not self.media.can_generate_talking_avatar():
+                    raise RuntimeError("数字人口播模板需要先配置真实数字人驱动接口，不能使用头像或图文预览代替。")
+                avatar = await self._generate_talking_avatar(portrait, audio, source_video)
+                task.output_path = await self.media.compose_talking_head_template(
+                    avatar,
+                    script.voiceover,
+                    script.storyboard_plan,
+                    title=self._script_title(script),
+                    speaker_name=human.name,
+                    speaker_role=self._speaker_role(human),
+                    duration_seconds=script.duration_seconds,
+                    audio_path=audio,
+                )
+                for segment in segments:
+                    segment.status = TaskStatus.needs_review
+                    segment.output_path = task.output_path
+                    segment.updated_at = datetime.utcnow()
+                    self.session.add(segment)
+                task.completed_segments = len(segments)
+                task.status = TaskStatus.needs_review
+                task.updated_at = datetime.utcnow()
+                self.session.add(task)
+                self.session.commit()
+                self.session.refresh(task)
+                return task
             if task.production_mode == "seedance_scene":
                 clips = []
                 for segment in segments:
@@ -93,6 +121,8 @@ class VideoPipeline:
                 self.session.commit()
                 self.session.refresh(task)
                 return task
+            if task.production_mode == "digital_human" and not self.media.can_generate_talking_avatar():
+                raise RuntimeError("真人数字人口播需要先配置真实数字人驱动接口。")
             avatar = await self._generate_talking_avatar(portrait, audio, source_video)
             clips = []
             for segment in segments:
@@ -192,6 +222,19 @@ class VideoPipeline:
             f"共 {task.segment_count} 段，每段约 10 秒，可用于后续分段预览和失败段重跑。"
         )
         return f"{base_note}\n{plan_note}".strip() if base_note else plan_note
+
+    def _script_title(self, script: Script) -> str:
+        for line in script.title_options.splitlines():
+            title = line.strip()
+            if title:
+                return title
+        return script.hook
+
+    def _speaker_role(self, human: DigitalHuman) -> str:
+        role = (human.role or "").strip()
+        if role:
+            return role
+        return "品牌顾问｜企业方案讲解｜数字人口播"
 
     def _portrait_path(self, human: DigitalHuman | None) -> str | None:
         if human is None or human.portrait_material_id is None:
