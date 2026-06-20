@@ -157,6 +157,34 @@ class TranscriptionTask(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+class ReferenceVideoAnalysis(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    material_id: int = Field(index=True)
+    provider: str = "local"
+    status: TaskStatus = TaskStatus.queued
+    language: str = "zh-CN"
+    duration_seconds: float = 0
+    width: int = 0
+    height: int = 0
+    fps: float = 0
+    has_audio: bool = False
+    scene_count: int = 0
+    avg_shot_seconds: float = 0
+    visual_change_frequency: str = ""
+    contact_sheet_path: Optional[str] = None
+    dense_contact_sheet_path: Optional[str] = None
+    timeline_json: str = ""
+    transcript: str = ""
+    script_analysis: str = ""
+    shooting_analysis: str = ""
+    editing_analysis: str = ""
+    reusable_template: str = ""
+    reuse_notes: str = ""
+    error_message: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 class Topic(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str

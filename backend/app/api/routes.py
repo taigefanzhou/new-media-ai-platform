@@ -27,6 +27,7 @@ from app.models.entities import (
     PlatformAccount,
     PlatformCredential,
     PublishRecord,
+    ReferenceVideoAnalysis,
     Script,
     SystemSetting,
     TaskStatus,
@@ -51,6 +52,7 @@ from app.schemas.requests import (
     PlatformCredentialPublic,
     PlatformCredentialUpdate,
     PublishPrepareRequest,
+    ReferenceVideoAnalysisCreate,
     PublishRecordUpdate,
     ScriptBatchGenerateRequest,
     ScriptGenerateRequest,
@@ -76,6 +78,7 @@ from app.services.export_profiles import export_profile_options, resolve_export_
 from app.services.pipeline import VideoPipeline
 from app.services.trending import TrendingCollector
 from app.services.usage import estimate_text_tokens, record_generated_model_usage, record_model_usage
+from app.services.video_analysis import ReferenceVideoAnalyzer
 
 
 router = APIRouter()
@@ -221,6 +224,7 @@ def dashboard(session: Session = Depends(get_session)) -> dict[str, object]:
         "publish_records": session.exec(select(func.count()).select_from(PublishRecord)).one(),
         "trending_videos": session.exec(select(func.count()).select_from(TrendingVideo)).one(),
         "transcriptions": session.exec(select(func.count()).select_from(TranscriptionTask)).one(),
+        "video_analyses": session.exec(select(func.count()).select_from(ReferenceVideoAnalysis)).one(),
     }
     recent_tasks = session.exec(select(VideoTask).order_by(VideoTask.created_at.desc()).limit(5)).all()
     recent_scripts = session.exec(select(Script).order_by(Script.created_at.desc()).limit(5)).all()
@@ -702,6 +706,11 @@ def delete_material(material_id: int, session: Session = Depends(get_session)) -
     transcriptions = session.exec(select(TranscriptionTask).where(TranscriptionTask.material_id == material_id)).all()
     for task in transcriptions:
         session.delete(task)
+    analyses = session.exec(select(ReferenceVideoAnalysis).where(ReferenceVideoAnalysis.material_id == material_id)).all()
+    for analysis in analyses:
+        _delete_local_file(analysis.contact_sheet_path)
+        _delete_local_file(analysis.dense_contact_sheet_path)
+        session.delete(analysis)
 
     _delete_local_file(material.file_path)
     session.delete(material)
@@ -863,6 +872,198 @@ async def generate_script_from_transcription(
         provider=settings.llm_provider,
         model_name=settings.llm_model,
     )
+    session.commit()
+    session.refresh(script)
+    return script
+
+
+def _latest_transcript_for_material(session: Session, material_id: int) -> str:
+    task = session.exec(
+        select(TranscriptionTask)
+        .where(TranscriptionTask.material_id == material_id, TranscriptionTask.transcript != "")
+        .order_by(TranscriptionTask.updated_at.desc())
+    ).first()
+    return task.transcript if task else ""
+
+
+@router.post("/video-analyses", response_model=ReferenceVideoAnalysis)
+def create_reference_video_analysis(
+    payload: ReferenceVideoAnalysisCreate,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> ReferenceVideoAnalysis:
+    material = session.get(Material, payload.material_id)
+    if material is None:
+        raise HTTPException(status_code=404, detail="Material not found")
+    if material.kind not in (MaterialKind.avatar_source, MaterialKind.video, MaterialKind.reference):
+        raise HTTPException(status_code=400, detail="深度视频拆解需要选择视频或参考素材。")
+    task = ReferenceVideoAnalysis(
+        material_id=payload.material_id,
+        provider=payload.provider,
+        language=payload.language,
+        status=TaskStatus.queued,
+    )
+    session.add(task)
+    session.commit()
+    session.refresh(task)
+    return task
+
+
+@router.post("/video-analyses/{analysis_id}/run", response_model=ReferenceVideoAnalysis)
+async def run_reference_video_analysis(
+    analysis_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> ReferenceVideoAnalysis:
+    task = session.get(ReferenceVideoAnalysis, analysis_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Reference video analysis not found")
+    material = session.get(Material, task.material_id)
+    if material is None:
+        raise HTTPException(status_code=404, detail="Material not found")
+
+    active_model = _active_model_config(session, "video_understanding")
+    task.provider = active_model.provider if active_model else task.provider or "local"
+    task.status = TaskStatus.running
+    task.error_message = None
+    task.updated_at = datetime.utcnow()
+    session.add(task)
+    session.commit()
+    session.refresh(task)
+
+    try:
+        transcript = _latest_transcript_for_material(session, task.material_id)
+        result = await ReferenceVideoAnalyzer(active_model).analyze(task, material, transcript=transcript)
+        task.duration_seconds = result.duration_seconds
+        task.width = result.width
+        task.height = result.height
+        task.fps = result.fps
+        task.has_audio = result.has_audio
+        task.scene_count = result.scene_count
+        task.avg_shot_seconds = result.avg_shot_seconds
+        task.visual_change_frequency = result.visual_change_frequency
+        task.contact_sheet_path = result.contact_sheet_path
+        task.dense_contact_sheet_path = result.dense_contact_sheet_path
+        task.timeline_json = result.timeline_json
+        task.transcript = transcript
+        task.script_analysis = result.script_analysis
+        task.shooting_analysis = result.shooting_analysis
+        task.editing_analysis = result.editing_analysis
+        task.reusable_template = result.reusable_template
+        task.reuse_notes = result.reuse_notes
+        task.status = TaskStatus.needs_review
+        estimated_completion_tokens = estimate_text_tokens(
+            task.script_analysis,
+            task.shooting_analysis,
+            task.editing_analysis,
+            task.reusable_template,
+            task.reuse_notes,
+        )
+        completion_tokens = result.completion_tokens or max(0, result.total_tokens - result.prompt_tokens)
+        record_model_usage(
+            session=session,
+            purpose="video_understanding",
+            model_config=active_model,
+            provider=task.provider,
+            model_name=active_model.model_name if active_model else "local-video-analyzer",
+            prompt_tokens=result.prompt_tokens,
+            completion_tokens=completion_tokens or estimated_completion_tokens,
+        )
+    except Exception as exc:
+        task.status = TaskStatus.failed
+        task.error_message = str(exc)
+        record_model_usage(
+            session=session,
+            purpose="video_understanding",
+            model_config=active_model,
+            provider=task.provider,
+            model_name=active_model.model_name if active_model else "local-video-analyzer",
+            status="failed",
+        )
+    task.updated_at = datetime.utcnow()
+    session.add(task)
+    session.commit()
+    session.refresh(task)
+    return task
+
+
+@router.get("/video-analyses", response_model=list[ReferenceVideoAnalysis])
+def list_reference_video_analyses(
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> list[ReferenceVideoAnalysis]:
+    return list(session.exec(select(ReferenceVideoAnalysis).order_by(ReferenceVideoAnalysis.created_at.desc())).all())
+
+
+@router.get("/video-analyses/{analysis_id}/contact-sheet")
+def reference_video_analysis_contact_sheet(
+    analysis_id: int,
+    session: Session = Depends(get_session),
+) -> FileResponse:
+    task = session.get(ReferenceVideoAnalysis, analysis_id)
+    if task is None or not task.contact_sheet_path:
+        raise HTTPException(status_code=404, detail="Contact sheet not found")
+    path = Path(task.contact_sheet_path)
+    if not path.exists() or not path.is_file():
+        raise HTTPException(status_code=404, detail="Contact sheet file not found")
+    return FileResponse(path, media_type="image/jpeg")
+
+
+@router.get("/video-analyses/{analysis_id}/dense-contact-sheet")
+def reference_video_analysis_dense_contact_sheet(
+    analysis_id: int,
+    session: Session = Depends(get_session),
+) -> FileResponse:
+    task = session.get(ReferenceVideoAnalysis, analysis_id)
+    if task is None or not task.dense_contact_sheet_path:
+        raise HTTPException(status_code=404, detail="Dense contact sheet not found")
+    path = Path(task.dense_contact_sheet_path)
+    if not path.exists() or not path.is_file():
+        raise HTTPException(status_code=404, detail="Dense contact sheet file not found")
+    return FileResponse(path, media_type="image/jpeg")
+
+
+@router.post("/video-analyses/{analysis_id}/generate-script", response_model=Script)
+async def generate_script_from_reference_video_analysis(
+    analysis_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> Script:
+    task = session.get(ReferenceVideoAnalysis, analysis_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Reference video analysis not found")
+    if task.status not in (TaskStatus.needs_review, TaskStatus.approved):
+        raise HTTPException(status_code=400, detail="请先运行深度视频拆解。")
+    material = session.get(Material, task.material_id)
+    topic = (
+        "基于参考视频的结构生成原创公司短视频脚本，不能复刻原画面、原文和人物。"
+        f"参考素材：{material.name if material else task.material_id}。"
+        f"脚本结构分析：{task.script_analysis}\n"
+        f"拍摄方式分析：{task.shooting_analysis}\n"
+        f"剪辑方式分析：{task.editing_analysis}\n"
+        f"可复用模板：{task.reusable_template}\n"
+        "请改写成适合酒店智能化、酒店运营或公司负责人数字人口播的原创脚本。"
+    )
+    active_model = _active_model_config(session, "script")
+    generated = await ScriptGenerator(active_model).generate(
+        topic=topic,
+        brand_voice="专业、可信、适合公司负责人口播；学习参考视频的结构和节奏，但不搬运原文和画面。",
+        duration_seconds=max(30, min(180, int(task.duration_seconds or 60))),
+        target_platform="wechat_channels" if task.height >= task.width else "douyin",
+        output_language="zh-CN",
+    )
+    payload = ScriptGenerateRequest(
+        topic=topic,
+        brand_voice="专业、可信、适合公司负责人口播；学习参考视频的结构和节奏，但不搬运原文和画面。",
+        duration_seconds=max(30, min(180, int(task.duration_seconds or 60))),
+        target_platform="wechat_channels" if task.height >= task.width else "douyin",
+        output_language="zh-CN",
+    )
+    script = _create_script_record(session, payload, generated, active_model)
+    script.compliance_notes = (
+        f"{script.compliance_notes}\n基于深度视频拆解 #{task.id} 生成，仅学习结构、节奏、拍摄和剪辑方法。"
+    )
+    session.add(script)
     session.commit()
     session.refresh(script)
     return script

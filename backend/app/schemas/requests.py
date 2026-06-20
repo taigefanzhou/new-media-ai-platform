@@ -83,6 +83,12 @@ class TranscriptionTaskCreate(BaseModel):
     language: str = "zh-CN"
 
 
+class ReferenceVideoAnalysisCreate(BaseModel):
+    material_id: int
+    provider: str = "local"
+    language: str = "zh-CN"
+
+
 class MaterialCreate(BaseModel):
     name: str
     kind: MaterialKind

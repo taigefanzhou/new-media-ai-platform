@@ -41,6 +41,7 @@ const state = {
   latestSourceVideoId: null,
   latestTrendingSearchId: null,
   latestTranscriptionId: null,
+  latestVideoAnalysisId: null,
   highlightedScriptId: null,
   currentPage: "overview",
   materials: [],
@@ -51,6 +52,7 @@ const state = {
   platformCredentials: [],
   digitalHumans: [],
   exportProfiles: [],
+  videoAnalyses: [],
   modelUsage: null,
   videoStorage: null,
   users: [],
@@ -124,6 +126,12 @@ const providerOptions = {
     { value: "openai-compatible", label: "OpenAI 兼容转写", model: "whisper-1" },
     { value: "whisperx", label: "WhisperX 本地服务", model: "whisperx-large-v3" },
     { value: "mock", label: "Mock 测试", model: "mock-asr" },
+  ],
+  video_understanding: [
+    { value: "volcengine-ark", label: "火山方舟 / 视频理解", model: "doubao-seed-2-0-pro-260215", base: "https://ark.cn-beijing.volces.com/api/v3" },
+    { value: "aliyun-bailian", label: "阿里云百炼 / Qwen3-VL", model: "qwen3-vl-plus", base: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
+    { value: "gemini", label: "Gemini Video Understanding", model: "gemini-2.5-pro", base: "https://generativelanguage.googleapis.com/v1beta" },
+    { value: "local", label: "本地镜头/节奏分析", model: "local-video-analyzer" },
   ],
   compliance: [
     { value: "volcengine-ark", label: "火山方舟 / Doubao Seed 2.0 Pro", model: "doubao-seed-2-0-pro-260215", base: "https://ark.cn-beijing.volces.com/api/v3" },
@@ -296,6 +304,7 @@ function renderMetrics(counts) {
     publish_records: "发布记录",
     trending_videos: "爆款参考",
     transcriptions: "转写任务",
+    video_analyses: "深度拆解",
   };
   document.querySelector("#overview").innerHTML = Object.entries(labels)
     .map(([key, label]) => `<div class="metric"><strong>${counts[key] ?? 0}</strong><span>${label}</span></div>`)
@@ -1534,6 +1543,7 @@ function purposeLabel(value) {
     video: "视频生成",
     digital_human: "数字人驱动",
     asr: "语音识别",
+    video_understanding: "视频理解/深度拆解",
     compliance: "合规检查",
     knowledge: "知识库/文档/长文本",
   }[value] || value;
@@ -1604,6 +1614,86 @@ function renderTranscriptions(tasks) {
     .join("");
 }
 
+function parseAnalysisTimeline(analysis) {
+  if (!analysis?.timeline_json) return [];
+  try {
+    const parsed = JSON.parse(analysis.timeline_json);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function renderVideoAnalyses(analyses) {
+  const target = document.querySelector("#videoAnalysisList");
+  if (!target) return;
+  state.videoAnalyses = analyses || [];
+  if (!state.videoAnalyses.length) {
+    target.innerHTML = `<div class="item">还没有深度拆解任务。选择参考视频后，点击“一键深度拆解”。</div>`;
+    return;
+  }
+  state.latestVideoAnalysisId = state.videoAnalyses[0].id;
+  target.innerHTML = state.videoAnalyses
+    .map((analysis) => {
+      const timeline = parseAnalysisTimeline(analysis);
+      const canGenerate = analysis.status === "needs_review" || analysis.status === "approved";
+      const canRun = ["queued", "failed", "draft"].includes(analysis.status);
+      return `
+        <div class="videoAnalysisCard">
+          <div class="itemHeader">
+            <strong>深度拆解 #${analysis.id} · 素材 #${analysis.material_id}</strong>
+            <span class="status taskStatus ${taskStatusClass(analysis.status)}">${taskStatusLabel(analysis.status)}</span>
+          </div>
+          <div class="analysisMetrics">
+            <span>${Number(analysis.duration_seconds || 0).toFixed(1)} 秒</span>
+            <span>${analysis.width || "-"}x${analysis.height || "-"}</span>
+            <span>${analysis.scene_count || 0} 个视觉段落</span>
+            <span>平均 ${Number(analysis.avg_shot_seconds || 0).toFixed(1)} 秒/段</span>
+          </div>
+          ${analysis.dense_contact_sheet_path ? `<img class="videoAnalysisSheet" src="/api/video-analyses/${analysis.id}/dense-contact-sheet" alt="深度拆解抽帧图" />` : ""}
+          ${analysis.error_message ? `<div class="errorText">${escapeHtml(analysis.error_message)}</div>` : ""}
+          <div class="analysisGrid">
+            <div><h3>脚本方案</h3><pre>${escapeHtml(analysis.script_analysis || "运行后生成")}</pre></div>
+            <div><h3>拍摄方式</h3><pre>${escapeHtml(analysis.shooting_analysis || "运行后生成")}</pre></div>
+            <div><h3>剪辑方式</h3><pre>${escapeHtml(analysis.editing_analysis || "运行后生成")}</pre></div>
+            <div><h3>可复用模板</h3><pre>${escapeHtml(analysis.reusable_template || "运行后生成")}</pre></div>
+          </div>
+          <details class="analysisTimelineDetails">
+            <summary>镜头时间轴</summary>
+            ${timeline.length ? `
+              <table class="compactTable analysisTimelineTable">
+                <thead>
+                  <tr>
+                    <th>时间</th>
+                    <th>画面角色</th>
+                    <th>脚本作用</th>
+                    <th>复用方式</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${timeline.slice(0, 18).map((item) => `
+                    <tr>
+                      <td>${Number(item.start_second || 0).toFixed(1)}-${Number(item.end_second || 0).toFixed(1)}s</td>
+                      <td>${escapeHtml(item.visual_role || "-")}</td>
+                      <td>${escapeHtml(item.script_function || "-")}</td>
+                      <td>${escapeHtml(item.reuse_instruction || "-")}</td>
+                    </tr>
+                  `).join("")}
+                </tbody>
+              </table>
+            ` : `<div class="item">还没有时间轴。</div>`}
+          </details>
+          <pre class="analysisReuseNotes">${escapeHtml(analysis.reuse_notes || "")}</pre>
+          <div class="itemActions">
+            <button type="button" class="secondary" data-action="run-video-analysis" data-id="${analysis.id}" ${canRun ? "" : "disabled"}>运行拆解</button>
+            <button type="button" data-action="script-from-video-analysis" data-id="${analysis.id}" ${canGenerate ? "" : "disabled"}>生成原创脚本</button>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+}
+
 function setLoginState(user) {
   state.currentUser = user;
   const label = document.querySelector("#loginState");
@@ -1637,6 +1727,7 @@ async function refresh() {
       searches,
       videos,
       transcriptions,
+      videoAnalyses,
       publishRecords,
       platformAccounts,
       digitalHumans,
@@ -1651,6 +1742,7 @@ async function refresh() {
       api.get("/trending/searches"),
       api.get("/trending/videos"),
       api.get("/transcriptions"),
+      api.get("/video-analyses"),
       api.get("/publish-records"),
       api.get("/platform-accounts"),
       api.get("/digital-humans"),
@@ -1674,6 +1766,7 @@ async function refresh() {
     renderSystemUsers(users);
     renderTrending(searches, videos);
     renderTranscriptions(transcriptions);
+    renderVideoAnalyses(videoAnalyses);
     renderPublishRecords(publishRecords);
     renderPlatformAccounts(platformAccounts);
     renderScripts(scripts);
@@ -2345,6 +2438,35 @@ document.querySelector("#analysisMaterialSelect").addEventListener("change", ren
 
 document.querySelector("#goAssetPageBtn").addEventListener("click", () => switchPage("humans"));
 
+document.querySelector("#createVideoAnalysisBtn").addEventListener("click", async () => {
+  const select = document.querySelector("#analysisMaterialSelect");
+  const language = document.querySelector("#transcriptionForm [name='language']").value || "zh-CN";
+  if (!select.value) {
+    toast("请先选择参考视频素材");
+    return;
+  }
+  const button = document.querySelector("#createVideoAnalysisBtn");
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "后台拆解中...";
+  try {
+    const created = await api.post("/video-analyses", {
+      material_id: Number(select.value),
+      provider: "local",
+      language,
+    });
+    state.latestVideoAnalysisId = created.id;
+    const task = await api.post(`/video-analyses/${created.id}/run`);
+    toast(`深度拆解完成：${taskStatusLabel(task.status)}`);
+    await refresh();
+  } catch {
+    toast("深度拆解失败，请确认素材是本地视频文件");
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
+});
+
 document.querySelector("#transcriptionForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const payload = formData(event.currentTarget);
@@ -2386,6 +2508,39 @@ document.querySelector("#transcriptionList").addEventListener("click", async (ev
     toast(`已生成脚本 #${script.id}`);
     await refresh();
     switchPage("creation");
+  }
+});
+
+document.querySelector("#videoAnalysisList").addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-action]");
+  if (!button || button.disabled) return;
+  const id = Number(button.dataset.id);
+  if (button.dataset.action === "run-video-analysis") {
+    button.disabled = true;
+    button.textContent = "拆解中...";
+    try {
+      const task = await api.post(`/video-analyses/${id}/run`);
+      state.latestVideoAnalysisId = task.id;
+      toast(`深度拆解完成：${taskStatusLabel(task.status)}`);
+      await refresh();
+    } catch {
+      toast("深度拆解失败，请确认素材是本地视频文件");
+    }
+    return;
+  }
+  if (button.dataset.action === "script-from-video-analysis") {
+    button.disabled = true;
+    button.textContent = "生成中...";
+    try {
+      const script = await api.post(`/video-analyses/${id}/generate-script`);
+      state.latestScriptId = script.id;
+      state.highlightedScriptId = script.id;
+      toast(`已按拆解模板生成原创脚本 #${script.id}`);
+      await refresh();
+      switchPage("creation");
+    } catch {
+      toast("生成脚本失败，请先运行深度拆解并检查脚本模型配置");
+    }
   }
 });
 

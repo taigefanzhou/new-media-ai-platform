@@ -228,6 +228,9 @@
               <button type="submit">创建转写</button>
               <button id="runTranscriptionBtn" type="button" class="secondary">运行转写</button>
             </div>
+            <div class="actions">
+              <button id="createVideoAnalysisBtn" type="button">一键深度拆解</button>
+            </div>
             <button id="goAssetPageBtn" type="button" class="secondary">去上传参考素材</button>
           </form>
           <div class="panel">
@@ -235,10 +238,14 @@
             <div class="list">
               <div class="item">从“数字人素材”选择参考视频或音频。</div>
               <div class="item">转写后提炼开头钩子、内容结构和可改写方向。</div>
-              <div class="item">点击“生成选题”会带到内容创作页。</div>
-              <div class="item">点击“生成原创脚本”会直接生成新脚本，可继续创建视频任务。</div>
+              <div class="item">深度拆解由后台自动完成，会分析脚本结构、拍摄方式、剪辑节奏和可复用模板。</div>
+              <div class="item">点击“生成原创脚本”会把拆解结果带到内容创作页，可继续创建视频任务。</div>
             </div>
           </div>
+        </section>
+        <section class="panel footerPanel">
+          <h2>深度拆解结果</h2>
+          <div id="videoAnalysisList" class="analysisResultList"></div>
         </section>
         <section class="panel footerPanel">
           <h2>转写结果</h2>
@@ -500,6 +507,7 @@
                   <option value="video">视频生成</option>
                   <option value="digital_human">数字人驱动</option>
                   <option value="asr">语音识别</option>
+                  <option value="video_understanding">视频理解/深度拆解</option>
                   <option value="compliance">合规检查</option>
                   <option value="knowledge">知识库/文档/长文本</option>
                 </select>

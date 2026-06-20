@@ -20,6 +20,40 @@ def apply_sqlite_migrations() -> None:
     if not settings.database_url.startswith("sqlite"):
         return
     with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS referencevideoanalysis (
+                    id INTEGER NOT NULL PRIMARY KEY,
+                    material_id INTEGER NOT NULL,
+                    provider VARCHAR DEFAULT 'local',
+                    status VARCHAR DEFAULT 'queued',
+                    language VARCHAR DEFAULT 'zh-CN',
+                    duration_seconds FLOAT DEFAULT 0,
+                    width INTEGER DEFAULT 0,
+                    height INTEGER DEFAULT 0,
+                    fps FLOAT DEFAULT 0,
+                    has_audio BOOLEAN DEFAULT 0,
+                    scene_count INTEGER DEFAULT 0,
+                    avg_shot_seconds FLOAT DEFAULT 0,
+                    visual_change_frequency VARCHAR DEFAULT '',
+                    contact_sheet_path VARCHAR,
+                    dense_contact_sheet_path VARCHAR,
+                    timeline_json VARCHAR DEFAULT '',
+                    transcript VARCHAR DEFAULT '',
+                    script_analysis VARCHAR DEFAULT '',
+                    shooting_analysis VARCHAR DEFAULT '',
+                    editing_analysis VARCHAR DEFAULT '',
+                    reusable_template VARCHAR DEFAULT '',
+                    reuse_notes VARCHAR DEFAULT '',
+                    error_message VARCHAR,
+                    created_at DATETIME,
+                    updated_at DATETIME
+                )
+                """
+            )
+        )
+
         rows = connection.execute(text("PRAGMA table_info(publishrecord)")).fetchall()
         columns = {row[1] for row in rows}
         migrations = {

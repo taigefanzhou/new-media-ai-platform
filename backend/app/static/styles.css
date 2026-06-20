@@ -1383,6 +1383,106 @@ button:disabled {
   background: #eef2f7;
 }
 
+.analysisResultList {
+  display: grid;
+  gap: 12px;
+}
+
+.videoAnalysisCard {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: #fbfcfd;
+}
+
+.analysisMetrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.analysisMetrics span {
+  min-height: 24px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 9px;
+  background: white;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.videoAnalysisSheet {
+  display: block;
+  width: 100%;
+  max-height: 520px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  object-fit: contain;
+  background: white;
+}
+
+.analysisGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.analysisGrid > div,
+.analysisReuseNotes,
+.analysisTimelineDetails {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+}
+
+.analysisGrid h3 {
+  margin: 0;
+  padding: 10px 12px 0;
+  font-size: 14px;
+}
+
+.analysisGrid pre,
+.analysisReuseNotes {
+  margin: 0;
+  padding: 10px 12px;
+  color: #344054;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.analysisTimelineDetails {
+  margin-top: 10px;
+  padding: 10px 12px;
+}
+
+.analysisTimelineDetails summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-weight: 900;
+}
+
+.analysisTimelineTable {
+  width: 100%;
+  margin-top: 10px;
+  border-collapse: collapse;
+}
+
+.analysisTimelineTable th,
+.analysisTimelineTable td {
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.analysisReuseNotes {
+  margin-top: 10px;
+}
+
 .tableActions {
   display: flex;
   flex-wrap: wrap;
@@ -1633,6 +1733,7 @@ button:disabled {
   .creationFooterActions,
   .creationParamBar,
   .productionModeBar,
+  .analysisGrid,
   .storageConfigForm,
   .advancedTaskGrid,
   .scriptUtilityGrid,
@@ -1686,6 +1787,7 @@ button:disabled {
   .creationFooterActions,
   .creationParamBar,
   .productionModeBar,
+  .analysisGrid,
   .storageConfigForm,
   .advancedTaskGrid,
   .scriptUtilityGrid,
