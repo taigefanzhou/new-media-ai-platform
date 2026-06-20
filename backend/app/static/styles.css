@@ -676,6 +676,80 @@ label {
   color: #c2410c;
 }
 
+.modelDiagnosticsList {
+  margin-bottom: 12px;
+}
+
+.modelDiagnosticsPanel {
+  padding: 14px;
+}
+
+.diagnosticCounts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.diagnosticCounts span {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: #f8fafc;
+}
+
+.modelDiagnosticGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.modelDiagnosticItem {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: #ffffff;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.modelDiagnosticItem.blocked {
+  border-color: #fecaca;
+  background: #fff7f7;
+}
+
+.modelSecretRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.modelSecretRow span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.modelSecretRow .ok {
+  border: 1px solid #99f6e4;
+  background: #f0fdfa;
+  color: #0f766e;
+}
+
+.modelSecretRow .missing {
+  border: 1px solid #fed7aa;
+  background: #fff7ed;
+  color: #c2410c;
+}
+
 input,
 textarea,
 select {
@@ -1816,6 +1890,7 @@ button:disabled {
   .titleGrid,
   .materialGrid,
   .humanGrid,
+  .modelDiagnosticGrid,
   .settingsSummary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1862,6 +1937,7 @@ button:disabled {
   .workflowSteps,
   .materialGrid,
   .humanGrid,
+  .modelDiagnosticGrid,
   .settingsSummary {
     grid-template-columns: 1fr;
   }

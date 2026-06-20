@@ -54,6 +54,7 @@ const state = {
   exportProfiles: [],
   videoAnalyses: [],
   modelUsage: null,
+  modelDiagnostics: null,
   videoStorage: null,
   users: [],
   currentUser: null,
@@ -94,28 +95,28 @@ const providerOptions = {
   ],
   tts: [
     { value: "volcengine-tts", label: "火山语音", model: "volcano-tts" },
-    { value: "cosyvoice", label: "CosyVoice", model: "cosyvoice-v2" },
-    { value: "fish-speech", label: "Fish Speech", model: "fish-speech" },
+    { value: "cosyvoice", label: "CosyVoice", model: "cosyvoice-v2", base: "http://localhost:9880" },
+    { value: "fish-speech", label: "Fish Speech", model: "fish-speech", base: "http://localhost:9881" },
     { value: "aliyun-tts", label: "阿里云语音", model: "cosyvoice-v1" },
     { value: "mock", label: "Mock 测试", model: "mock-tts" },
   ],
   voice_clone: [
     { value: "volcengine-voice-clone", label: "火山引擎 / 声音复刻", model: "volcengine-voice-clone" },
-    { value: "cosyvoice-clone", label: "CosyVoice 声音克隆服务", model: "cosyvoice-clone" },
-    { value: "openvoice", label: "OpenVoice 本地服务", model: "openvoice-v2" },
-    { value: "f5-tts", label: "F5-TTS 本地服务", model: "f5-tts" },
+    { value: "cosyvoice-clone", label: "CosyVoice 声音克隆服务", model: "cosyvoice-clone", base: "http://localhost:9880" },
+    { value: "openvoice", label: "OpenVoice 本地服务", model: "openvoice-v2", base: "http://localhost:9010" },
+    { value: "f5-tts", label: "F5-TTS 本地服务", model: "f5-tts", base: "http://localhost:9011" },
     { value: "openai-compatible", label: "其他声音复刻接口", model: "voice-clone" },
   ],
   video: [
-    { value: "seedance", label: "火山方舟 / Seedance 2.0", model: "doubao-seedance-2-0-260128" },
-    { value: "comfyui", label: "ComfyUI", model: "wan2.1-workflow" },
+    { value: "seedance", label: "火山方舟 / Seedance 2.0", model: "doubao-seedance-2-0-260128", base: "https://ark.cn-beijing.volces.com/api/v3" },
+    { value: "comfyui", label: "ComfyUI", model: "wan2.1-workflow", base: "http://localhost:8188" },
     { value: "wan", label: "Wan2.1", model: "wan2.1-t2v-1.3b" },
     { value: "hunyuan-video", label: "HunyuanVideo", model: "hunyuan-video" },
     { value: "mock", label: "Mock 测试", model: "mock-video" },
   ],
   digital_human: [
     { value: "volcengine-digital-human", label: "火山引擎 / 数字人驱动", model: "volcengine-digital-human" },
-    { value: "sadtalker", label: "SadTalker 本地/HTTP 服务", model: "sadtalker" },
+    { value: "sadtalker", label: "SadTalker 本地/HTTP 服务", model: "sadtalker", base: "http://localhost:7860" },
     { value: "heygen", label: "HeyGen 数字人", model: "heygen-avatar" },
     { value: "d-id", label: "D-ID 数字人", model: "d-id-talking-avatar" },
     { value: "mock", label: "Mock 测试", model: "mock-digital-human" },
@@ -124,7 +125,7 @@ const providerOptions = {
     { value: "volcengine", label: "火山引擎 / 豆包 ASR", model: "volcengine-asr" },
     { value: "aliyun-bailian", label: "阿里云百炼 / Qwen Audio", model: "qwen-audio-asr" },
     { value: "openai-compatible", label: "OpenAI 兼容转写", model: "whisper-1" },
-    { value: "whisperx", label: "WhisperX 本地服务", model: "whisperx-large-v3" },
+    { value: "whisperx", label: "WhisperX 本地服务", model: "whisperx-large-v3", base: "http://localhost:9000" },
     { value: "mock", label: "Mock 测试", model: "mock-asr" },
   ],
   video_understanding: [
@@ -1239,6 +1240,68 @@ function renderIntegrations(status) {
   renderVoiceCloneStatus(status.voice_clone || {});
 }
 
+function modelDiagnosticLabel(level) {
+  return {
+    ready: "真实接口可用",
+    mock: "本地/测试模式",
+    blocked: "待补齐",
+  }[level] || "待检查";
+}
+
+function modelDiagnosticStatusClass(level) {
+  return {
+    ready: "taskStatusApproved",
+    mock: "taskStatusDraft",
+    blocked: "taskStatusFailed",
+  }[level] || "taskStatusDraft";
+}
+
+function renderModelDiagnostics(report) {
+  const target = document.querySelector("#modelDiagnosticsList");
+  if (!target) return;
+  const items = report?.items || [];
+  if (!items.length) {
+    target.innerHTML = `<div class="item">还没有模型接入体检结果。</div>`;
+    return;
+  }
+  target.innerHTML = `
+    <section class="panel modelDiagnosticsPanel">
+      <div class="sectionHeader compactSectionHeader">
+        <div>
+          <h2>模型接入体检</h2>
+          <p>绿色表示真实接口已具备运行条件，橙色表示本地或 Mock，占位不产生真实效果，红色表示还缺接口地址或 Key。</p>
+        </div>
+        <div class="diagnosticCounts">
+          <span>可用 ${formatNumber(report.ready_count)}</span>
+          <span>占位 ${formatNumber(report.mock_count)}</span>
+          <span>待补齐 ${formatNumber(report.blocked_count)}</span>
+        </div>
+      </div>
+      <div class="modelDiagnosticGrid">
+        ${items
+          .map(
+            (item) => `
+              <div class="modelDiagnosticItem ${item.level === "blocked" ? "blocked" : ""}">
+                <div class="itemHeader">
+                  <strong>${escapeHtml(item.purpose_label || item.purpose)}</strong>
+                  <span class="status taskStatus ${modelDiagnosticStatusClass(item.level)}">${modelDiagnosticLabel(item.level)}</span>
+                </div>
+                <div class="recordMeta">${escapeHtml(providerLabel(item.purpose, item.provider || "-"))} · ${escapeHtml(item.model_name || "-")}</div>
+                <div>${escapeHtml(item.summary || "")}</div>
+                <div class="modelSecretRow">
+                  <span class="${item.has_api_base ? "ok" : "missing"}">接口地址${item.has_api_base ? "已填" : "缺失"}</span>
+                  <span class="${item.has_api_key ? "ok" : "missing"}">Key ${item.has_api_key ? "已保存" : "缺失"}</span>
+                </div>
+                <div class="recordMeta">${escapeHtml(item.next_action || "")}</div>
+              </div>
+            `,
+          )
+          .join("")}
+      </div>
+    </section>
+  `;
+}
+
 function renderModels(models) {
   const target = document.querySelector("#modelConfigList");
   if (!models.length) {
@@ -1255,8 +1318,9 @@ function renderModels(models) {
           </div>
           <div>${providerLabel(model.purpose, model.provider)} · ${purposeLabel(model.purpose)}</div>
           <div>${model.model_name}</div>
-          <div class="modelKeyStatus ${model.has_api_key ? "saved" : "missing"}">
-            API Key：${model.has_api_key ? "已保存 Key" : "未保存 Key"}
+          <div class="modelSecretRow">
+            <span class="${model.api_base ? "ok" : "missing"}">接口地址：${model.api_base ? "已填写" : "未填写"}</span>
+            <span class="${model.has_api_key ? "ok" : "missing"}">API Key：${model.has_api_key ? "已保存 Key" : "未保存 Key"}</span>
           </div>
           <div class="itemActions">
             <button type="button" class="secondary" data-action="test-model-config" data-id="${model.id}">测试</button>
@@ -1746,6 +1810,7 @@ async function refresh() {
       scripts,
       videoTasks,
       modelUsage,
+      modelDiagnostics,
       videoStorage,
       users,
     ] = await Promise.all([
@@ -1761,6 +1826,7 @@ async function refresh() {
       api.get("/scripts"),
       api.get("/video-tasks"),
       api.get("/settings/model-usage"),
+      api.get("/settings/model-diagnostics"),
       api.get("/settings/video-storage"),
       api.get("/settings/users").catch(() => []),
     ]);
@@ -1769,9 +1835,11 @@ async function refresh() {
     state.publishRecords = publishRecords;
     state.digitalHumans = digitalHumans;
     state.modelUsage = modelUsage;
+    state.modelDiagnostics = modelDiagnostics;
     state.videoStorage = videoStorage;
     state.users = users;
     renderModels(models);
+    renderModelDiagnostics(modelDiagnostics);
     renderPlatformCredentials(platformCredentials);
     renderModelUsage(modelUsage);
     renderVideoStorage(videoStorage);
@@ -2368,14 +2436,15 @@ document.querySelector("#modelConfigList").addEventListener("click", async (even
     }
     try {
       const result = await api.post(`/settings/models/${id}/test`);
+      const testTitle = result.test_level === "configuration" ? "配置体检通过" : result.test_level === "local" ? "本地模式可用" : "测试通过";
       if (resultTarget) {
         resultTarget.innerHTML = `
-          <strong>测试通过 · ${escapeHtml(result.provider || "-")} / ${escapeHtml(result.model_name || "-")}</strong>
+          <strong>${testTitle} · ${escapeHtml(result.provider || "-")} / ${escapeHtml(result.model_name || "-")}</strong>
           <span>评分 ${Number(result.quality_score || 0).toFixed(0)} 分</span>
           <p>${escapeHtml(result.summary || "模型连接可用。")}</p>
         `;
       }
-      toast(`模型测试通过：${Number(result.quality_score || 0).toFixed(0)} 分`);
+      toast(`${testTitle}：${Number(result.quality_score || 0).toFixed(0)} 分`);
       await refresh();
     } catch (error) {
       const message = error?.message || "模型测试失败";

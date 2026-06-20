@@ -54,6 +54,9 @@ SCRIPT_REALISM_PRESET = {
     ],
 }
 
+KEYLESS_VOICE_CLONE_PROVIDERS = {"cosyvoice-clone", "f5-tts", "openvoice"}
+KEYLESS_DIGITAL_HUMAN_PROVIDERS = {"http-json", "sadtalker"}
+
 
 class ScriptGenerator:
     def __init__(self, model_config=None) -> None:
@@ -461,10 +464,12 @@ class MediaGenerationClient:
         api_base = model_config.api_base if model_config and model_config.api_base else self.settings.voice_clone_api_base
         api_key = model_config.api_key if model_config and model_config.api_key else self.settings.voice_clone_api_key
         provider = model_config.provider if model_config else self.settings.voice_clone_provider
-        if not api_base or not api_key:
+        if not api_base:
             raise RuntimeError("Voice clone service is not configured")
+        if not api_key and provider not in KEYLESS_VOICE_CLONE_PROVIDERS:
+            raise RuntimeError("Voice clone API key is not configured")
 
-        headers = {"Authorization": f"Bearer {api_key}"}
+        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
         data = {
             "provider": provider,
             "speaker_name": speaker_name,
@@ -508,6 +513,8 @@ class MediaGenerationClient:
             if portrait_path and self._is_local_path(audio_path):
                 return self._local_talking_avatar_preview(portrait_path, audio_path)
             return self._mock_asset("digital-human", "talking-avatar.mp4")
+        if not api_key and provider not in KEYLESS_DIGITAL_HUMAN_PROVIDERS:
+            raise RuntimeError("Digital human API key is not configured")
 
         if self._is_local_path(audio_path) and (
             self._is_local_path(portrait_path or "") or self._is_local_path(source_video_path or "")
@@ -555,7 +562,14 @@ class MediaGenerationClient:
             if self.digital_human_model_config
             else self.settings.digital_human_provider
         )
-        return bool(api_base) and provider != "mock"
+        api_key = (
+            self.digital_human_model_config.api_key
+            if self.digital_human_model_config and self.digital_human_model_config.api_key
+            else self.settings.digital_human_api_key
+        )
+        if not api_base or provider == "mock":
+            return False
+        return bool(api_key) or provider in KEYLESS_DIGITAL_HUMAN_PROVIDERS
 
     async def generate_seedance_clips(self, prompt: str, duration_seconds: int = 30) -> list[str]:
         plan = self.segment_plan(prompt, "", duration_seconds)

@@ -6,6 +6,9 @@ import httpx
 from app.core.config import get_settings
 from app.models.entities import AIModelConfig, Material, TranscriptionTask
 
+HTTP_JSON_ASR_PROVIDERS = {"aliyun-bailian", "http-json", "openai-compatible", "volcengine", "whisperx"}
+KEYLESS_ASR_PROVIDERS = {"http-json", "whisperx"}
+
 
 @dataclass
 class TranscriptionResult:
@@ -24,7 +27,13 @@ class ASRClient:
         api_base = self.model_config.api_base if self.model_config and self.model_config.api_base else self.settings.asr_api_base
         api_key = self.model_config.api_key if self.model_config and self.model_config.api_key else self.settings.asr_api_key
         model_name = self.model_config.model_name if self.model_config else self.settings.asr_model
-        if provider in ("volcengine", "http-json", "aliyun-bailian", "openai-compatible") and api_base:
+        if provider in ("mock", "local"):
+            return self._mock_result(material)
+        if provider in HTTP_JSON_ASR_PROVIDERS:
+            if not api_base:
+                raise RuntimeError("ASR service API base is not configured")
+            if not api_key and provider not in KEYLESS_ASR_PROVIDERS:
+                raise RuntimeError("ASR service API key is not configured")
             return await self._transcribe_http_json(task, material, api_base, api_key, model_name)
         return self._mock_result(material)
 

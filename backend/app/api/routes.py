@@ -7,6 +7,7 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlparse
 from uuid import uuid4
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
@@ -85,6 +86,144 @@ from app.services.video_analysis import ReferenceVideoAnalyzer
 router = APIRouter()
 
 PRODUCTION_MODES = {"dynamic_explainer", "digital_human", "seedance_scene", "talking_head_template"}
+MODEL_PURPOSE_ORDER = [
+    "script",
+    "knowledge",
+    "compliance",
+    "video_understanding",
+    "video",
+    "asr",
+    "tts",
+    "voice_clone",
+    "digital_human",
+]
+MODEL_PURPOSE_LABELS = {
+    "script": "脚本生成",
+    "tts": "语音合成",
+    "voice_clone": "声音复刻",
+    "video": "视频生成",
+    "digital_human": "数字人驱动",
+    "asr": "语音识别",
+    "video_understanding": "视频理解/深度拆解",
+    "compliance": "合规检查",
+    "knowledge": "知识库/文档/长文本",
+}
+MODEL_LOCAL_PROVIDERS = {"local", "mock", "stub"}
+MODEL_HTTP_LOCAL_PROVIDERS = {
+    "comfyui",
+    "cosyvoice",
+    "cosyvoice-clone",
+    "f5-tts",
+    "fish-speech",
+    "http-json",
+    "openvoice",
+    "sadtalker",
+    "vllm",
+    "whisperx",
+}
+
+
+def _api_base_looks_valid(api_base: str | None) -> bool:
+    if not api_base:
+        return False
+    parsed = urlparse(api_base)
+    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+
+
+def _model_requires_api_base(purpose: str, provider: str) -> bool:
+    if provider in MODEL_LOCAL_PROVIDERS:
+        return False
+    return purpose in set(MODEL_PURPOSE_ORDER)
+
+
+def _model_requires_api_key(purpose: str, provider: str) -> bool:
+    if provider in MODEL_LOCAL_PROVIDERS or provider in MODEL_HTTP_LOCAL_PROVIDERS:
+        return False
+    if purpose == "video" and provider == "comfyui":
+        return False
+    return True
+
+
+def _diagnose_model_config(
+    config: AIModelConfig | None,
+    purpose: str | None = None,
+    require_active: bool = True,
+) -> dict[str, object]:
+    resolved_purpose = purpose or (config.purpose if config else "")
+    if not config:
+        return {
+            "purpose": resolved_purpose,
+            "purpose_label": MODEL_PURPOSE_LABELS.get(resolved_purpose, resolved_purpose),
+            "model_config_id": None,
+            "name": "未启用模型",
+            "provider": "-",
+            "model_name": "-",
+            "is_active": False,
+            "has_api_base": False,
+            "has_api_key": False,
+            "configured": False,
+            "real_api": False,
+            "missing": ["active_model"],
+            "level": "blocked",
+            "summary": "还没有启用的模型配置。",
+            "next_action": "到 AI 模型接入里新增或启用一个模型配置。",
+        }
+
+    provider = config.provider
+    api_base = (config.api_base or "").strip()
+    has_api_base = bool(api_base)
+    has_valid_api_base = _api_base_looks_valid(api_base)
+    has_api_key = bool(config.api_key)
+    missing: list[str] = []
+    if require_active and not config.is_active:
+        missing.append("active")
+    if _model_requires_api_base(config.purpose, provider):
+        if not has_api_base:
+            missing.append("api_base")
+        elif not has_valid_api_base:
+            missing.append("valid_api_base")
+    if _model_requires_api_key(config.purpose, provider) and not has_api_key:
+        missing.append("api_key")
+
+    configured = not missing
+    real_api = configured and provider not in MODEL_LOCAL_PROVIDERS
+    if provider in MODEL_LOCAL_PROVIDERS:
+        level = "mock" if configured else "blocked"
+        summary = "当前使用本地/测试模式，不会调用真实外部接口。" if configured else "本地/测试模型未启用。"
+        next_action = "如果要真实生成，请切换为火山、千问或已部署的 HTTP 服务。"
+    elif configured:
+        level = "ready"
+        summary = "接口地址和密钥要求已满足，业务运行时可以调用这个模型。"
+        next_action = "可以在对应业务页面发起真实任务，系统会记录调用用量。"
+    else:
+        level = "blocked"
+        missing_labels = {
+            "active": "启用状态",
+            "api_base": "接口地址",
+            "valid_api_base": "有效接口地址",
+            "api_key": "API Key",
+        }
+        missing_text = "、".join(missing_labels.get(item, item) for item in missing)
+        summary = f"配置不完整，缺少：{missing_text}。"
+        next_action = f"补齐{missing_text}后再测试或运行任务。"
+
+    return {
+        "purpose": config.purpose,
+        "purpose_label": MODEL_PURPOSE_LABELS.get(config.purpose, config.purpose),
+        "model_config_id": config.id,
+        "name": config.name,
+        "provider": provider,
+        "model_name": config.model_name,
+        "is_active": config.is_active,
+        "has_api_base": has_api_base,
+        "has_api_key": has_api_key,
+        "configured": configured,
+        "real_api": real_api,
+        "missing": missing,
+        "level": level,
+        "summary": summary,
+        "next_action": next_action,
+    }
 
 
 def _active_model_config(session: Session, purpose: str) -> AIModelConfig | None:
@@ -117,21 +256,20 @@ def _configured_model_status(
 ) -> dict[str, object]:
     config = _active_model_config(session, purpose)
     if config:
-        if config.provider in {"local", "mock"}:
-            configured = True
-        elif purpose in {"digital_human", "voice_clone"} and config.provider in {"sadtalker", "http-json"}:
-            configured = bool(config.api_base)
-        else:
-            configured = bool(config.api_base and config.api_key)
+        diagnostic = _diagnose_model_config(config, require_active=False)
         return {
             "provider": config.provider,
-            "configured": configured,
+            "configured": diagnostic["configured"],
             "model": config.model_name,
+            "real_api": diagnostic["real_api"],
+            "missing": diagnostic["missing"],
         }
     return {
         "provider": fallback_provider,
         "configured": fallback_configured,
         "model": fallback_model,
+        "real_api": fallback_configured and fallback_provider not in MODEL_LOCAL_PROVIDERS,
+        "missing": [] if fallback_configured else ["model_config"],
     }
 
 
@@ -281,6 +419,23 @@ def list_model_configs(
 ) -> list[AIModelConfigPublic]:
     configs = session.exec(select(AIModelConfig).order_by(AIModelConfig.created_at.desc())).all()
     return [_model_config_public(config) for config in configs]
+
+
+@router.get("/settings/model-diagnostics")
+def model_diagnostics(
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> dict[str, object]:
+    items = []
+    for purpose in MODEL_PURPOSE_ORDER:
+        config = _active_model_config(session, purpose)
+        items.append(_diagnose_model_config(config, purpose))
+    return {
+        "items": items,
+        "ready_count": sum(1 for item in items if item["level"] == "ready"),
+        "mock_count": sum(1 for item in items if item["level"] == "mock"),
+        "blocked_count": sum(1 for item in items if item["level"] == "blocked"),
+    }
 
 
 @router.get("/settings/model-usage")
@@ -499,24 +654,33 @@ async def test_model_config(
     if config is None:
         raise HTTPException(status_code=404, detail="Model config not found")
     try:
+        diagnostic = _diagnose_model_config(config, require_active=False)
+        if not diagnostic["configured"]:
+            raise ValueError(str(diagnostic["summary"]))
         if config.purpose == "video_understanding":
             result = await ReferenceVideoAnalyzer(config).test_connection()
-        elif config.api_base and config.api_key:
+            result["test_level"] = "live_api"
+        elif config.provider in MODEL_LOCAL_PROVIDERS:
             result = {
                 "ok": True,
                 "provider": config.provider,
                 "model_name": config.model_name,
-                "quality_score": 70,
-                "summary": "模型配置已填写；当前测试按钮主要用于视频理解/深度拆解模型。",
-                "usage": {"prompt_tokens": 0, "completion_tokens": 1, "total_tokens": 1},
+                "quality_score": 60,
+                "test_level": "local",
+                "summary": "本地或测试模式可用，但不会调用真实外部 API。",
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
             }
         else:
             result = {
                 "ok": True,
                 "provider": config.provider,
                 "model_name": config.model_name,
-                "quality_score": 60,
-                "summary": "本地或占位模型配置可用，但未调用外部 API。",
+                "quality_score": 75,
+                "test_level": "configuration",
+                "summary": (
+                    f"{MODEL_PURPOSE_LABELS.get(config.purpose, config.purpose)}配置体检通过："
+                    "接口地址和密钥要求已满足，真实调用会在对应业务运行时执行。"
+                ),
                 "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
             }
         usage = result.get("usage") if isinstance(result.get("usage"), dict) else {}
@@ -1362,9 +1526,15 @@ def _validate_video_task_inputs(
 def _digital_human_service_ready(session: Session) -> bool:
     model_config = _active_model_config(session, "digital_human")
     settings = get_settings()
+    if model_config:
+        return bool(_diagnose_model_config(model_config)["configured"])
     api_base = model_config.api_base if model_config and model_config.api_base else settings.digital_human_api_base
     provider = model_config.provider if model_config else settings.digital_human_provider
-    return bool(api_base) and provider != "mock"
+    if provider in MODEL_LOCAL_PROVIDERS:
+        return False
+    if provider in {"sadtalker", "http-json"}:
+        return bool(api_base)
+    return bool(api_base and settings.digital_human_api_key)
 
 
 def _ensure_video_task_can_run(task: VideoTask) -> None:
