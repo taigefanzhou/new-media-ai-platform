@@ -33,6 +33,19 @@ class AIModelConfigUpdate(BaseModel):
     notes: Optional[str] = None
 
 
+class AIModelConfigPublic(BaseModel):
+    id: int
+    name: str
+    provider: str
+    purpose: str
+    api_base: Optional[str] = None
+    model_name: str
+    is_active: bool
+    notes: str = ""
+    created_at: datetime
+    has_api_key: bool
+
+
 class UserCreate(BaseModel):
     username: str
     password: str = Field(..., min_length=6)

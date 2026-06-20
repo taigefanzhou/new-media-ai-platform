@@ -1255,6 +1255,9 @@ function renderModels(models) {
           </div>
           <div>${providerLabel(model.purpose, model.provider)} · ${purposeLabel(model.purpose)}</div>
           <div>${model.model_name}</div>
+          <div class="modelKeyStatus ${model.has_api_key ? "saved" : "missing"}">
+            API Key：${model.has_api_key ? "已保存 Key" : "未保存 Key"}
+          </div>
           <div class="itemActions">
             <button type="button" class="secondary" data-action="test-model-config" data-id="${model.id}">测试</button>
             <button type="button" data-action="activate-model-config" data-id="${model.id}" ${model.is_active ? "disabled" : ""}>启用</button>

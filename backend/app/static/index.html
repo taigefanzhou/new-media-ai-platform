@@ -517,7 +517,10 @@
               </label>
               <label>接口地址<input name="api_base" placeholder="https://api.example.com/v1" /></label>
               <label>模型名<input name="model_name" placeholder="gpt-4.1-mini / deepseek-chat" /></label>
-              <label>API Key<input name="api_key" type="password" placeholder="保存后不会展示明文" /></label>
+              <label class="apiKeyField">API Key
+                <input name="api_key" type="password" placeholder="保存后不会展示明文" />
+                <span>已保存的 Key 只显示状态，不展示明文；重新填写会覆盖旧 Key。</span>
+              </label>
               <label class="checkLine"><input name="is_active" type="checkbox" checked /> 设为启用</label>
               <button type="submit">保存模型配置</button>
             </form>

@@ -42,6 +42,7 @@ from app.models.entities import (
 )
 from app.schemas.requests import (
     AIModelConfigCreate,
+    AIModelConfigPublic,
     AIModelConfigUpdate,
     DigitalHumanCreate,
     LoginRequest,
@@ -90,6 +91,21 @@ def _active_model_config(session: Session, purpose: str) -> AIModelConfig | None
     return session.exec(
         select(AIModelConfig).where(AIModelConfig.purpose == purpose, AIModelConfig.is_active == True)
     ).first()
+
+
+def _model_config_public(config: AIModelConfig) -> AIModelConfigPublic:
+    return AIModelConfigPublic(
+        id=config.id or 0,
+        name=config.name,
+        provider=config.provider,
+        purpose=config.purpose,
+        api_base=config.api_base,
+        model_name=config.model_name,
+        is_active=config.is_active,
+        notes=config.notes,
+        created_at=config.created_at,
+        has_api_key=bool(config.api_key),
+    )
 
 
 def _configured_model_status(
@@ -258,12 +274,13 @@ def dashboard(session: Session = Depends(get_session)) -> dict[str, object]:
     return {"counts": counts, "recent_tasks": recent_tasks, "recent_scripts": recent_scripts}
 
 
-@router.get("/settings/models", response_model=list[AIModelConfig])
+@router.get("/settings/models", response_model=list[AIModelConfigPublic])
 def list_model_configs(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
-) -> list[AIModelConfig]:
-    return list(session.exec(select(AIModelConfig).order_by(AIModelConfig.created_at.desc())).all())
+) -> list[AIModelConfigPublic]:
+    configs = session.exec(select(AIModelConfig).order_by(AIModelConfig.created_at.desc())).all()
+    return [_model_config_public(config) for config in configs]
 
 
 @router.get("/settings/model-usage")
@@ -419,28 +436,28 @@ def choose_video_storage_folder(user: User = Depends(current_user)) -> dict[str,
     return {"storage_root": str(Path(selected_path).expanduser().resolve())}
 
 
-@router.post("/settings/models", response_model=AIModelConfig)
+@router.post("/settings/models", response_model=AIModelConfigPublic)
 def create_model_config(
     payload: AIModelConfigCreate,
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
-) -> AIModelConfig:
+) -> AIModelConfigPublic:
     if payload.is_active:
         _deactivate_models(session, payload.purpose)
     config = AIModelConfig.model_validate(payload)
     session.add(config)
     session.commit()
     session.refresh(config)
-    return config
+    return _model_config_public(config)
 
 
-@router.patch("/settings/models/{model_id}", response_model=AIModelConfig)
+@router.patch("/settings/models/{model_id}", response_model=AIModelConfigPublic)
 def update_model_config(
     model_id: int,
     payload: AIModelConfigUpdate,
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
-) -> AIModelConfig:
+) -> AIModelConfigPublic:
     config = session.get(AIModelConfig, model_id)
     if config is None:
         raise HTTPException(status_code=404, detail="Model config not found")
@@ -452,15 +469,15 @@ def update_model_config(
     session.add(config)
     session.commit()
     session.refresh(config)
-    return config
+    return _model_config_public(config)
 
 
-@router.post("/settings/models/{model_id}/activate", response_model=AIModelConfig)
+@router.post("/settings/models/{model_id}/activate", response_model=AIModelConfigPublic)
 def activate_model_config(
     model_id: int,
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
-) -> AIModelConfig:
+) -> AIModelConfigPublic:
     config = session.get(AIModelConfig, model_id)
     if config is None:
         raise HTTPException(status_code=404, detail="Model config not found")
@@ -469,7 +486,7 @@ def activate_model_config(
     session.add(config)
     session.commit()
     session.refresh(config)
-    return config
+    return _model_config_public(config)
 
 
 @router.post("/settings/models/{model_id}/test")

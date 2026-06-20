@@ -639,6 +639,43 @@ label {
   font-weight: 700;
 }
 
+.apiKeyField {
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  padding: 10px;
+  background: #eff6ff;
+}
+
+.apiKeyField span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.modelKeyStatus {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 26px;
+  margin-top: 8px;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.modelKeyStatus.saved {
+  border: 1px solid #99f6e4;
+  background: #f0fdfa;
+  color: #0f766e;
+}
+
+.modelKeyStatus.missing {
+  border: 1px solid #fed7aa;
+  background: #fff7ed;
+  color: #c2410c;
+}
+
 input,
 textarea,
 select {
