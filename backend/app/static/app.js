@@ -45,10 +45,10 @@ const state = {
 
 const pages = {
   overview: { title: "运营总览", eyebrow: "Overview" },
-  materials: { title: "素材库", eyebrow: "Assets" },
+  materials: { title: "数字人素材", eyebrow: "Digital Human Assets" },
   creation: { title: "内容创作", eyebrow: "Creation" },
   analysis: { title: "参考解析", eyebrow: "ASR Analysis" },
-  humans: { title: "数字人", eyebrow: "Digital Human" },
+  humans: { title: "数字人素材", eyebrow: "Digital Human Assets" },
   tasks: { title: "视频任务", eyebrow: "Video Tasks" },
   trending: { title: "爆款采集", eyebrow: "Trending" },
   publish: { title: "发布中心", eyebrow: "Publishing" },
@@ -72,6 +72,13 @@ const providerOptions = {
     { value: "fish-speech", label: "Fish Speech", model: "fish-speech" },
     { value: "aliyun-tts", label: "阿里云语音", model: "cosyvoice-v1" },
     { value: "mock", label: "Mock 测试", model: "mock-tts" },
+  ],
+  voice_clone: [
+    { value: "volcengine-voice-clone", label: "火山引擎 / 声音复刻", model: "volcengine-voice-clone" },
+    { value: "cosyvoice-clone", label: "CosyVoice 声音克隆服务", model: "cosyvoice-clone" },
+    { value: "openvoice", label: "OpenVoice 本地服务", model: "openvoice-v2" },
+    { value: "f5-tts", label: "F5-TTS 本地服务", model: "f5-tts" },
+    { value: "openai-compatible", label: "其他声音复刻接口", model: "voice-clone" },
   ],
   video: [
     { value: "seedance", label: "火山方舟 / Seedance 2.0", model: "doubao-seedance-2-0-260128" },
@@ -626,6 +633,7 @@ function renderDigitalHumans(humans) {
             <span class="status">${escapeHtml(human.style)}</span>
             <div class="recordMeta">头像素材 ID：${human.portrait_material_id || "-"}</div>
             <div class="recordMeta">口播源视频 ID：${human.source_video_material_id || "-"}</div>
+            <div class="recordMeta">声音 ID：${escapeHtml(human.default_voice || "未复刻")}</div>
             ${sourceVideo}
           </div>
         </div>
@@ -634,10 +642,23 @@ function renderDigitalHumans(humans) {
     .join("");
 }
 
+function renderVoiceCloneStatus(status) {
+  const target = document.querySelector("#voiceCloneStatus");
+  if (!target) return;
+  const configured = Boolean(status.configured);
+  target.innerHTML = `
+    <div class="voiceCloneCard ${configured ? "ready" : "pending"}">
+      <strong>${configured ? "声音复刻已接入" : "声音复刻未接入"}</strong>
+      <span>${escapeHtml(status.provider || "未配置")} · ${configured ? "上传源视频后可生成本人 voice_id" : "当前只能使用默认语音，需在系统设置里配置声音复刻接口"}</span>
+    </div>
+  `;
+}
+
 function renderIntegrations(status) {
   const labels = {
     script_model: "脚本模型",
     tts: "语音合成",
+    voice_clone: "声音复刻",
     digital_human: "数字人",
     video_generation: "视频生成",
     composition: "视频合成",
@@ -651,6 +672,7 @@ function renderIntegrations(status) {
       return `<span>${label}: ${item.provider || "-"} · ${configured}</span>`;
     })
     .join("");
+  renderVoiceCloneStatus(status.voice_clone || {});
 }
 
 function renderModels(models) {
@@ -731,6 +753,7 @@ function purposeLabel(value) {
   return {
     script: "脚本生成",
     tts: "语音合成",
+    voice_clone: "声音复刻",
     video: "视频生成",
     asr: "语音识别",
     compliance: "合规检查",

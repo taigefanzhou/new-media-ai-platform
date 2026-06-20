@@ -203,6 +203,36 @@ class MediaGenerationClient:
         output_path.write_bytes(data)
         return str(output_path)
 
+    async def clone_voice_from_source_video(
+        self,
+        source_video_path: str,
+        speaker_name: str,
+        model_config=None,
+    ) -> str:
+        api_base = model_config.api_base if model_config and model_config.api_base else self.settings.voice_clone_api_base
+        api_key = model_config.api_key if model_config and model_config.api_key else self.settings.voice_clone_api_key
+        provider = model_config.provider if model_config else self.settings.voice_clone_provider
+        if not api_base or not api_key:
+            raise RuntimeError("Voice clone service is not configured")
+
+        headers = {"Authorization": f"Bearer {api_key}"}
+        data = {
+            "provider": provider,
+            "speaker_name": speaker_name,
+        }
+        with open(source_video_path, "rb") as source_file:
+            files = {
+                "source_video": (Path(source_video_path).name, source_file, "video/mp4"),
+            }
+            async with httpx.AsyncClient(timeout=900) as client:
+                response = await client.post(api_base.rstrip("/") + "/clone", data=data, files=files, headers=headers)
+                response.raise_for_status()
+                result = response.json()
+        voice_id = self._extract_voice_id(result)
+        if not voice_id:
+            raise RuntimeError("Voice clone service did not return a voice_id")
+        return voice_id
+
     async def generate_talking_avatar(
         self,
         portrait_path: Optional[str],
@@ -569,6 +599,16 @@ class MediaGenerationClient:
                 if clips:
                     return clips
         return [self._extract_media_url(result, "seedance")]
+
+    def _extract_voice_id(self, result: dict[str, object]) -> Optional[str]:
+        for key in ("voice_id", "speaker_id", "voice", "id"):
+            value = result.get(key)
+            if isinstance(value, str) and value:
+                return value
+        data = result.get("data")
+        if isinstance(data, dict):
+            return self._extract_voice_id(data)
+        return None
 
     def _is_local_path(self, value: str) -> bool:
         return bool(value) and not value.startswith("mock://") and not value.startswith("http")

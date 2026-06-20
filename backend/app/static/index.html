@@ -17,10 +17,9 @@
       </div>
       <nav id="mainNav">
         <button class="navItem active" data-page="overview">总览</button>
-        <button class="navItem" data-page="materials">素材库</button>
+        <button class="navItem" data-page="humans">数字人素材</button>
         <button class="navItem" data-page="creation">内容创作</button>
         <button class="navItem" data-page="analysis">参考解析</button>
-        <button class="navItem" data-page="humans">数字人</button>
         <button class="navItem" data-page="tasks">视频任务</button>
         <button class="navItem" data-page="trending">爆款采集</button>
         <button class="navItem" data-page="publish">发布中心</button>
@@ -69,7 +68,7 @@
 
       <section id="page-materials" class="page">
         <section class="split">
-          <form id="uploadForm" class="panel">
+          <form id="legacyUploadForm" class="panel">
             <h2>上传素材</h2>
             <label>文件<input name="file" type="file" accept="image/*,video/*" /></label>
             <label>名称<input name="name" placeholder="头像、产品图或参考视频名称" /></label>
@@ -97,7 +96,7 @@
         </section>
         <section class="panel footerPanel">
           <h2>素材预览</h2>
-          <div id="materialList" class="materialGrid"></div>
+          <div id="legacyMaterialList" class="materialGrid"></div>
         </section>
       </section>
 
@@ -180,6 +179,33 @@
 
       <section id="page-humans" class="page">
         <section class="split">
+          <form id="uploadForm" class="panel">
+            <h2>上传数字人素材</h2>
+            <label>文件<input name="file" type="file" accept="image/*,video/*" /></label>
+            <label>名称<input name="name" placeholder="李明亮头像 / 李明亮口播源视频" /></label>
+            <label>类型
+              <select name="kind">
+                <option value="portrait">数字人头像</option>
+                <option value="avatar_source">数字人口播视频源</option>
+                <option value="image">图片素材</option>
+                <option value="video">普通视频素材</option>
+                <option value="product">产品素材</option>
+                <option value="reference">参考素材</option>
+              </select>
+            </label>
+            <button type="submit">上传并预览</button>
+          </form>
+          <div class="panel">
+            <h2>声音与形象采集</h2>
+            <div class="list">
+              <div class="item">头像用于形象预览和照片驱动数字人。</div>
+              <div class="item">口播视频源用于采集本人声音、动作和口型参考。</div>
+              <div class="item">配置声音复刻 API 后，系统会先生成 voice_id，再用本人音色合成新脚本。</div>
+            </div>
+            <div id="voiceCloneStatus" class="voiceCloneStatus"></div>
+          </div>
+        </section>
+        <section class="split">
           <form id="humanForm" class="panel">
             <h2>创建数字人</h2>
             <label>名称<input name="name" value="公司讲解员A" /></label>
@@ -217,6 +243,10 @@
         <section class="panel footerPanel">
           <h2>数字人形象预览</h2>
           <div id="humanList" class="humanGrid"></div>
+        </section>
+        <section class="panel footerPanel">
+          <h2>素材预览</h2>
+          <div id="materialList" class="materialGrid"></div>
         </section>
       </section>
 
@@ -348,6 +378,7 @@
               <select name="purpose">
                 <option value="script">脚本生成</option>
                 <option value="tts">语音合成</option>
+                <option value="voice_clone">声音复刻</option>
                 <option value="video">视频生成</option>
                 <option value="asr">语音识别</option>
                 <option value="compliance">合规检查</option>

@@ -292,6 +292,10 @@ def integrations_status() -> dict[str, dict[str, object]]:
             "provider": settings.digital_human_provider,
             "configured": bool(settings.digital_human_api_base) or settings.digital_human_provider == "mock",
         },
+        "voice_clone": {
+            "provider": settings.voice_clone_provider,
+            "configured": bool(settings.voice_clone_api_base and settings.voice_clone_api_key),
+        },
         "video_generation": {
             "provider": settings.video_generation_provider,
             "configured": (
