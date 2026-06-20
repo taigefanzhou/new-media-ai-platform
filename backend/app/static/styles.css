@@ -189,11 +189,33 @@ h2 {
 }
 
 .creationBrief textarea[name="topic"] {
-  min-height: 110px;
+  min-height: 78px;
 }
 
-.compactFormGrid {
-  grid-template-columns: minmax(280px, 1.2fr) repeat(3, minmax(160px, 0.8fr));
+.creationBriefGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+  gap: 12px;
+}
+
+.creationBriefGrid textarea {
+  min-height: 78px;
+}
+
+.creationParamBar {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(140px, 1fr)) minmax(220px, 0.9fr);
+  gap: 12px;
+  align-items: end;
+}
+
+.creationParamBar label,
+.creationBriefGrid label {
+  margin-bottom: 0;
+}
+
+.compactSectionHeader {
+  margin-bottom: 12px;
 }
 
 .sectionHeader {
@@ -247,6 +269,11 @@ h2 {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.45;
+}
+
+.resultHint.isGenerating {
+  color: var(--accent);
+  font-weight: 900;
 }
 
 .creationResultPanel {
@@ -491,15 +518,15 @@ button:disabled {
 .titleGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px;
-  margin-bottom: 14px;
+  gap: 10px;
+  margin-bottom: 12px;
 }
 
 .titleOption {
   display: grid;
-  gap: 8px;
-  min-height: 96px;
-  padding: 12px;
+  gap: 6px;
+  min-height: 76px;
+  padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: #fbfcfd;
@@ -525,21 +552,25 @@ button:disabled {
 
 .scriptResult {
   display: grid;
-  gap: 12px;
+  gap: 10px;
 }
 
 .scriptBlock,
 .scriptMetaGrid > div {
   border: 1px solid var(--line);
   border-radius: 6px;
-  padding: 12px;
+  padding: 11px 12px;
   background: #fbfcfd;
+}
+
+.scriptResultFresh {
+  animation: resultPulse 1.2s ease-out;
 }
 
 .scriptBlock span,
 .scriptMetaGrid span {
   display: block;
-  margin-bottom: 7px;
+  margin-bottom: 6px;
   color: var(--accent);
   font-size: 12px;
   font-weight: 900;
@@ -553,14 +584,94 @@ button:disabled {
 .scriptMetaGrid p {
   margin: 0;
   color: #263241;
-  line-height: 1.65;
+  line-height: 1.58;
   white-space: pre-wrap;
+}
+
+.primaryScriptBlock {
+  background: #ffffff;
+}
+
+.primaryScriptBlock p {
+  font-size: 15px;
+}
+
+.compactScriptBlock p,
+.compactScriptBlock strong {
+  line-height: 1.5;
 }
 
 .scriptMetaGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 10px;
+}
+
+.scriptUtilityGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.scriptUtilityGrid details {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fbfcfd;
+  min-width: 0;
+}
+
+.scriptUtilityGrid summary {
+  cursor: pointer;
+  padding: 10px 12px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 900;
+  list-style-position: inside;
+}
+
+.scriptUtilityGrid p {
+  margin: 0;
+  padding: 0 12px 12px;
+  color: #263241;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.tagChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 12px 12px;
+}
+
+.tagChips span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #eef6f5;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.scriptLoading {
+  border: 1px dashed var(--accent);
+  border-radius: 6px;
+  padding: 16px;
+  background: #f0fdfa;
+  color: var(--accent);
+  font-weight: 900;
+}
+
+@keyframes resultPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(19, 124, 109, 0.28);
+  }
+  100% {
+    box-shadow: 0 0 0 14px rgba(19, 124, 109, 0);
+  }
 }
 
 .creationActions {
@@ -887,8 +998,10 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
-  .compactFormGrid,
+  .creationBriefGrid,
   .creationFooterActions,
+  .creationParamBar,
+  .scriptUtilityGrid,
   .scriptMetaGrid {
     grid-template-columns: 1fr;
   }
@@ -930,6 +1043,9 @@ button:disabled {
   .formGrid,
   .creationActions,
   .creationFooterActions,
+  .creationBriefGrid,
+  .creationParamBar,
+  .scriptUtilityGrid,
   .statusBoard,
   .publishActions,
   .workflowSteps,

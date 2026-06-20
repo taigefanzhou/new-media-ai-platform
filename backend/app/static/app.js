@@ -41,6 +41,7 @@ const state = {
   latestSourceVideoId: null,
   latestTrendingSearchId: null,
   latestTranscriptionId: null,
+  highlightedScriptId: null,
   currentPage: "overview",
   materials: [],
   scripts: [],
@@ -226,12 +227,17 @@ function renderScripts(scripts) {
   renderScriptSelects(scripts);
   const overviewTarget = document.querySelector("#scriptPreview");
   const creationTarget = document.querySelector("#scriptPreviewCreation");
+  const resultStatus = document.querySelector("#scriptResultStatus");
   if (!scripts.length) {
     renderTitleSuggestions(null);
     [overviewTarget, creationTarget].filter(Boolean).forEach((target) => {
       target.className = "preview empty";
       target.textContent = "还没有脚本";
     });
+    if (resultStatus) {
+      resultStatus.textContent = "点击标题可复制";
+      resultStatus.classList.remove("isGenerating");
+    }
     return;
   }
   const script = scripts[0];
@@ -259,27 +265,71 @@ function renderScripts(scripts) {
     overviewTarget.className = "preview";
     overviewTarget.textContent = content;
   }
+  renderScriptDetail(script, state.highlightedScriptId === script.id);
+}
+
+function renderScriptDetail(script, isFresh = false) {
+  const creationTarget = document.querySelector("#scriptPreviewCreation");
+  const resultStatus = document.querySelector("#scriptResultStatus");
+  if (!creationTarget) return;
+
+  const tags = String(script.hashtags || "")
+    .split(/\s+/)
+    .map((tag) => tag.trim())
+    .filter(Boolean);
+  const tagHtml = tags.length
+    ? tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")
+    : `<span>暂无标签</span>`;
+
+  creationTarget.className = `scriptResult${isFresh ? " scriptResultFresh" : ""}`;
+  creationTarget.innerHTML = `
+    <div class="scriptBlock compactScriptBlock">
+      <span>开头钩子</span>
+      <strong>${escapeHtml(script.hook)}</strong>
+    </div>
+    <div class="scriptBlock primaryScriptBlock">
+      <span>口播稿</span>
+      <p>${escapeHtml(script.voiceover)}</p>
+    </div>
+    <div class="scriptBlock compactScriptBlock">
+      <span>分镜/画面</span>
+      <p>${escapeHtml(script.storyboard)}</p>
+    </div>
+    <div class="scriptUtilityGrid">
+      <details>
+        <summary>视频提示词</summary>
+        <p>${escapeHtml(script.seedance_prompt)}</p>
+      </details>
+      <details>
+        <summary>标签</summary>
+        <div class="tagChips">${tagHtml}</div>
+      </details>
+      <details>
+        <summary>合规提醒</summary>
+        <p>${escapeHtml(script.compliance_notes)}</p>
+      </details>
+    </div>
+  `;
+  if (resultStatus) {
+    resultStatus.textContent = isFresh ? `脚本 #${script.id} · 刚刚生成` : `脚本 #${script.id}`;
+    resultStatus.classList.remove("isGenerating");
+  }
+}
+
+function renderScriptLoading() {
+  const titleTarget = document.querySelector("#titleSuggestionList");
+  const creationTarget = document.querySelector("#scriptPreviewCreation");
+  const resultStatus = document.querySelector("#scriptResultStatus");
+  if (titleTarget) {
+    titleTarget.innerHTML = `<div class="item">正在生成标题建议...</div>`;
+  }
   if (creationTarget) {
-    creationTarget.className = "scriptResult";
-    creationTarget.innerHTML = `
-      <div class="scriptBlock">
-        <span>开头钩子</span>
-        <strong>${escapeHtml(script.hook)}</strong>
-      </div>
-      <div class="scriptBlock">
-        <span>口播稿</span>
-        <p>${escapeHtml(script.voiceover)}</p>
-      </div>
-      <div class="scriptBlock">
-        <span>分镜/画面</span>
-        <p>${escapeHtml(script.storyboard)}</p>
-      </div>
-      <div class="scriptMetaGrid">
-        <div><span>视频提示词</span><p>${escapeHtml(script.seedance_prompt)}</p></div>
-        <div><span>标签</span><p>${escapeHtml(script.hashtags)}</p></div>
-        <div><span>合规提醒</span><p>${escapeHtml(script.compliance_notes)}</p></div>
-      </div>
-    `;
+    creationTarget.className = "scriptResult scriptResultFresh";
+    creationTarget.innerHTML = `<div class="scriptLoading">AI 正在生成标题、口播稿、分镜和视频提示词...</div>`;
+  }
+  if (resultStatus) {
+    resultStatus.textContent = "生成中...";
+    resultStatus.classList.add("isGenerating");
   }
 }
 
@@ -989,13 +1039,33 @@ document.querySelector("#humanAssetForm").addEventListener("submit", async (even
 
 document.querySelector("#scriptForm").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const payload = formData(event.currentTarget);
+  const form = event.currentTarget;
+  const submitButton = form.querySelector("button[type='submit']");
+  const originalText = submitButton.textContent;
+  const payload = formData(form);
   payload.duration_seconds = Number(payload.duration_seconds);
-  const script = await api.post("/scripts/generate", payload);
-  state.latestScriptId = script.id;
-  document.querySelector("[name='script_id']").value = script.id;
-  toast(`脚本已生成 #${script.id}`);
-  await refresh();
+  submitButton.disabled = true;
+  submitButton.textContent = "生成中...";
+  renderScriptLoading();
+  try {
+    const script = await api.post("/scripts/generate", payload);
+    state.latestScriptId = script.id;
+    state.highlightedScriptId = script.id;
+    state.scripts = [script, ...state.scripts.filter((item) => item.id !== script.id)];
+    const scriptInput = document.querySelector("[name='script_id']");
+    if (scriptInput) scriptInput.value = script.id;
+    renderScriptSelects(state.scripts);
+    renderTitleSuggestions(script);
+    renderScriptDetail(script, true);
+    toast(`脚本已生成 #${script.id}`);
+    await refresh();
+  } catch (error) {
+    toast("脚本生成失败，请检查模型配置或稍后重试");
+    renderScripts(state.scripts);
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = originalText;
+  }
 });
 
 document.querySelector("#taskForm").addEventListener("submit", async (event) => {

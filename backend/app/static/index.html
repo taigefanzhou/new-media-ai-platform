@@ -103,16 +103,18 @@
       <section id="page-creation" class="page">
         <section class="creationFlow">
           <form id="scriptForm" class="panel creationBrief">
-            <div class="sectionHeader">
+            <div class="sectionHeader compactSectionHeader">
               <div>
                 <h2>AI 内容创作</h2>
-                <p>填写创作需求，AI 会生成标题、口播稿、分镜和视频提示词。</p>
+                <p>输入需求后生成标题、口播稿、分镜和视频提示词。</p>
               </div>
               <span class="aiBadge">AI Writer</span>
             </div>
-            <label>创作需求<textarea name="topic">企业短视频数字人获客</textarea></label>
-            <div class="formGrid compactFormGrid">
-              <label>品牌语气<textarea name="brand_voice">专业、可信、适合公司负责人口播，减少 AI 味，接近真实实拍表达</textarea></label>
+            <div class="creationBriefGrid">
+              <label>创作需求<textarea name="topic" rows="3">企业短视频数字人获客</textarea></label>
+              <label>品牌语气<textarea name="brand_voice" rows="3">专业、可信、适合公司负责人口播，减少 AI 味，接近真实实拍表达</textarea></label>
+            </div>
+            <div class="creationParamBar">
               <label>目标平台
                 <select name="target_platform">
                   <option value="douyin">抖音</option>
@@ -127,14 +129,8 @@
                 </select>
               </label>
               <label>视频时长<input name="duration_seconds" type="number" min="15" max="120" value="30" /></label>
+              <button id="scriptSubmitBtn" type="submit">AI 生成创作方案</button>
             </div>
-            <div class="aiAssistStrip">
-              <span>标题建议</span>
-              <span>口播脚本</span>
-              <span>分镜结构</span>
-              <span>视频提示词</span>
-            </div>
-            <button type="submit">AI 生成创作方案</button>
           </form>
 
           <section class="panel creationResultPanel">
@@ -143,7 +139,7 @@
                 <h2>AI 生成结果</h2>
                 <p>先选择标题，再审核脚本，确认后创建视频任务。</p>
               </div>
-              <span class="resultHint">点击标题可复制</span>
+              <span id="scriptResultStatus" class="resultHint">点击标题可复制</span>
             </div>
             <div id="titleSuggestionList" class="titleGrid"></div>
             <div id="scriptPreviewCreation" class="scriptResult empty">还没有脚本</div>
