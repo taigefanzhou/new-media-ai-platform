@@ -517,6 +517,30 @@ button:disabled {
   object-fit: cover;
 }
 
+.analysisMaterialPreview {
+  margin-bottom: 12px;
+}
+
+.analysisPreviewCard {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px;
+  background: #fbfcfd;
+}
+
+.analysisPreviewMedia {
+  display: block;
+  width: 132px;
+  aspect-ratio: 16 / 9;
+  border-radius: 6px;
+  object-fit: cover;
+  background: #eef2f7;
+}
+
 .tableActions {
   display: grid;
   grid-template-columns: 1fr;
@@ -767,6 +791,14 @@ button:disabled {
 
   .itemHeader {
     display: grid;
+  }
+
+  .analysisPreviewCard {
+    grid-template-columns: 1fr;
+  }
+
+  .analysisPreviewMedia {
+    width: 100%;
   }
 
   .humanCard {

@@ -19,7 +19,7 @@
         <button class="navItem active" data-page="overview">总览</button>
         <button class="navItem" data-page="humans">数字人素材</button>
         <button class="navItem" data-page="creation">内容创作</button>
-        <button class="navItem" data-page="analysis">参考解析</button>
+        <button class="navItem" data-page="analysis">参考拆解</button>
         <button class="navItem" data-page="tasks">视频任务</button>
         <button class="navItem" data-page="trending">爆款采集</button>
         <button class="navItem" data-page="publish">发布中心</button>
@@ -149,8 +149,13 @@
       <section id="page-analysis" class="page">
         <section class="split">
           <form id="transcriptionForm" class="panel">
-            <h2>参考视频/音频转写</h2>
-            <label>素材 ID<input name="material_id" type="number" min="1" placeholder="上传参考视频后填写素材 ID" /></label>
+            <h2>拆解参考视频/音频</h2>
+            <label>参考素材
+              <select name="material_id" id="analysisMaterialSelect">
+                <option value="">先上传或选择参考素材</option>
+              </select>
+            </label>
+            <div id="analysisMaterialPreview" class="analysisMaterialPreview"></div>
             <label>语言
               <select name="language">
                 <option value="zh-CN">中文</option>
@@ -161,13 +166,15 @@
               <button type="submit">创建转写</button>
               <button id="runTranscriptionBtn" type="button" class="secondary">运行转写</button>
             </div>
+            <button id="goAssetPageBtn" type="button" class="secondary">去上传参考素材</button>
           </form>
           <div class="panel">
-            <h2>解析流程</h2>
+            <h2>和其他菜单的关系</h2>
             <div class="list">
-              <div class="item">上传参考视频或音频素材。</div>
-              <div class="item">创建 ASR 转写任务，得到口播文本。</div>
-              <div class="item">提炼开头钩子、内容结构和可改写方向。</div>
+              <div class="item">从“数字人素材”选择参考视频或音频。</div>
+              <div class="item">转写后提炼开头钩子、内容结构和可改写方向。</div>
+              <div class="item">点击“生成选题”会带到内容创作页。</div>
+              <div class="item">点击“生成原创脚本”会直接生成新脚本，可继续创建视频任务。</div>
             </div>
           </div>
         </section>

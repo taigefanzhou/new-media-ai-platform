@@ -55,7 +55,7 @@ const pages = {
   overview: { title: "运营总览", eyebrow: "Overview" },
   materials: { title: "数字人素材", eyebrow: "Digital Human Assets" },
   creation: { title: "内容创作", eyebrow: "Creation" },
-  analysis: { title: "参考解析", eyebrow: "ASR Analysis" },
+  analysis: { title: "参考拆解", eyebrow: "Reference Breakdown" },
   humans: { title: "数字人素材", eyebrow: "Digital Human Assets" },
   tasks: { title: "视频任务", eyebrow: "Video Tasks" },
   trending: { title: "爆款采集", eyebrow: "Trending" },
@@ -588,7 +588,7 @@ function renderMaterials(materials) {
 function renderMaterialSelects(materials) {
   const portraitSelect = document.querySelector("#portraitMaterialSelect");
   const sourceVideoSelect = document.querySelector("#sourceVideoMaterialSelect");
-  const transcriptionInput = document.querySelector("#transcriptionForm [name='material_id']");
+  const analysisSelect = document.querySelector("#analysisMaterialSelect");
   if (portraitSelect) {
     const current = portraitSelect.value;
     const portraits = materials.filter((item) => item.kind === "portrait" || item.kind === "image");
@@ -605,10 +605,36 @@ function renderMaterialSelects(materials) {
       .join("")}`;
     sourceVideoSelect.value = current || state.latestSourceVideoId || "";
   }
-  if (transcriptionInput && !transcriptionInput.value) {
+  if (analysisSelect) {
+    const current = analysisSelect.value;
+    const references = materials.filter((item) => ["avatar_source", "video", "reference"].includes(item.kind));
+    analysisSelect.innerHTML = `<option value="">先上传或选择参考素材</option>${references
+      .map((item) => `<option value="${item.id}">#${item.id} ${escapeHtml(item.name)} · ${materialKindLabel(item.kind)}</option>`)
+      .join("")}`;
     const latestReference = materials.find((item) => ["avatar_source", "video", "reference"].includes(item.kind));
-    if (latestReference) transcriptionInput.value = latestReference.id;
+    analysisSelect.value = current || (latestReference ? latestReference.id : "");
+    renderAnalysisMaterialPreview();
   }
+}
+
+function renderAnalysisMaterialPreview() {
+  const select = document.querySelector("#analysisMaterialSelect");
+  const target = document.querySelector("#analysisMaterialPreview");
+  if (!select || !target) return;
+  const material = state.materials.find((item) => String(item.id) === String(select.value));
+  if (!material) {
+    target.innerHTML = `<div class="item">选择参考素材后可预览</div>`;
+    return;
+  }
+  target.innerHTML = `
+    <div class="analysisPreviewCard">
+      ${renderMaterialPreview(material, "analysisPreviewMedia")}
+      <div>
+        <strong>#${material.id} ${escapeHtml(material.name)}</strong>
+        <div class="recordMeta">${materialKindLabel(material.kind)} · ${escapeHtml(material.tags || "未打标签")}</div>
+      </div>
+    </div>
+  `;
 }
 
 function renderHumanSelects(humans) {
@@ -833,8 +859,8 @@ function renderTranscriptions(tasks) {
           <div>${task.hook_analysis || ""}</div>
           <div class="transcript">${task.transcript || task.error_message || ""}</div>
           <div class="itemActions">
-            <button type="button" data-action="topic-from-transcription" data-id="${task.id}">生成选题</button>
-            <button type="button" class="secondary" data-action="script-from-transcription" data-id="${task.id}">生成脚本</button>
+            <button type="button" data-action="topic-from-transcription" data-id="${task.id}">带到内容创作</button>
+            <button type="button" class="secondary" data-action="script-from-transcription" data-id="${task.id}">生成原创脚本</button>
           </div>
         </div>
       `,
@@ -1202,9 +1228,17 @@ document.querySelector("#trendingManualForm").addEventListener("submit", async (
   await refresh();
 });
 
+document.querySelector("#analysisMaterialSelect").addEventListener("change", renderAnalysisMaterialPreview);
+
+document.querySelector("#goAssetPageBtn").addEventListener("click", () => switchPage("humans"));
+
 document.querySelector("#transcriptionForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const payload = formData(event.currentTarget);
+  if (!payload.material_id) {
+    toast("请先选择参考素材");
+    return;
+  }
   payload.material_id = Number(payload.material_id);
   const task = await api.post("/transcriptions", payload);
   state.latestTranscriptionId = task.id;
