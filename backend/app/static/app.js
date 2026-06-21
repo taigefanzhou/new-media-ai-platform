@@ -1408,9 +1408,10 @@ function renderModelUsage(report) {
   const totals = report?.totals || {};
   const cards = [
     ["调用次数", totals.call_count],
+    ["成功", totals.success_count],
+    ["失败", totals.failed_count],
+    ["真实接口调用", totals.real_api_count],
     ["总 Token", totals.total_tokens],
-    ["输入 Token", totals.prompt_tokens],
-    ["输出 Token", totals.completion_tokens],
   ];
   summaryTarget.innerHTML = cards
     .map(
@@ -1432,13 +1433,13 @@ function renderModelUsage(report) {
     <table class="settingsTable usageTable compactTable">
       <thead>
         <tr>
-          <th>用途</th>
-          <th>供应商</th>
+          <th>模块</th>
+          <th>接口</th>
           <th>模型</th>
-          <th>调用次数</th>
-          <th>输入 Token</th>
-          <th>输出 Token</th>
-          <th>总 Token</th>
+          <th>状态</th>
+          <th>调用</th>
+          <th>成功/失败</th>
+          <th>Token</th>
           <th>最近调用</th>
         </tr>
       </thead>
@@ -1447,13 +1448,16 @@ function renderModelUsage(report) {
           .map(
             (item) => `
               <tr>
-                <td>${purposeLabel(item.purpose)}</td>
-                <td>${escapeHtml(providerLabel(item.purpose, item.provider))}</td>
+                <td>${escapeHtml(item.purpose_label || purposeLabel(item.purpose))}</td>
+                <td>
+                  <span class="usageApiTag ${item.real_api ? "real" : "mock"}">${item.real_api ? "真实" : "占位"}</span>
+                  ${escapeHtml(providerLabel(item.purpose, item.provider))}
+                </td>
                 <td>${escapeHtml(item.model_name)}</td>
+                <td><span class="status taskStatus ${item.last_status === "success" ? "taskStatusApproved" : "taskStatusFailed"}">${item.last_status === "success" ? "最近成功" : "最近失败"}</span></td>
                 <td>${formatNumber(item.call_count)}</td>
-                <td>${formatNumber(item.prompt_tokens)}</td>
-                <td>${formatNumber(item.completion_tokens)}</td>
-                <td>${formatNumber(item.total_tokens)}</td>
+                <td>${formatNumber(item.success_count)} / ${formatNumber(item.failed_count)}</td>
+                <td>${formatNumber(item.total_tokens)}<div class="recordMeta">入 ${formatNumber(item.prompt_tokens)} · 出 ${formatNumber(item.completion_tokens)}</div></td>
                 <td>${formatDateTime(item.last_used_at)}</td>
               </tr>
             `,

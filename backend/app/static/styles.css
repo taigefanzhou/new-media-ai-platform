@@ -472,7 +472,7 @@ h2 {
 
 .usageTable td:nth-child(2),
 .usageTable td:nth-child(3) {
-  max-width: 240px;
+  max-width: 220px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -481,8 +481,34 @@ h2 {
 .usageTable td:nth-child(5),
 .usageTable td:nth-child(6),
 .usageTable td:nth-child(7) {
-  text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+.usageTable td:nth-child(5),
+.usageTable td:nth-child(6),
+.usageTable td:nth-child(7) {
+  text-align: right;
+}
+
+.usageApiTag {
+  display: inline-flex;
+  min-height: 22px;
+  align-items: center;
+  border-radius: 999px;
+  padding: 2px 7px;
+  margin-right: 6px;
+  font-size: 11px;
+  font-weight: 950;
+}
+
+.usageApiTag.real {
+  background: #ecfdf3;
+  color: #047857;
+}
+
+.usageApiTag.mock {
+  background: #f8fafc;
+  color: #667085;
 }
 
 .storagePanel {
