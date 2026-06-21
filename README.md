@@ -105,6 +105,8 @@ The app calls `{ASR_API_BASE}/asr/transcriptions`. For production, wrap the offi
 
 This module is designed for compliant ideation. Reference videos should be used for topic and structure analysis only, not for copying footage, captions, or scripts.
 
+For WeChat Channels link parsing, see `docs/wechat-channels-link-resolver.md`.
+
 ## Docker Start
 
 ```bash
@@ -112,6 +114,8 @@ cd infra
 cp ../backend/.env.example ../backend/.env
 docker compose up --build
 ```
+
+Production deployment on your own OpenCloudOS server is documented in `docs/deploy-own-server.md`.
 
 Optional workflow service:
 

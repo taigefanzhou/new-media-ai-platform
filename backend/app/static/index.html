@@ -663,6 +663,14 @@
           <section class="split">
             <form id="platformCredentialForm" class="panel">
               <h2>短视频平台 API 接入</h2>
+              <div class="resolverPresetPanel">
+                <strong>常用预设</strong>
+                <div class="resolverPresetActions">
+                  <button type="button" class="secondary" data-action="fill-link-resolver-preset" data-preset="wechat-public">视频号公开测试</button>
+                  <button type="button" class="secondary" data-action="fill-link-resolver-preset" data-preset="wechat-self-hosted">视频号自有服务</button>
+                </div>
+                <p>预设会自动填好平台、用途、接口地址和备注；正式使用建议换成你自己的解析服务地址。</p>
+              </div>
               <label>配置名称<input name="display_name" value="短视频链接解析接口" /></label>
               <label>平台
                 <select name="platform">

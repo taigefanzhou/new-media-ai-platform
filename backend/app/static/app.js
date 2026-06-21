@@ -74,6 +74,33 @@ const settingsSections = {
   accounts: { title: "账号管理", eyebrow: "Settings / Accounts" },
 };
 
+const linkResolverPresets = {
+  "wechat-public": {
+    display_name: "视频号公开测试解析",
+    platform: "wechat_channels",
+    purpose: "link_resolver",
+    api_base: "https://sph.litao.workers.dev/api/fetch_video_profile",
+    client_id: "",
+    client_secret: "",
+    access_token: "",
+    refresh_token: "",
+    webhook_url: "",
+    notes: "method=post\n返回结构：data.feedInfo.h264VideoInfo.videoUrl / data.feedInfo.videoUrl\n用途：临时验证视频号链接是否可解析，正式使用请换成自有服务。",
+  },
+  "wechat-self-hosted": {
+    display_name: "视频号自有解析服务",
+    platform: "wechat_channels",
+    purpose: "link_resolver",
+    api_base: "http://82.156.2.200:8099/api/fetch_video_profile",
+    client_id: "",
+    client_secret: "",
+    access_token: "",
+    refresh_token: "",
+    webhook_url: "",
+    notes: "method=post\n返回结构：data.feedInfo.h264VideoInfo.videoUrl / data.feedInfo.videoUrl\n说明：解析服务内部保存元宝 Cookie，后台这里只填写你自己的解析接口地址。",
+  },
+};
+
 const pages = {
   overview: { title: "运营总览", eyebrow: "Overview" },
   materials: { title: "数字人素材", eyebrow: "Digital Human Assets" },
@@ -164,6 +191,18 @@ function authHeaders() {
 
 function formData(form) {
   return Object.fromEntries(new FormData(form).entries());
+}
+
+function fillForm(form, values) {
+  Object.entries(values).forEach(([key, value]) => {
+    const field = form.elements[key];
+    if (!field) return;
+    if (field.type === "checkbox") {
+      field.checked = Boolean(value);
+      return;
+    }
+    field.value = value ?? "";
+  });
 }
 
 function escapeHtml(value) {
@@ -2929,6 +2968,18 @@ document.querySelector("#platformCredentialForm").addEventListener("submit", asy
   event.currentTarget.reset();
   event.currentTarget.querySelector("[name='is_active']").checked = true;
   await refresh();
+});
+
+document.querySelector("#platformCredentialForm").addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-action='fill-link-resolver-preset']");
+  if (!button) return;
+  const preset = linkResolverPresets[button.dataset.preset];
+  if (!preset) return;
+  const form = event.currentTarget;
+  fillForm(form, preset);
+  const activeField = form.querySelector("[name='is_active']");
+  if (activeField) activeField.checked = true;
+  toast(`${preset.display_name} 已填入表单`);
 });
 
 document.querySelector("#platformCredentialList").addEventListener("click", async (event) => {

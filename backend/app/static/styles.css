@@ -2268,6 +2268,38 @@ button:disabled {
   line-height: 1.45;
 }
 
+.resolverPresetPanel {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #99f6e4;
+  border-radius: 8px;
+  background: #f0fdfa;
+}
+
+.resolverPresetPanel strong {
+  color: #115e59;
+}
+
+.resolverPresetPanel p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.resolverPresetActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.resolverPresetActions button {
+  width: auto;
+  min-height: 38px;
+  padding: 8px 12px;
+}
+
 .linkResolverTestForm {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 180px 180px;
