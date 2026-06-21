@@ -69,6 +69,17 @@ docker compose -f infra/server/docker-compose.prod.yml up -d --build
 如果服务器访问默认 PyPI 慢或失败，可以显式使用国内镜像：
 
 ```bash
+PYTHON_BASE_IMAGE=docker.m.daocloud.io/library/python:3.11-slim \
+PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
+PIP_TRUSTED_HOST=pypi.tuna.tsinghua.edu.cn \
+ALLOW_PRODUCTION_DOCKER_BUILD=1 \
+docker compose -f infra/server/docker-compose.prod.yml up -d --build
+```
+
+如果基础镜像仍然拉不下来，可以换腾讯云镜像再试：
+
+```bash
+PYTHON_BASE_IMAGE=ccr.ccs.tencentyun.com/library/python:3.11-slim \
 PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
 PIP_TRUSTED_HOST=pypi.tuna.tsinghua.edu.cn \
 ALLOW_PRODUCTION_DOCKER_BUILD=1 \
