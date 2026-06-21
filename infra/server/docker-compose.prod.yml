@@ -2,6 +2,9 @@ services:
   platform-api:
     build:
       context: ../../backend
+      args:
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
+        PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-pypi.tuna.tsinghua.edu.cn}
     env_file:
       - ../../backend/.env
     restart: unless-stopped
@@ -13,6 +16,9 @@ services:
   link-resolver-proxy:
     build:
       context: ../../services/link-resolver-proxy
+      args:
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
+        PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-pypi.tuna.tsinghua.edu.cn}
     restart: unless-stopped
     ports:
       - "8099:8099"
