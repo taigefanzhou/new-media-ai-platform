@@ -196,13 +196,7 @@ class ReferenceVideoAnalyzer:
             else:
                 parsed, usage = await self._call_openai_compatible_vision(prompt, image_path)
         except Exception as exc:
-            local_result.reuse_notes = "\n".join(
-                [
-                    local_result.reuse_notes,
-                    f"模型增强未完成，已保留本地镜头/节奏分析。原因：{exc}",
-                ]
-            )
-            return local_result
+            raise RuntimeError(f"视频理解模型增强失败，未使用本地结果代替真实模型：{exc}") from exc
 
         return self._merge_model_analysis(local_result, parsed, usage)
 

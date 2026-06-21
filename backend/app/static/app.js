@@ -1408,9 +1408,10 @@ function renderModelUsage(report) {
   const totals = report?.totals || {};
   const cards = [
     ["调用次数", totals.call_count],
+    ["当前配置调用", totals.current_config_count],
+    ["历史旧记录", totals.historical_count],
     ["成功", totals.success_count],
     ["失败", totals.failed_count],
-    ["真实接口调用", totals.real_api_count],
     ["总 Token", totals.total_tokens],
   ];
   summaryTarget.innerHTML = cards
@@ -1434,6 +1435,7 @@ function renderModelUsage(report) {
       <thead>
         <tr>
           <th>模块</th>
+          <th>来源</th>
           <th>接口</th>
           <th>模型</th>
           <th>状态</th>
@@ -1449,6 +1451,7 @@ function renderModelUsage(report) {
             (item) => `
               <tr>
                 <td>${escapeHtml(item.purpose_label || purposeLabel(item.purpose))}</td>
+                <td><span class="usageApiTag ${item.current_config ? "current" : "old"}">${item.current_config ? "当前配置" : "历史旧记录"}</span></td>
                 <td>
                   <span class="usageApiTag ${item.real_api ? "real" : "mock"}">${item.real_api ? "真实" : "本地/占位"}</span>
                   ${escapeHtml(providerLabel(item.purpose, item.provider))}

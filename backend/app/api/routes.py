@@ -468,18 +468,27 @@ def model_usage_summary(
         "call_count": 0,
         "success_count": 0,
         "failed_count": 0,
+        "current_config_count": 0,
+        "historical_count": 0,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
         "real_api_count": 0,
         "mock_count": 0,
     }
+    active_configs = {purpose: _active_model_config(session, purpose) for purpose in MODEL_PURPOSE_ORDER}
     active_diagnostics = {
-        item["purpose"]: item for item in (_diagnose_model_config(_active_model_config(session, purpose), purpose) for purpose in MODEL_PURPOSE_ORDER)
+        item["purpose"]: item for item in (_diagnose_model_config(active_configs.get(purpose), purpose) for purpose in MODEL_PURPOSE_ORDER)
     }
     for row in rows:
         key = (row.purpose, row.provider, row.model_name)
         diagnostic = active_diagnostics.get(row.purpose) or {}
+        active_config = active_configs.get(row.purpose)
+        is_current_config = bool(
+            active_config
+            and active_config.provider == row.provider
+            and active_config.model_name == row.model_name
+        )
         item = summary.setdefault(
             key,
             {
@@ -489,6 +498,7 @@ def model_usage_summary(
                 "model_name": row.model_name,
                 "active_level": diagnostic.get("level", "unknown"),
                 "real_api": _usage_provider_is_real_api(row.provider),
+                "current_config": is_current_config,
                 "call_count": 0,
                 "prompt_tokens": 0,
                 "completion_tokens": 0,
@@ -512,6 +522,7 @@ def model_usage_summary(
             item["last_status"] = row.status
         totals["call_count"] += 1
         totals["success_count" if row.status == "success" else "failed_count"] += 1
+        totals["current_config_count" if is_current_config else "historical_count"] += 1
         totals["prompt_tokens"] += row.prompt_tokens
         totals["completion_tokens"] += row.completion_tokens
         totals["total_tokens"] += row.total_tokens

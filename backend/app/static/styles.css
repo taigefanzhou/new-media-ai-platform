@@ -472,7 +472,7 @@ h2 {
 
 .usageTable td:nth-child(2),
 .usageTable td:nth-child(3) {
-  max-width: 220px;
+  max-width: 210px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -480,13 +480,14 @@ h2 {
 .usageTable td:nth-child(4),
 .usageTable td:nth-child(5),
 .usageTable td:nth-child(6),
-.usageTable td:nth-child(7) {
+.usageTable td:nth-child(7),
+.usageTable td:nth-child(8) {
   font-variant-numeric: tabular-nums;
 }
 
-.usageTable td:nth-child(5),
 .usageTable td:nth-child(6),
-.usageTable td:nth-child(7) {
+.usageTable td:nth-child(7),
+.usageTable td:nth-child(8) {
   text-align: right;
 }
 
@@ -504,6 +505,16 @@ h2 {
 .usageApiTag.real {
   background: #ecfdf3;
   color: #047857;
+}
+
+.usageApiTag.current {
+  background: #eef4ff;
+  color: #1d4ed8;
+}
+
+.usageApiTag.old {
+  background: #fff7ed;
+  color: #c2410c;
 }
 
 .usageApiTag.mock {
