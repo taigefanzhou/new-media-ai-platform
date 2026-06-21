@@ -543,9 +543,13 @@ h2 {
 
 .modelConfigForm {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) 150px 170px minmax(220px, 1.1fr) minmax(180px, 0.8fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
   align-items: end;
+}
+
+.modelConfigForm > * {
+  min-width: 0;
 }
 
 .modelConfigForm label {
@@ -558,6 +562,8 @@ h2 {
 
 .modelConfigForm button[type="submit"] {
   min-height: 42px;
+  width: 100%;
+  white-space: nowrap;
 }
 
 .modelListDetails {
@@ -1913,6 +1919,16 @@ button:disabled {
   }
 }
 
+@media (max-width: 1480px) {
+  .modelConfigForm {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .modelConfigForm .apiKeyField {
+    grid-column: span 2;
+  }
+}
+
 @media (max-width: 1100px) {
   .metrics,
   .grid {
@@ -1938,6 +1954,10 @@ button:disabled {
   }
 
   .creationParamBar .durationField {
+    grid-column: auto;
+  }
+
+  .modelConfigForm .apiKeyField {
     grid-column: auto;
   }
 
