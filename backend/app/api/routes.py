@@ -48,6 +48,7 @@ from app.schemas.requests import (
     AIModelConfigPublic,
     AIModelConfigUpdate,
     DigitalHumanCreate,
+    LinkResolverTestRequest,
     LoginRequest,
     MaterialCreate,
     PlatformAccountCreate,
@@ -1003,6 +1004,87 @@ def _platform_credential_public(credential: PlatformCredential) -> PlatformCrede
         has_access_token=bool(credential.access_token),
         has_refresh_token=bool(credential.refresh_token),
     )
+
+
+def _url_preview(value: str | None, max_length: int = 110) -> str:
+    if not value:
+        return ""
+    if len(value) <= max_length:
+        return value
+    return f"{value[:max_length]}..."
+
+
+async def _probe_reference_media_url(source_url: str) -> dict[str, object]:
+    parsed = urlparse(source_url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return {"ok": False, "content_type": "", "message": "不是有效的视频地址。"}
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+        ),
+        "Accept": "video/mp4,video/*;q=0.9,audio/*;q=0.8,*/*;q=0.5",
+        "Range": "bytes=0-1023",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=25, follow_redirects=True, headers=headers) as client:
+            async with client.stream("GET", source_url) as response:
+                response.raise_for_status()
+                content_type = response.headers.get("content-type", "")
+                content_disposition = response.headers.get("content-disposition", "")
+                looks_like_media = _response_looks_like_reference_media(
+                    str(response.url),
+                    content_type,
+                    content_disposition,
+                )
+                return {
+                    "ok": bool(looks_like_media),
+                    "content_type": content_type,
+                    "final_url_preview": _url_preview(str(response.url)),
+                    "message": "已确认可访问视频文件。" if looks_like_media else "解析地址可访问，但不像视频或音频文件。",
+                }
+    except Exception as exc:
+        return {"ok": False, "content_type": "", "message": f"视频地址访问失败：{exc}"}
+
+
+@router.post("/settings/link-resolver/test")
+async def test_link_resolver(
+    payload: LinkResolverTestRequest,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> dict[str, object]:
+    source_url = payload.source_url.strip()
+    parsed = urlparse(source_url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise HTTPException(status_code=400, detail="请输入 http 或 https 开头的视频链接。")
+    platform_name = detect_short_video_platform(source_url, payload.platform)
+    credentials = _link_resolver_credentials(session, platform_name)
+    resolution = await ShortVideoLinkResolver().resolve(source_url, platform_name, credentials)
+    probe = await _probe_reference_media_url(resolution.media_url) if resolution.media_url else {
+        "ok": False,
+        "content_type": "",
+        "message": "没有解析出视频文件地址。",
+    }
+    has_configured_resolver = bool(credentials)
+    can_download = bool(resolution.media_url and probe.get("ok"))
+    message = str(probe.get("message") or "")
+    if not resolution.media_url and not has_configured_resolver:
+        message = "当前没有启用的链接解析服务，普通分享页只能保存为参考链接。"
+    elif not resolution.media_url:
+        message = resolution.message or "已调用链接解析服务，但没有返回视频地址。"
+    return {
+        "source_url": source_url,
+        "platform": platform_name,
+        "resolver": resolution.resolver_name,
+        "configured_resolver_count": len(credentials),
+        "can_resolve": bool(resolution.media_url),
+        "can_download": can_download,
+        "media_url_preview": _url_preview(resolution.media_url),
+        "canonical_url_preview": _url_preview(resolution.canonical_url),
+        "title": resolution.title or "",
+        "content_type": probe.get("content_type") or "",
+        "message": message,
+    }
 
 
 @router.get("/integrations/status")

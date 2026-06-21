@@ -670,6 +670,7 @@
                   <option value="wechat_channels">视频号</option>
                   <option value="xiaohongshu">小红书</option>
                   <option value="kuaishou">快手</option>
+                  <option value="manual">通用/其他</option>
                 </select>
               </label>
               <label>用途
@@ -688,12 +689,37 @@
               <label>回调地址<input name="webhook_url" placeholder="https://your-domain.com/callback" /></label>
               <label>备注<textarea name="notes" placeholder="可选：path=/api/resolve、method=post；也可记录申请主体、授权范围、到期时间"></textarea></label>
               <label class="checkLine"><input name="is_active" type="checkbox" checked /> 设为启用</label>
-              <button type="submit">保存采集接入</button>
+              <button type="submit">保存接入配置</button>
             </form>
             <div class="panel">
               <h2>采集接入配置</h2>
               <div id="platformCredentialList" class="list"></div>
             </div>
+          </section>
+          <section class="panel">
+            <div class="sectionHeader compactSectionHeader">
+              <div>
+                <h2>链接解析测试</h2>
+                <p>用于确认普通视频号、抖音分享链接是否能解析出真实视频文件。</p>
+              </div>
+            </div>
+            <form id="linkResolverTestForm" class="linkResolverTestForm">
+              <label>测试链接
+                <input name="source_url" value="https://weixin.qq.com/sph/A3XPm3Xckr" />
+              </label>
+              <label>平台
+                <select name="platform">
+                  <option value="auto">自动识别</option>
+                  <option value="wechat_channels">视频号</option>
+                  <option value="douyin">抖音</option>
+                  <option value="xiaohongshu">小红书</option>
+                  <option value="kuaishou">快手</option>
+                  <option value="manual">通用/其他</option>
+                </select>
+              </label>
+              <button type="submit">测试解析</button>
+            </form>
+            <div id="linkResolverTestResult" class="linkResolverTestResult">填好链接解析服务后，可以在这里验证是否真的可用。</div>
           </section>
         </section>
 

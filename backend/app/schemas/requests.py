@@ -246,6 +246,11 @@ class PlatformCredentialUpdate(BaseModel):
     notes: Optional[str] = None
 
 
+class LinkResolverTestRequest(BaseModel):
+    source_url: str = Field(..., min_length=8)
+    platform: str = "auto"
+
+
 class PlatformCredentialPublic(BaseModel):
     id: int
     platform: PublishPlatform

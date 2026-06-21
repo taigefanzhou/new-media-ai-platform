@@ -2268,6 +2268,50 @@ button:disabled {
   line-height: 1.45;
 }
 
+.linkResolverTestForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 180px 180px;
+  gap: 12px;
+  align-items: end;
+}
+
+.linkResolverTestResult {
+  display: grid;
+  gap: 4px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfd;
+  color: var(--muted);
+}
+
+.linkResolverTestResult strong {
+  color: var(--ink);
+}
+
+.linkResolverTestResult span,
+.linkResolverTestResult p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.linkResolverTestResult.ok {
+  border-color: #99f6e4;
+  background: #f0fdfa;
+}
+
+.linkResolverTestResult.pending {
+  border-color: #fed7aa;
+  background: #fff7ed;
+}
+
+.linkResolverTestResult.blocked {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
 #toast {
   position: fixed;
   right: 24px;
@@ -2359,6 +2403,10 @@ button:disabled {
 
   .remoteUploadFields {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .linkResolverTestForm {
+    grid-template-columns: 1fr;
   }
 
   .creationParamBar .durationField {
