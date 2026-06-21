@@ -519,36 +519,54 @@ h2 {
   align-items: center;
 }
 
-.didConfigPanel {
-  margin-bottom: 14px;
+.modelMaintenancePanel {
+  margin-top: 14px;
 }
 
-.didConfigForm {
+.modelPresetBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.modelPresetBar button {
+  width: auto;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  background: #fbfcfd;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.modelConfigForm {
   display: grid;
-  grid-template-columns: minmax(220px, 0.8fr) minmax(280px, 1fr) 160px;
+  grid-template-columns: minmax(180px, 1fr) 150px 170px minmax(220px, 1.1fr) minmax(180px, 0.8fr);
   gap: 10px;
   align-items: end;
 }
 
-.didConfigForm label {
+.modelConfigForm label {
   margin-bottom: 0;
 }
 
-.didEndpointList {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 10px;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 800;
+.modelConfigForm .apiKeyField {
+  grid-column: span 2;
 }
 
-.didEndpointList span {
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 6px 10px;
-  background: #fbfcfd;
+.modelConfigForm button[type="submit"] {
+  min-height: 42px;
+}
+
+.modelListDetails {
+  margin-top: 12px;
+}
+
+.modelListDetails summary {
+  cursor: pointer;
+  font-weight: 950;
 }
 
 .storagePresetList {
@@ -781,20 +799,6 @@ label {
   border: 1px solid #fed7aa;
   background: #fff7ed;
   color: #c2410c;
-}
-
-.advancedModelPanel {
-  margin-top: 14px;
-}
-
-.advancedModelPanel summary {
-  cursor: pointer;
-  font-size: 18px;
-  font-weight: 950;
-}
-
-.advancedModelGrid {
-  margin-top: 14px;
 }
 
 .compactModelList .item {
@@ -1923,7 +1927,7 @@ button:disabled {
   .creationParamBar,
   .productionModeBar,
   .analysisGrid,
-  .didConfigForm,
+  .modelConfigForm,
   .storageConfigForm,
   .advancedTaskGrid,
   .scriptUtilityGrid,
@@ -1979,7 +1983,7 @@ button:disabled {
   .creationParamBar,
   .productionModeBar,
   .analysisGrid,
-  .didConfigForm,
+  .modelConfigForm,
   .storageConfigForm,
   .advancedTaskGrid,
   .scriptUtilityGrid,

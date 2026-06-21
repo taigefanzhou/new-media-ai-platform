@@ -299,6 +299,62 @@ function applyProviderDefaultModel() {
   }
 }
 
+const modelPresets = {
+  did: {
+    name: "D-ID 真实数字人口播",
+    purpose: "digital_human",
+    provider: "d-id",
+    api_base: "https://api.d-id.com",
+    model_name: "d-id-talking-avatar",
+    notes: "D-ID uses the same API Key for /images, /audios and /talks.",
+  },
+  "qwen-asr": {
+    name: "阿里云百炼 Qwen-ASR 真实转写",
+    purpose: "asr",
+    provider: "aliyun-bailian",
+    api_base: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    model_name: "qwen3-asr-flash",
+    notes: "real_adapter=qwen_asr",
+  },
+  "cosyvoice-tts": {
+    name: "阿里云百炼 CosyVoice 真实语音合成",
+    purpose: "tts",
+    provider: "aliyun-cosyvoice",
+    api_base: "https://dashscope.aliyuncs.com/api/v1",
+    model_name: "cosyvoice-v3-flash",
+    notes: "voice=longanyang",
+  },
+  "cosyvoice-clone": {
+    name: "阿里云百炼 CosyVoice 声音复刻",
+    purpose: "voice_clone",
+    provider: "aliyun-cosyvoice-clone",
+    api_base: "https://dashscope.aliyuncs.com/api/v1",
+    model_name: "cosyvoice-v3-flash",
+    notes: "target_model=cosyvoice-v3-flash\nrequires_public_source_url=true",
+  },
+};
+
+function findModelConfig(purpose, provider) {
+  return state.modelConfigs.find((model) => model.purpose === purpose && model.provider === provider);
+}
+
+function fillModelConfigForm(values, existing = null) {
+  const form = document.querySelector("#modelConfigForm");
+  form.dataset.modelId = existing?.id || "";
+  form.querySelector("[name='name']").value = existing?.name || values.name || "";
+  form.querySelector("[name='purpose']").value = values.purpose || existing?.purpose || "script";
+  syncProviderOptions();
+  form.querySelector("[name='provider']").value = values.provider || existing?.provider || "";
+  applyProviderDefaultModel();
+  form.querySelector("[name='api_base']").value = existing?.api_base || values.api_base || "";
+  form.querySelector("[name='model_name']").value = existing?.model_name || values.model_name || "";
+  form.querySelector("[name='notes']").value = existing?.notes || values.notes || "";
+  form.querySelector("[name='is_active']").checked = values.is_active ?? existing?.is_active ?? true;
+  const keyInput = form.querySelector("[name='api_key']");
+  keyInput.value = "";
+  keyInput.placeholder = existing?.has_api_key ? "已保存 Key，可留空" : "保存后不会展示明文";
+}
+
 function renderMetrics(counts) {
   const labels = {
     materials: "素材",
@@ -1320,7 +1376,6 @@ function renderModelDiagnostics(report) {
 
 function renderModels(models) {
   const target = document.querySelector("#modelConfigList");
-  renderDidConfigCard(models);
   if (!models.length) {
     target.innerHTML = `<div class="item">还没有模型配置</div>`;
     return;
@@ -1336,6 +1391,7 @@ function renderModels(models) {
           <div>${purposeLabel(model.purpose)} · ${providerLabel(model.purpose, model.provider)}</div>
           <div class="recordMeta">${escapeHtml(model.model_name)} · 接口${model.api_base ? "已填" : "缺失"} · Key ${model.has_api_key ? "已保存" : "缺失"}</div>
           <div class="itemActions">
+            <button type="button" class="secondary" data-action="edit-model-config" data-id="${model.id}">编辑</button>
             <button type="button" class="secondary" data-action="test-model-config" data-id="${model.id}">测试</button>
             <button type="button" data-action="activate-model-config" data-id="${model.id}" ${model.is_active ? "disabled" : ""}>启用</button>
           </div>
@@ -1343,27 +1399,6 @@ function renderModels(models) {
       `,
     )
     .join("");
-}
-
-function didConfigFromModels(models = []) {
-  return models.find((model) => model.purpose === "digital_human" && model.provider === "d-id");
-}
-
-function renderDidConfigCard(models = []) {
-  const form = document.querySelector("#didConfigForm");
-  const stateLabel = document.querySelector("#didConfigState");
-  if (!form) return;
-  const config = didConfigFromModels(models);
-  form.dataset.modelId = config?.id || "";
-  form.querySelector("[name='api_base']").value = config?.api_base || "https://api.d-id.com";
-  const keyInput = form.querySelector("[name='api_key']");
-  keyInput.value = "";
-  keyInput.placeholder = config?.has_api_key ? "已保存 Key，可留空" : "粘贴 D-ID API Key";
-  if (stateLabel) {
-    const label = !config ? "未配置" : config.is_active && config.has_api_key ? "已启用" : config.has_api_key ? "已保存 Key" : "缺 Key";
-    stateLabel.textContent = label;
-    stateLabel.className = `pill ${config?.is_active && config?.has_api_key ? "ok" : "subtle"}`;
-  }
 }
 
 function renderModelUsage(report) {
@@ -2516,52 +2551,39 @@ document.querySelector("#publishRecordList").addEventListener("click", async (ev
 
 document.querySelector("#modelConfigForm").addEventListener("submit", async (event) => {
   event.preventDefault();
+  const form = event.currentTarget;
   const payload = formData(event.currentTarget);
-  payload.is_active = Boolean(event.currentTarget.querySelector("[name='is_active']").checked);
-  const config = await api.post("/settings/models", payload);
+  const modelId = form.dataset.modelId;
+  payload.is_active = Boolean(form.querySelector("[name='is_active']").checked);
+  if (!payload.api_key) delete payload.api_key;
+  const config = modelId ? await api.patch(`/settings/models/${modelId}`, payload) : await api.post("/settings/models", payload);
   toast(`模型配置已保存 #${config.id}`);
+  form.dataset.modelId = config.id;
   await refresh();
 });
 
-document.querySelector("#didConfigForm").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const button = form.querySelector("button[type='submit']");
-  const originalText = button.textContent;
-  const existingId = form.dataset.modelId;
-  const apiKey = form.querySelector("[name='api_key']").value.trim();
-  const existing = didConfigFromModels(state.modelConfigs);
-  if (!apiKey && !existing?.has_api_key) {
-    toast("请先填写 D-ID API Key");
-    return;
-  }
-  const payload = {
-    name: "D-ID 真实数字人口播",
-    purpose: "digital_human",
-    provider: "d-id",
-    api_base: form.querySelector("[name='api_base']").value.trim() || "https://api.d-id.com",
-    model_name: "d-id-talking-avatar",
-    is_active: true,
-    notes: "D-ID uses the same API Key for /images, /audios and /talks.",
-  };
-  if (apiKey) payload.api_key = apiKey;
-  button.disabled = true;
-  button.textContent = "保存中...";
-  try {
-    const config = existingId ? await api.patch(`/settings/models/${existingId}`, payload) : await api.post("/settings/models", payload);
-    toast(`${config.name} 已保存并启用`);
-    await refresh();
-  } catch (error) {
-    toast("D-ID 保存失败，请确认 Key 和接口地址");
-  } finally {
-    button.disabled = false;
-    button.textContent = originalText;
-  }
+document.querySelector(".modelPresetBar").addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-model-preset]");
+  if (!button) return;
+  const preset = modelPresets[button.dataset.modelPreset];
+  if (!preset) return;
+  const existing = findModelConfig(preset.purpose, preset.provider);
+  fillModelConfigForm(preset, existing);
+  toast(existing ? `已载入已有配置：${existing.name}` : `已填入${button.textContent.trim()}配置`);
+});
+
+document.querySelector("#modelConfigList").addEventListener("click", async (event) => {
+  const editButton = event.target.closest("button[data-action='edit-model-config']");
+  if (!editButton) return;
+  const model = state.modelConfigs.find((item) => String(item.id) === String(editButton.dataset.id));
+  if (!model) return;
+  fillModelConfigForm(model, model);
+  toast(`已载入 ${model.name}`);
 });
 
 document.querySelector("#modelConfigList").addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-action]");
-  if (!button || button.disabled) return;
+  if (!button || button.disabled || button.dataset.action === "edit-model-config") return;
   const id = button.dataset.id;
   const resultTarget = document.querySelector("#modelTestResult");
   if (button.dataset.action === "activate-model-config") {
