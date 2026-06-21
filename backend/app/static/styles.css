@@ -519,6 +519,38 @@ h2 {
   align-items: center;
 }
 
+.didConfigPanel {
+  margin-bottom: 14px;
+}
+
+.didConfigForm {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.8fr) minmax(280px, 1fr) 160px;
+  gap: 10px;
+  align-items: end;
+}
+
+.didConfigForm label {
+  margin-bottom: 0;
+}
+
+.didEndpointList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.didEndpointList span {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #fbfcfd;
+}
+
 .storagePresetList {
   display: flex;
   flex-wrap: wrap;
@@ -1881,6 +1913,7 @@ button:disabled {
   .creationParamBar,
   .productionModeBar,
   .analysisGrid,
+  .didConfigForm,
   .storageConfigForm,
   .advancedTaskGrid,
   .scriptUtilityGrid,
@@ -1936,6 +1969,7 @@ button:disabled {
   .creationParamBar,
   .productionModeBar,
   .analysisGrid,
+  .didConfigForm,
   .storageConfigForm,
   .advancedTaskGrid,
   .scriptUtilityGrid,

@@ -496,6 +496,29 @@
 
         <section id="settings-tab-models" class="settingsPane">
           <div id="modelDiagnosticsList" class="modelDiagnosticsList"></div>
+          <section class="panel didConfigPanel">
+            <div class="sectionHeader compactSectionHeader">
+              <div>
+                <h2>D-ID 数字人口播接口</h2>
+                <p>头像上传、音频上传和口播生成共用同一个 D-ID API Key。</p>
+              </div>
+              <span id="didConfigState" class="pill subtle">未配置</span>
+            </div>
+            <form id="didConfigForm" class="didConfigForm">
+              <label>接口地址
+                <input name="api_base" value="https://api.d-id.com" />
+              </label>
+              <label>D-ID API Key
+                <input name="api_key" type="password" placeholder="保存后不会展示明文" />
+              </label>
+              <button type="submit">保存并启用 D-ID</button>
+            </form>
+            <div class="didEndpointList">
+              <span>上传头像：/images</span>
+              <span>上传音频：/audios</span>
+              <span>生成口播：/talks</span>
+            </div>
+          </section>
           <section class="split">
             <form id="modelConfigForm" class="panel">
               <h2>AI 模型入口维护</h2>
