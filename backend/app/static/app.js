@@ -52,6 +52,7 @@ const state = {
   platformCredentials: [],
   digitalHumans: [],
   exportProfiles: [],
+  transcriptions: [],
   videoAnalyses: [],
   modelConfigs: [],
   modelUsage: null,
@@ -62,6 +63,7 @@ const state = {
   currentUser: null,
   currentSettingsSection: "usage",
   previewTaskId: null,
+  activeAnalysisDetailId: null,
 };
 
 const settingsSections = {
@@ -792,6 +794,30 @@ function taskStatusLabel(status) {
   }[status] || status;
 }
 
+function analysisStatusLabel(status) {
+  return {
+    draft: "草稿",
+    queued: "待拆解",
+    running: "拆解中",
+    needs_review: "已拆解待采纳",
+    approved: "已采纳",
+    rejected: "不采用",
+    failed: "失败",
+  }[status] || status;
+}
+
+function transcriptionStatusLabel(status) {
+  return {
+    draft: "草稿",
+    queued: "待转写",
+    running: "转写中",
+    needs_review: "已转写",
+    approved: "已确认",
+    rejected: "不采用",
+    failed: "失败",
+  }[status] || status;
+}
+
 function taskStatusClass(status) {
   return {
     draft: "taskStatusDraft",
@@ -1237,6 +1263,10 @@ function latestAnalysisForMaterial(materialId) {
   return state.videoAnalyses.find((analysis) => Number(analysis.material_id) === Number(materialId));
 }
 
+function latestTranscriptionForMaterial(materialId) {
+  return state.transcriptions.find((task) => Number(task.material_id) === Number(materialId));
+}
+
 function renderReferenceMaterials(materials = state.materials) {
   const target = document.querySelector("#referenceMaterialList");
   if (!target) return;
@@ -1248,10 +1278,12 @@ function renderReferenceMaterials(materials = state.materials) {
   target.innerHTML = references
     .map((material) => {
       const analysis = latestAnalysisForMaterial(material.id);
+      const transcript = latestTranscriptionForMaterial(material.id);
       const canAnalyze = Boolean(material.file_path);
-      const canGenerateScript = analysis && ["needs_review", "approved"].includes(analysis.status);
+      const canGenerateScript = analysis && analysis.status === "approved";
+      const selected = String(document.querySelector("#analysisMaterialSelect")?.value || "") === String(material.id);
       return `
-        <div class="referenceMaterialCard">
+        <div class="referenceMaterialCard ${selected ? "selectedReferenceCard" : ""}">
           ${renderMaterialPreview(material, "referenceMaterialMedia")}
           <div class="referenceMaterialBody">
             <div class="itemHeader">
@@ -1259,11 +1291,15 @@ function renderReferenceMaterials(materials = state.materials) {
               <span class="status ${canAnalyze ? "successStatus" : "pendingStatus"}">${canAnalyze ? "可拆解" : "仅链接"}</span>
             </div>
             <div class="recordMeta">${materialKindLabel(material.kind)} · ${escapeHtml(material.tags || "未打标签")}</div>
-            <div class="recordMeta">${analysis ? `最近拆解：#${analysis.id} · ${taskStatusLabel(analysis.status)}` : "还没有深度拆解结果"}</div>
+            <div class="recordMeta">
+              ${analysis ? `拆解 #${analysis.id} · ${analysisStatusLabel(analysis.status)}` : "未拆解"}
+              ${transcript ? ` · 转写 #${transcript.id} · ${transcriptionStatusLabel(transcript.status)}` : ""}
+            </div>
             <div class="referenceMaterialActions">
               <button type="button" class="secondary" data-action="select-reference-material" data-id="${material.id}">选择</button>
               <button type="button" data-action="analyze-reference-material" data-id="${material.id}" ${canAnalyze ? "" : "disabled"}>深度拆解</button>
-              <button type="button" class="secondary" data-action="script-from-reference-analysis" data-id="${analysis ? analysis.id : ""}" ${canGenerateScript ? "" : "disabled"}>生成原创脚本</button>
+              <button type="button" class="secondary" data-action="view-reference-analysis" data-id="${analysis ? analysis.id : ""}" ${analysis ? "" : "disabled"}>详情</button>
+              <button type="button" class="secondary" data-action="script-from-reference-analysis" data-id="${analysis ? analysis.id : ""}" ${canGenerateScript ? "" : "disabled"}>生成脚本</button>
               ${material.source_url ? `<a class="buttonLike ghostButton" href="${escapeHtml(material.source_url)}" target="_blank" rel="noreferrer">原链接</a>` : ""}
             </div>
           </div>
@@ -1271,6 +1307,102 @@ function renderReferenceMaterials(materials = state.materials) {
       `;
     })
     .join("");
+}
+
+function analysisMetricsHtml(analysis) {
+  return `
+    <div class="analysisMetrics">
+      <span>${Number(analysis.duration_seconds || 0).toFixed(1)} 秒</span>
+      <span>${analysis.width || "-"}x${analysis.height || "-"}</span>
+      <span>${analysis.scene_count || 0} 个视觉段落</span>
+      <span>平均 ${Number(analysis.avg_shot_seconds || 0).toFixed(1)} 秒/段</span>
+      <span>${analysis.model_enhanced ? "模型增强" : "本地基础"} · ${Number(analysis.quality_score || 0).toFixed(0)} 分</span>
+    </div>
+  `;
+}
+
+function renderAnalysisDetailDrawer(analysisId) {
+  const drawer = document.querySelector("#analysisDetailDrawer");
+  const title = document.querySelector("#analysisDetailTitle");
+  const content = document.querySelector("#analysisDetailContent");
+  if (!drawer || !title || !content) return;
+  const analysis = state.videoAnalyses.find((item) => Number(item.id) === Number(analysisId));
+  if (!analysis) {
+    toast("还没有可查看的拆解详情");
+    return;
+  }
+  const material = state.materials.find((item) => Number(item.id) === Number(analysis.material_id));
+  const transcript = latestTranscriptionForMaterial(analysis.material_id);
+  const timeline = parseAnalysisTimeline(analysis);
+  const canGenerate = analysis.status === "approved";
+  const canApprove = analysis.status !== "approved" && analysis.status !== "failed";
+  const canReject = analysis.status !== "rejected";
+  state.activeAnalysisDetailId = analysis.id;
+  title.textContent = `深度拆解 #${analysis.id}${material ? ` · ${material.name}` : ""}`;
+  content.innerHTML = `
+    <div class="drawerSummary">
+      <span class="status taskStatus ${taskStatusClass(analysis.status)}">${analysisStatusLabel(analysis.status)}</span>
+      ${analysisMetricsHtml(analysis)}
+      <div class="recordMeta">当前登录账号可确认这个拆解是否作为后续原创脚本的参考模板；这不是成片发布审核。</div>
+      ${analysis.quality_summary ? `<div class="analysisQuality">${escapeHtml(analysis.quality_summary)}</div>` : ""}
+      ${analysis.error_message ? `<div class="errorText">${escapeHtml(analysis.error_message)}</div>` : ""}
+      <div class="referenceMaterialActions drawerActions">
+        <button type="button" data-action="approve-reference-analysis" data-id="${analysis.id}" ${canApprove ? "" : "disabled"}>采纳为模板</button>
+        <button type="button" class="secondary" data-action="reject-reference-analysis" data-id="${analysis.id}" ${canReject ? "" : "disabled"}>不采用</button>
+        <button type="button" data-action="script-from-drawer-analysis" data-id="${analysis.id}" ${canGenerate ? "" : "disabled"}>生成原创脚本</button>
+        ${material?.source_url ? `<a class="buttonLike ghostButton" href="${escapeHtml(material.source_url)}" target="_blank" rel="noreferrer">打开原链接</a>` : ""}
+      </div>
+    </div>
+    ${analysis.dense_contact_sheet_path ? `<img class="videoAnalysisSheet drawerSheet" src="/api/video-analyses/${analysis.id}/dense-contact-sheet" alt="深度拆解抽帧图" />` : ""}
+    <div class="analysisGrid drawerAnalysisGrid">
+      <div><h3>脚本策划</h3><pre>${escapeHtml(analysis.script_analysis || "运行后生成")}</pre></div>
+      <div><h3>拍摄方式</h3><pre>${escapeHtml(analysis.shooting_analysis || "运行后生成")}</pre></div>
+      <div><h3>剪辑方式</h3><pre>${escapeHtml(analysis.editing_analysis || "运行后生成")}</pre></div>
+      <div><h3>可复用模板</h3><pre>${escapeHtml(analysis.reusable_template || "运行后生成")}</pre></div>
+    </div>
+    ${timeline.length ? `
+      <details class="analysisTimelineDetails" open>
+        <summary>镜头时间轴</summary>
+        <table class="compactTable analysisTimelineTable">
+          <thead>
+            <tr>
+              <th>时间</th>
+              <th>画面角色</th>
+              <th>脚本作用</th>
+              <th>复用方式</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${timeline.slice(0, 36).map((item) => `
+              <tr>
+                <td>${Number(item.start_second || 0).toFixed(1)}-${Number(item.end_second || 0).toFixed(1)}s</td>
+                <td>${escapeHtml(item.visual_role || "-")}</td>
+                <td>${escapeHtml(item.script_function || "-")}</td>
+                <td>${escapeHtml(item.reuse_instruction || "-")}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </details>
+    ` : ""}
+    ${analysis.reuse_notes ? `<pre class="analysisReuseNotes">${escapeHtml(analysis.reuse_notes)}</pre>` : ""}
+    ${transcript?.transcript ? `
+      <details class="analysisTimelineDetails">
+        <summary>口播转写文本</summary>
+        <div class="transcript">${escapeHtml(transcript.transcript)}</div>
+      </details>
+    ` : ""}
+  `;
+  drawer.classList.remove("hiddenPanel");
+  drawer.setAttribute("aria-hidden", "false");
+}
+
+function closeAnalysisDetailDrawer() {
+  const drawer = document.querySelector("#analysisDetailDrawer");
+  if (!drawer) return;
+  drawer.classList.add("hiddenPanel");
+  drawer.setAttribute("aria-hidden", "true");
+  state.activeAnalysisDetailId = null;
 }
 
 function renderHumanSelects(humans) {
@@ -1897,19 +2029,20 @@ function renderTrending(searches, videos) {
 }
 
 function renderTranscriptions(tasks) {
+  state.transcriptions = tasks || [];
   const target = document.querySelector("#transcriptionList");
   if (!target) return;
-  if (!tasks.length) {
+  if (!state.transcriptions.length) {
     target.innerHTML = `<div class="item">还没有转写任务</div>`;
     return;
   }
-  state.latestTranscriptionId = tasks[0].id;
-  target.innerHTML = tasks
+  state.latestTranscriptionId = state.transcriptions[0].id;
+  target.innerHTML = state.transcriptions
     .map(
       (task) => `
         <div class="item">
           <strong>转写 #${task.id} · 素材 #${task.material_id}</strong>
-          <span class="status">${task.status}</span>
+          <span class="status">${transcriptionStatusLabel(task.status)}</span>
           <div>${task.summary || ""}</div>
           <div>${task.hook_analysis || ""}</div>
           <div class="transcript">${task.transcript || task.error_message || ""}</div>
@@ -1934,9 +2067,9 @@ function parseAnalysisTimeline(analysis) {
 }
 
 function renderVideoAnalyses(analyses) {
+  state.videoAnalyses = analyses || [];
   const target = document.querySelector("#videoAnalysisList");
   if (!target) return;
-  state.videoAnalyses = analyses || [];
   if (!state.videoAnalyses.length) {
     target.innerHTML = `<div class="item">还没有深度拆解任务。选择参考视频后，点击“一键深度拆解”。</div>`;
     return;
@@ -1951,7 +2084,7 @@ function renderVideoAnalyses(analyses) {
         <div class="videoAnalysisCard">
           <div class="itemHeader">
             <strong>深度拆解 #${analysis.id} · 素材 #${analysis.material_id}</strong>
-            <span class="status taskStatus ${taskStatusClass(analysis.status)}">${taskStatusLabel(analysis.status)}</span>
+            <span class="status taskStatus ${taskStatusClass(analysis.status)}">${analysisStatusLabel(analysis.status)}</span>
           </div>
           <div class="analysisMetrics">
             <span>${Number(analysis.duration_seconds || 0).toFixed(1)} 秒</span>
@@ -2899,6 +3032,34 @@ async function createAndRunVideoAnalysis(materialId, language = "zh-CN", button 
   }
 }
 
+async function generateScriptFromAnalysis(analysisId, button = null) {
+  if (!analysisId) {
+    toast("请先完成深度拆解");
+    return;
+  }
+  const originalText = button ? button.textContent : "";
+  if (button) {
+    button.disabled = true;
+    button.textContent = "生成中...";
+  }
+  try {
+    const script = await api.post(`/video-analyses/${analysisId}/generate-script`);
+    state.latestScriptId = script.id;
+    state.highlightedScriptId = script.id;
+    toast(`已按拆解模板生成原创脚本 #${script.id}`);
+    await refresh();
+    closeAnalysisDetailDrawer();
+    switchPage("creation");
+  } catch {
+    toast("生成脚本失败，请先采纳拆解结果并检查脚本模型配置");
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  }
+}
+
 async function saveReferenceLinkAndMaybeAnalyze(form, options = { analyze: false }) {
   const payload = formData(form);
   const language = payload.language || "zh-CN";
@@ -2924,7 +3085,7 @@ async function saveReferenceLinkAndMaybeAnalyze(form, options = { analyze: false
     }
     if (options.analyze && material.file_path) {
       const task = await createAndRunVideoAnalysis(material.id, language);
-      toast(`已保存并完成深度拆解：${taskStatusLabel(task.status)}`);
+      toast(`已保存并完成深度拆解：${analysisStatusLabel(task.status)}`);
     } else if (options.analyze) {
       toast("参考链接已保存，但这个链接不能直接下载视频，请上传源文件后拆解");
     } else {
@@ -2958,7 +3119,10 @@ document.querySelector("#saveReferenceOnlyBtn").addEventListener("click", async 
   });
 });
 
-document.querySelector("#analysisMaterialSelect").addEventListener("change", renderAnalysisMaterialPreview);
+document.querySelector("#analysisMaterialSelect").addEventListener("change", () => {
+  renderAnalysisMaterialPreview();
+  renderReferenceMaterials();
+});
 
 document.querySelector("#goAssetPageBtn").addEventListener("click", () => switchPage("humans"));
 
@@ -2977,7 +3141,7 @@ document.querySelector("#createVideoAnalysisBtn").addEventListener("click", asyn
   const button = document.querySelector("#createVideoAnalysisBtn");
   try {
     const task = await createAndRunVideoAnalysis(Number(select.value), language, button);
-    toast(`深度拆解完成：${taskStatusLabel(task.status)}`);
+    toast(`深度拆解完成：${analysisStatusLabel(task.status)}`);
     await refresh();
   } catch (error) {
     toast(error.message || "深度拆解失败，请确认素材是本地视频文件");
@@ -2991,24 +3155,50 @@ document.querySelector("#transcriptionForm").addEventListener("submit", async (e
     toast("请先选择参考素材");
     return;
   }
-  payload.material_id = Number(payload.material_id);
-  const task = await api.post("/transcriptions", payload);
-  state.latestTranscriptionId = task.id;
-  toast(`转写任务已创建 #${task.id}`);
-  await refresh();
-});
-
-document.querySelector("#runTranscriptionBtn").addEventListener("click", async () => {
-  if (!state.latestTranscriptionId) {
-    toast("请先创建转写任务");
+  const material = state.materials.find((item) => String(item.id) === String(payload.material_id));
+  if (material && !material.file_path) {
+    toast("这个参考素材只有链接，还没有本地视频或音频文件，不能转写");
     return;
   }
-  const task = await api.post(`/transcriptions/${state.latestTranscriptionId}/run`);
-  toast(`转写完成：${task.status}`);
-  await refresh();
+  const button = event.submitter;
+  const originalText = button ? button.textContent : "";
+  if (button) {
+    button.disabled = true;
+    button.textContent = "转写中...";
+  }
+  payload.material_id = Number(payload.material_id);
+  try {
+    const created = await api.post("/transcriptions", payload);
+    state.latestTranscriptionId = created.id;
+    const task = await api.post(`/transcriptions/${created.id}/run`);
+    state.latestTranscriptionId = task.id;
+    toast(`口播转写完成：${transcriptionStatusLabel(task.status)}`);
+    await refresh();
+  } catch {
+    toast("转写失败，请确认 ASR 模型和素材文件可用");
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  }
 });
 
-document.querySelector("#transcriptionList").addEventListener("click", async (event) => {
+const runTranscriptionBtn = document.querySelector("#runTranscriptionBtn");
+if (runTranscriptionBtn) {
+  runTranscriptionBtn.addEventListener("click", async () => {
+    if (!state.latestTranscriptionId) {
+      toast("请先创建转写任务");
+      return;
+    }
+    const task = await api.post(`/transcriptions/${state.latestTranscriptionId}/run`);
+    toast(`转写完成：${transcriptionStatusLabel(task.status)}`);
+    await refresh();
+  });
+}
+
+const transcriptionList = document.querySelector("#transcriptionList");
+if (transcriptionList) transcriptionList.addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-action]");
   if (!button) return;
   const id = button.dataset.id;
@@ -3037,8 +3227,13 @@ document.querySelector("#referenceMaterialList").addEventListener("click", async
     if (select) {
       select.value = String(materialId);
       renderAnalysisMaterialPreview();
+      renderReferenceMaterials();
     }
     toast(`已选择参考素材 #${materialId}`);
+    return;
+  }
+  if (button.dataset.action === "view-reference-analysis") {
+    renderAnalysisDetailDrawer(Number(button.dataset.id));
     return;
   }
   if (button.dataset.action === "analyze-reference-material") {
@@ -3050,7 +3245,7 @@ document.querySelector("#referenceMaterialList").addEventListener("click", async
     }
     try {
       const task = await createAndRunVideoAnalysis(materialId, language, button);
-      toast(`深度拆解完成：${taskStatusLabel(task.status)}`);
+      toast(`深度拆解完成：${analysisStatusLabel(task.status)}`);
       await refresh();
     } catch (error) {
       toast(error.message || "深度拆解失败");
@@ -3058,31 +3253,71 @@ document.querySelector("#referenceMaterialList").addEventListener("click", async
     return;
   }
   if (button.dataset.action === "script-from-reference-analysis") {
-    const analysisId = Number(button.dataset.id);
-    if (!analysisId) {
-      toast("请先完成深度拆解");
-      return;
-    }
-    const originalText = button.textContent;
-    button.disabled = true;
-    button.textContent = "生成中...";
-    try {
-      const script = await api.post(`/video-analyses/${analysisId}/generate-script`);
-      state.latestScriptId = script.id;
-      state.highlightedScriptId = script.id;
-      toast(`已按拆解模板生成原创脚本 #${script.id}`);
-      await refresh();
-      switchPage("creation");
-    } catch {
-      toast("生成脚本失败，请检查脚本模型配置");
-    } finally {
-      button.disabled = false;
-      button.textContent = originalText;
-    }
+    await generateScriptFromAnalysis(Number(button.dataset.id), button);
   }
 });
 
-document.querySelector("#videoAnalysisList").addEventListener("click", async (event) => {
+document.querySelector("#openSelectedAnalysisDetailBtn").addEventListener("click", () => {
+  const materialId = Number(document.querySelector("#analysisMaterialSelect").value || 0);
+  if (!materialId) {
+    toast("请先选择参考素材");
+    return;
+  }
+  const analysis = latestAnalysisForMaterial(materialId);
+  if (!analysis) {
+    toast("这个素材还没有拆解结果");
+    return;
+  }
+  renderAnalysisDetailDrawer(analysis.id);
+});
+
+document.querySelector("#closeAnalysisDetailBtn").addEventListener("click", closeAnalysisDetailDrawer);
+
+document.querySelector("#analysisDetailDrawer").addEventListener("click", (event) => {
+  if (event.target.id === "analysisDetailDrawer") closeAnalysisDetailDrawer();
+});
+
+document.querySelector("#analysisDetailContent").addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-action]");
+  if (!button || button.disabled) return;
+  const analysisId = Number(button.dataset.id);
+  const originalText = button.textContent;
+  try {
+    if (button.dataset.action === "approve-reference-analysis") {
+      button.disabled = true;
+      button.textContent = "采纳中...";
+      const task = await api.post(`/video-analyses/${analysisId}/approve`);
+      toast(`已采纳为参考模板：${analysisStatusLabel(task.status)}`);
+      await refresh();
+      renderAnalysisDetailDrawer(task.id);
+      return;
+    }
+    if (button.dataset.action === "reject-reference-analysis") {
+      button.disabled = true;
+      button.textContent = "处理中...";
+      const task = await api.post(`/video-analyses/${analysisId}/reject`);
+      toast(`已标记不采用：${analysisStatusLabel(task.status)}`);
+      await refresh();
+      renderAnalysisDetailDrawer(task.id);
+      return;
+    }
+    if (button.dataset.action === "script-from-drawer-analysis") {
+      await generateScriptFromAnalysis(analysisId, button);
+    }
+  } catch {
+    toast("操作失败，请稍后再试");
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") closeAnalysisDetailDrawer();
+});
+
+const videoAnalysisList = document.querySelector("#videoAnalysisList");
+if (videoAnalysisList) videoAnalysisList.addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-action]");
   if (!button || button.disabled) return;
   const id = Number(button.dataset.id);
@@ -3093,7 +3328,7 @@ document.querySelector("#videoAnalysisList").addEventListener("click", async (ev
       button.textContent = "拆解中...";
       const task = await api.post(`/video-analyses/${id}/run`);
       state.latestVideoAnalysisId = task.id;
-      toast(`深度拆解完成：${taskStatusLabel(task.status)}`);
+      toast(`深度拆解完成：${analysisStatusLabel(task.status)}`);
       await refresh();
     } catch {
       toast("深度拆解失败，请确认素材是本地视频文件");
@@ -3104,18 +3339,7 @@ document.querySelector("#videoAnalysisList").addEventListener("click", async (ev
     return;
   }
   if (button.dataset.action === "script-from-video-analysis") {
-    button.disabled = true;
-    button.textContent = "生成中...";
-    try {
-      const script = await api.post(`/video-analyses/${id}/generate-script`);
-      state.latestScriptId = script.id;
-      state.highlightedScriptId = script.id;
-      toast(`已按拆解模板生成原创脚本 #${script.id}`);
-      await refresh();
-      switchPage("creation");
-    } catch {
-      toast("生成脚本失败，请先运行深度拆解并检查脚本模型配置");
-    }
+    await generateScriptFromAnalysis(id, button);
   }
 });
 

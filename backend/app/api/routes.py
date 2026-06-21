@@ -1714,6 +1714,42 @@ def list_reference_video_analyses(
     return list(session.exec(select(ReferenceVideoAnalysis).order_by(ReferenceVideoAnalysis.created_at.desc())).all())
 
 
+@router.post("/video-analyses/{analysis_id}/approve", response_model=ReferenceVideoAnalysis)
+def approve_reference_video_analysis(
+    analysis_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> ReferenceVideoAnalysis:
+    task = session.get(ReferenceVideoAnalysis, analysis_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Reference video analysis not found")
+    if task.status == TaskStatus.failed:
+        raise HTTPException(status_code=400, detail="失败的拆解结果不能采纳，请重新拆解。")
+    task.status = TaskStatus.approved
+    task.updated_at = datetime.utcnow()
+    session.add(task)
+    session.commit()
+    session.refresh(task)
+    return task
+
+
+@router.post("/video-analyses/{analysis_id}/reject", response_model=ReferenceVideoAnalysis)
+def reject_reference_video_analysis(
+    analysis_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> ReferenceVideoAnalysis:
+    task = session.get(ReferenceVideoAnalysis, analysis_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Reference video analysis not found")
+    task.status = TaskStatus.rejected
+    task.updated_at = datetime.utcnow()
+    session.add(task)
+    session.commit()
+    session.refresh(task)
+    return task
+
+
 @router.get("/video-analyses/{analysis_id}/contact-sheet")
 def reference_video_analysis_contact_sheet(
     analysis_id: int,
@@ -1751,8 +1787,8 @@ async def generate_script_from_reference_video_analysis(
     task = session.get(ReferenceVideoAnalysis, analysis_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Reference video analysis not found")
-    if task.status not in (TaskStatus.needs_review, TaskStatus.approved):
-        raise HTTPException(status_code=400, detail="请先运行深度视频拆解。")
+    if task.status != TaskStatus.approved:
+        raise HTTPException(status_code=400, detail="请先在拆解详情里采纳这个参考模板。")
     material = session.get(Material, task.material_id)
     topic = (
         "基于参考视频的结构生成原创公司短视频脚本，不能复刻原画面、原文和人物。"

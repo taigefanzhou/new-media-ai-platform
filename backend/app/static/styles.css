@@ -1776,6 +1776,11 @@ button:disabled {
   background: #fbfcfd;
 }
 
+.selectedReferenceCard {
+  border-color: var(--accent);
+  background: #f0fdfa;
+}
+
 .referenceMaterialMedia {
   display: block;
   width: 116px;
@@ -1832,6 +1837,71 @@ button:disabled {
 .pendingStatus {
   background: #eef2ff;
   color: #4f46e5;
+}
+
+.drawerOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  justify-content: end;
+  background: rgba(15, 23, 42, 0.28);
+}
+
+.drawerOverlay.hiddenPanel {
+  display: none;
+}
+
+.detailDrawer {
+  width: min(860px, calc(100vw - 28px));
+  height: 100vh;
+  overflow: auto;
+  padding: 20px;
+  background: white;
+  border-left: 1px solid var(--line);
+  box-shadow: -18px 0 36px rgba(15, 23, 42, 0.14);
+}
+
+.drawerHeader {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+  background: white;
+  border-bottom: 1px solid var(--line);
+}
+
+.drawerHeader h2 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.analysisDetailContent {
+  display: grid;
+  gap: 14px;
+}
+
+.drawerSummary {
+  display: grid;
+  gap: 10px;
+}
+
+.drawerActions {
+  margin-top: 0;
+}
+
+.drawerSheet {
+  max-height: none;
+  object-fit: contain;
+}
+
+.drawerAnalysisGrid {
+  grid-template-columns: 1fr;
 }
 
 .analysisResultList {
@@ -2359,6 +2429,15 @@ button:disabled {
 
   .referenceMaterialMedia {
     width: 88px;
+  }
+
+  .detailDrawer {
+    width: 100vw;
+    padding: 16px;
+  }
+
+  .drawerHeader {
+    align-items: center;
   }
 
   .storagePathRow {
