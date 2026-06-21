@@ -1450,7 +1450,7 @@ function renderModelUsage(report) {
               <tr>
                 <td>${escapeHtml(item.purpose_label || purposeLabel(item.purpose))}</td>
                 <td>
-                  <span class="usageApiTag ${item.real_api ? "real" : "mock"}">${item.real_api ? "真实" : "占位"}</span>
+                  <span class="usageApiTag ${item.real_api ? "real" : "mock"}">${item.real_api ? "真实" : "本地/占位"}</span>
                   ${escapeHtml(providerLabel(item.purpose, item.provider))}
                 </td>
                 <td>${escapeHtml(item.model_name)}</td>

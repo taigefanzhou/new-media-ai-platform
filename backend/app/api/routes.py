@@ -131,6 +131,17 @@ MODEL_HTTP_LOCAL_PROVIDERS = {
 }
 
 
+def _usage_provider_is_real_api(provider: str) -> bool:
+    normalized = (provider or "").strip().lower()
+    if not normalized:
+        return False
+    if normalized in MODEL_LOCAL_PROVIDERS or normalized in MODEL_HTTP_LOCAL_PROVIDERS:
+        return False
+    if "mock" in normalized or "local" in normalized:
+        return False
+    return True
+
+
 def _api_base_looks_valid(api_base: str | None) -> bool:
     if not api_base:
         return False
@@ -477,7 +488,7 @@ def model_usage_summary(
                 "provider": row.provider,
                 "model_name": row.model_name,
                 "active_level": diagnostic.get("level", "unknown"),
-                "real_api": bool(diagnostic.get("real_api")),
+                "real_api": _usage_provider_is_real_api(row.provider),
                 "call_count": 0,
                 "prompt_tokens": 0,
                 "completion_tokens": 0,
@@ -488,7 +499,7 @@ def model_usage_summary(
                 "last_used_at": row.created_at,
             },
         )
-        item["real_api"] = bool(item["real_api"]) or (row.provider not in MODEL_LOCAL_PROVIDERS)
+        item["real_api"] = _usage_provider_is_real_api(row.provider)
         item["call_count"] = int(item["call_count"]) + 1
         item["prompt_tokens"] = int(item["prompt_tokens"]) + row.prompt_tokens
         item["completion_tokens"] = int(item["completion_tokens"]) + row.completion_tokens
