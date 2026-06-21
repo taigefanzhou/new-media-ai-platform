@@ -1583,7 +1583,14 @@ class MediaGenerationClient:
                 with wave.open(str(path), "rb") as source:
                     frames = source.getnframes()
                     rate = source.getframerate()
-                    return frames / float(rate) if rate else None
+                    channels = source.getnchannels() or 1
+                    sample_width = source.getsampwidth() or 2
+                    header_duration = frames / float(rate) if rate else None
+                    data_bytes = max(0, path.stat().st_size - 44)
+                    size_duration = data_bytes / float(rate * channels * sample_width) if rate else None
+                    if header_duration and size_duration and header_duration > size_duration * 5:
+                        return size_duration
+                    return header_duration
             except (wave.Error, OSError):
                 return None
         try:
