@@ -62,6 +62,7 @@ KEYLESS_DIGITAL_HUMAN_PROVIDERS = {"http-json", "sadtalker"}
 DASHSCOPE_TTS_PROVIDERS = {"aliyun-cosyvoice", "aliyun-tts"}
 DASHSCOPE_VOICE_CLONE_PROVIDERS = {"aliyun-cosyvoice-clone"}
 DID_DIGITAL_HUMAN_PROVIDERS = {"d-id", "did"}
+ALIYUN_DIGITAL_HUMAN_PROVIDERS = {"aliyun-wan-s2v", "aliyun-liveportrait", "aliyun-videoretalk"}
 
 
 class ScriptGenerator:
@@ -528,6 +529,8 @@ class MediaGenerationClient:
         audio_path: str,
         source_video_path: Optional[str] = None,
         style_prompt: str = "",
+        portrait_url: Optional[str] = None,
+        source_video_url: Optional[str] = None,
     ) -> str:
         api_base = (
             self.digital_human_model_config.api_base
@@ -550,6 +553,18 @@ class MediaGenerationClient:
             return self._mock_asset("digital-human", "talking-avatar.mp4")
         if not api_key and provider not in KEYLESS_DIGITAL_HUMAN_PROVIDERS:
             raise RuntimeError("Digital human API key is not configured")
+        if self._is_aliyun_digital_human_provider(provider):
+            return await self._generate_aliyun_digital_human(
+                portrait_path,
+                audio_path,
+                source_video_path,
+                api_base,
+                api_key,
+                provider,
+                self.digital_human_model_config.model_name if self.digital_human_model_config else provider,
+                portrait_url,
+                source_video_url,
+            )
         if self._is_did_provider(provider):
             return await self._generate_did_talk(portrait_path, audio_path, api_base, api_key, style_prompt)
 
@@ -1248,6 +1263,107 @@ class MediaGenerationClient:
             raise RuntimeError("百炼 CosyVoice 声音复刻未返回 voice_id")
         return voice_id
 
+    async def _generate_aliyun_digital_human(
+        self,
+        portrait_path: Optional[str],
+        audio_path: str,
+        source_video_path: Optional[str],
+        api_base: str,
+        api_key: Optional[str],
+        provider: str,
+        model_name: str,
+        portrait_url: Optional[str] = None,
+        source_video_url: Optional[str] = None,
+    ) -> str:
+        if not api_key:
+            raise RuntimeError("阿里云百炼数字人 API Key 未配置")
+        audio_url = self._audio_source_url(audio_path) or self._public_media_url(audio_path)
+        image_url = self._public_media_url(portrait_url) or self._public_media_url(portrait_path)
+        video_url = self._public_media_url(source_video_url) or self._public_media_url(source_video_path)
+        model = model_name or "wan2.2-s2v"
+
+        if self._is_aliyun_videoretalk(provider, model):
+            if not video_url:
+                raise RuntimeError("阿里云 VideoRetalk 需要公网可访问的口播源视频 URL，请先把源视频素材补传服务器。")
+            if not audio_url:
+                raise RuntimeError("阿里云 VideoRetalk 需要公网可访问的音频 URL，请确认语音合成返回了公网音频地址。")
+            input_payload: dict[str, object] = {"video_url": video_url, "audio_url": audio_url}
+            if image_url:
+                input_payload["ref_image_url"] = image_url
+            model = "videoretalk"
+            parameters: dict[str, object] = {}
+        else:
+            if not image_url:
+                raise RuntimeError("阿里云数字人需要公网可访问的头像图片 URL，请先在素材库把头像补传服务器。")
+            if not audio_url:
+                raise RuntimeError("阿里云数字人需要公网可访问的音频 URL，请确认语音合成返回了公网音频地址。")
+            input_payload = {"image_url": image_url, "audio_url": audio_url}
+            if self._is_aliyun_liveportrait(provider, model):
+                model = "liveportrait"
+                parameters = {
+                    "template_id": self._config_note_value(self.digital_human_model_config, "template_id") or "normal",
+                    "video_fps": 24,
+                    "mouth_move_strength": 1,
+                    "paste_back": True,
+                }
+            else:
+                audio_duration = self._media_duration_seconds(audio_path)
+                if audio_duration and audio_duration >= 20:
+                    raise RuntimeError("阿里云 wan2.2-s2v 单次音频需小于 20 秒，长口播需要先切成 20 秒以内的分段。")
+                model = "wan2.2-s2v"
+                parameters = {"resolution": self._config_note_value(self.digital_human_model_config, "resolution") or "480P"}
+
+        task_id = await self._submit_aliyun_video_synthesis_task(api_base, api_key, model, input_payload, parameters)
+        result_url = await self._poll_aliyun_video_synthesis_task(api_base, api_key, task_id)
+        return await self._download_media(result_url, "digital-human", f"{task_id}.mp4")
+
+    async def _submit_aliyun_video_synthesis_task(
+        self,
+        api_base: str,
+        api_key: str,
+        model: str,
+        input_payload: dict[str, object],
+        parameters: dict[str, object],
+    ) -> str:
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "X-DashScope-Async": "enable",
+        }
+        payload = {"model": model, "input": input_payload}
+        if parameters:
+            payload["parameters"] = parameters
+        async with httpx.AsyncClient(timeout=300) as client:
+            response = await client.post(
+                self._aliyun_video_synthesis_endpoint(api_base),
+                headers=headers,
+                json=payload,
+            )
+            response.raise_for_status()
+            data = response.json()
+        task_id = self._extract_task_id(data)
+        if not task_id:
+            raise RuntimeError(f"阿里云数字人未返回 task_id：{data}")
+        return task_id
+
+    async def _poll_aliyun_video_synthesis_task(self, api_base: str, api_key: str, task_id: str) -> str:
+        headers = {"Authorization": f"Bearer {api_key}"}
+        async with httpx.AsyncClient(timeout=300) as client:
+            for _ in range(180):
+                await asyncio.sleep(5)
+                response = await client.get(self._aliyun_task_endpoint(api_base, task_id), headers=headers)
+                response.raise_for_status()
+                data = response.json()
+                status = self._aliyun_task_status(data)
+                if status in {"succeeded", "success", "done"}:
+                    video_url = self._extract_nested_media_url(data)
+                    if video_url:
+                        return video_url
+                    raise RuntimeError(f"阿里云数字人任务成功但未返回视频地址：{data}")
+                if status in {"failed", "fail", "error", "canceled", "cancelled"}:
+                    raise RuntimeError(f"阿里云数字人生成失败：{data.get('message') or data.get('error') or data}")
+        raise RuntimeError(f"阿里云数字人生成超时：{task_id}")
+
     async def _generate_did_talk(
         self,
         portrait_path: Optional[str],
@@ -1455,6 +1571,41 @@ class MediaGenerationClient:
         output_path = self._asset_path(category, filename)
         output_path.write_bytes(response.content)
         return str(output_path)
+
+    def _media_duration_seconds(self, media_path: Optional[str]) -> Optional[float]:
+        if not media_path or not self._is_local_path(media_path):
+            return None
+        path = Path(media_path)
+        if not path.exists():
+            return None
+        if path.suffix.lower() == ".wav":
+            try:
+                with wave.open(str(path), "rb") as source:
+                    frames = source.getnframes()
+                    rate = source.getframerate()
+                    return frames / float(rate) if rate else None
+            except (wave.Error, OSError):
+                return None
+        try:
+            result = subprocess.run(
+                [
+                    "ffprobe",
+                    "-v",
+                    "error",
+                    "-show_entries",
+                    "format=duration",
+                    "-of",
+                    "default=noprint_wrappers=1:nokey=1",
+                    str(path),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            return float(result.stdout.strip())
+        except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired, ValueError):
+            return None
 
     def _local_voiceover(self, text: str, voice: Optional[str] = None) -> str:
         output_path = self._asset_path("voice", "voiceover.aiff")
@@ -1749,6 +1900,36 @@ class MediaGenerationClient:
     def _is_did_provider(self, provider: str) -> bool:
         return (provider or "").lower() in DID_DIGITAL_HUMAN_PROVIDERS
 
+    def _is_aliyun_digital_human_provider(self, provider: str) -> bool:
+        normalized_provider = (provider or "").lower()
+        return normalized_provider in ALIYUN_DIGITAL_HUMAN_PROVIDERS
+
+    def _is_aliyun_liveportrait(self, provider: str, model_name: str) -> bool:
+        value = f"{provider} {model_name}".lower()
+        return "liveportrait" in value
+
+    def _is_aliyun_videoretalk(self, provider: str, model_name: str) -> bool:
+        value = f"{provider} {model_name}".lower()
+        return "videoretalk" in value
+
+    def _aliyun_video_synthesis_endpoint(self, api_base: str) -> str:
+        base = api_base.rstrip("/")
+        if base.endswith("/video-synthesis"):
+            return f"{base}/"
+        if base.endswith("/video-synthesis/"):
+            return base
+        if base.endswith("/api/v1"):
+            return f"{base}/services/aigc/image2video/video-synthesis/"
+        return f"{base}/api/v1/services/aigc/image2video/video-synthesis/"
+
+    def _aliyun_task_endpoint(self, api_base: str, task_id: str) -> str:
+        base = api_base.rstrip("/")
+        if "/api/v1/services/" in base:
+            base = base.split("/api/v1/services/", 1)[0] + "/api/v1"
+        elif not base.endswith("/api/v1"):
+            base = f"{base}/api/v1"
+        return f"{base}/tasks/{task_id}"
+
     def _dashscope_tts_endpoint(self, api_base: str) -> str:
         base = api_base.rstrip("/")
         if base.endswith("/SpeechSynthesizer"):
@@ -1791,6 +1972,53 @@ class MediaGenerationClient:
                 return None
             current = current.get(key)
         return current
+
+    def _extract_task_id(self, data: object) -> Optional[str]:
+        for key in ("task_id", "id"):
+            value = self._nested_value(data, (key,))
+            if isinstance(value, str) and value:
+                return value
+        for path in (("output", "task_id"), ("data", "task_id"), ("result", "task_id")):
+            value = self._nested_value(data, path)
+            if isinstance(value, str) and value:
+                return value
+        return None
+
+    def _aliyun_task_status(self, data: object) -> str:
+        for path in (("output", "task_status"), ("output", "status"), ("task_status",), ("status",), ("data", "status")):
+            value = self._nested_value(data, path)
+            if isinstance(value, str) and value:
+                return value.lower()
+        return ""
+
+    def _extract_nested_media_url(self, data: object) -> str:
+        if isinstance(data, str):
+            return data if data.startswith(("http://", "https://")) else ""
+        if isinstance(data, list):
+            for item in data:
+                url = self._extract_nested_media_url(item)
+                if url:
+                    return url
+            return ""
+        if not isinstance(data, dict):
+            return ""
+        for key in (
+            "video_url",
+            "url",
+            "result_url",
+            "output_url",
+            "file_url",
+            "download_url",
+            "orig_video_url",
+        ):
+            value = data.get(key)
+            if isinstance(value, str) and value.startswith(("http://", "https://")):
+                return value
+        for key in ("output", "data", "result", "results", "video", "videos"):
+            url = self._extract_nested_media_url(data.get(key))
+            if url:
+                return url
+        return ""
 
     def _public_media_url(self, value: Optional[str]) -> Optional[str]:
         if value and value.startswith(("http://", "https://")):

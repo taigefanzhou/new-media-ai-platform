@@ -1775,13 +1775,17 @@ def _validate_video_task_inputs(
         raise HTTPException(status_code=400, detail="Unknown production mode")
     if digital_human_id is None:
         if production_mode in {"digital_human", "talking_head_template"}:
-            raise HTTPException(status_code=400, detail="数字人口播需要选择数字人，并上传口播源视频。")
+            raise HTTPException(status_code=400, detail="数字人口播需要选择数字人，并上传头像或口播源视频。")
         return
     human = session.get(DigitalHuman, digital_human_id)
     if human is None:
         raise HTTPException(status_code=404, detail="Digital human not found")
-    if production_mode in {"digital_human", "talking_head_template"} and human.source_video_material_id is None:
-        raise HTTPException(status_code=400, detail="数字人口播需要先上传该数字人的口播源视频。")
+    if (
+        production_mode in {"digital_human", "talking_head_template"}
+        and human.portrait_material_id is None
+        and human.source_video_material_id is None
+    ):
+        raise HTTPException(status_code=400, detail="数字人口播需要先上传该数字人的头像或口播源视频。")
     if production_mode in {"digital_human", "talking_head_template"} and not _digital_human_service_ready(session):
         raise HTTPException(status_code=400, detail="数字人口播需要先在系统设置里配置真实数字人驱动接口。")
 

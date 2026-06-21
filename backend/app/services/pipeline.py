@@ -63,18 +63,29 @@ class VideoPipeline:
             self.session.refresh(task)
 
             human = self.session.get(DigitalHuman, task.digital_human_id) if task.digital_human_id else None
-            portrait = self._portrait_path(human)
+            portrait_material = self._portrait_material(human)
+            portrait = portrait_material.file_path if portrait_material else None
+            portrait_url = portrait_material.source_url if portrait_material else None
             source_video_material = self._source_video_material(human)
             source_video = source_video_material.file_path if source_video_material else None
             source_video_url = source_video_material.source_url if source_video_material else None
             voice = await self._voice_for_human(human, source_video, task, source_video_url)
             audio = await self._synthesize_voice(script, voice)
             if task.production_mode == "talking_head_template":
-                if human is None or (source_video is None and source_video_url is None):
-                    raise RuntimeError("数字人口播模板需要选择已绑定口播源视频的数字人。")
+                if human is None:
+                    raise RuntimeError("数字人口播模板需要选择数字人。")
+                if not any([portrait, portrait_url, source_video, source_video_url]):
+                    raise RuntimeError("数字人口播模板需要数字人头像或口播源视频素材。")
                 if not self.media.can_generate_talking_avatar():
                     raise RuntimeError("数字人口播模板需要先配置真实数字人驱动接口，不能使用头像或图文预览代替。")
-                avatar = await self._generate_talking_avatar(portrait, audio, source_video, script.seedance_prompt)
+                avatar = await self._generate_talking_avatar(
+                    portrait,
+                    audio,
+                    source_video,
+                    script.seedance_prompt,
+                    portrait_url=portrait_url,
+                    source_video_url=source_video_url,
+                )
                 task.output_path = await self.media.compose_talking_head_template(
                     avatar,
                     script.voiceover,
@@ -133,7 +144,14 @@ class VideoPipeline:
                 return task
             if task.production_mode == "digital_human" and not self.media.can_generate_talking_avatar():
                 raise RuntimeError("真人数字人口播需要先配置真实数字人驱动接口。")
-            avatar = await self._generate_talking_avatar(portrait, audio, source_video, script.seedance_prompt)
+            avatar = await self._generate_talking_avatar(
+                portrait,
+                audio,
+                source_video,
+                script.seedance_prompt,
+                portrait_url=portrait_url,
+                source_video_url=source_video_url,
+            )
             clips = []
             for segment in segments:
                 clip_path = await self._run_segment(segment, task)
@@ -249,13 +267,14 @@ class VideoPipeline:
             return role
         return "品牌顾问｜企业方案讲解｜数字人口播"
 
-    def _portrait_path(self, human: DigitalHuman | None) -> str | None:
+    def _portrait_material(self, human: DigitalHuman | None) -> Material | None:
         if human is None or human.portrait_material_id is None:
             return None
-        material = self.session.get(Material, human.portrait_material_id)
-        if material is None:
-            return None
-        return material.file_path
+        return self.session.get(Material, human.portrait_material_id)
+
+    def _portrait_path(self, human: DigitalHuman | None) -> str | None:
+        material = self._portrait_material(human)
+        return material.file_path if material else None
 
     def _source_video_path(self, human: DigitalHuman | None) -> str | None:
         material = self._source_video_material(human)
@@ -340,9 +359,18 @@ class VideoPipeline:
         audio_path: str,
         source_video_path: str | None,
         style_prompt: str = "",
+        portrait_url: str | None = None,
+        source_video_url: str | None = None,
     ) -> str:
         try:
-            avatar = await self.media.generate_talking_avatar(portrait_path, audio_path, source_video_path, style_prompt)
+            avatar = await self.media.generate_talking_avatar(
+                portrait_path,
+                audio_path,
+                source_video_path,
+                style_prompt,
+                portrait_url=portrait_url,
+                source_video_url=source_video_url,
+            )
             self._record_usage(
                 "digital_human",
                 self.digital_human_model_config,

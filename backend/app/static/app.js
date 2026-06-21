@@ -119,6 +119,7 @@ const providerOptions = {
     { value: "mock", label: "Mock 测试", model: "mock-video" },
   ],
   digital_human: [
+    { value: "aliyun-wan-s2v", label: "阿里云百炼 / 万相数字人", model: "wan2.2-s2v", base: "https://dashscope.aliyuncs.com/api/v1" },
     { value: "volcengine-digital-human", label: "火山引擎 / 数字人驱动", model: "volcengine-digital-human" },
     { value: "sadtalker", label: "SadTalker 本地/HTTP 服务", model: "sadtalker", base: "http://localhost:7860" },
     { value: "heygen", label: "HeyGen 数字人", model: "heygen-avatar" },
@@ -300,6 +301,14 @@ function applyProviderDefaultModel() {
 }
 
 const modelPresets = {
+  "aliyun-wan-s2v": {
+    name: "阿里云百炼万相数字人",
+    purpose: "digital_human",
+    provider: "aliyun-wan-s2v",
+    api_base: "https://dashscope.aliyuncs.com/api/v1",
+    model_name: "wan2.2-s2v",
+    notes: "real_adapter=aliyun_wan_s2v\nresolution=480P\nrequires_public_portrait_url=true\nrequires_public_audio_url=true\naudio_limit_seconds=20",
+  },
   did: {
     name: "D-ID 真实数字人口播",
     purpose: "digital_human",
@@ -2230,7 +2239,7 @@ function syncProductionModeHint() {
   if (!select || !hint) return;
   hint.textContent = {
     dynamic_explainer: "低成本图文草稿，只用于快速预览节奏，不作为正式成片。",
-    digital_human: "需要选择已上传口播源视频的数字人，用于后续真人嘴型驱动。",
+    digital_human: "需要选择已上传头像或口播源视频的数字人，用于后续真人嘴型驱动。",
     seedance_scene: "会把分镜表拆成多个 Seedance 镜头，生成 AI 实景画面后自动拼接。",
     talking_head_template: "需要真实数字人驱动接口，会生成顶部标题、底部身份条、字幕和解释页的口播模板。",
   }[select.value] || "";
@@ -2266,7 +2275,7 @@ async function createVideoFromScript(scriptId, button) {
     payload.digital_human_id = Number(humanInput.value);
   }
   if (["digital_human", "talking_head_template"].includes(productionMode) && !payload.digital_human_id) {
-    toast("数字人口播需要先选择有口播源视频的数字人");
+    toast("数字人口播需要先选择有头像或口播源视频的数字人");
     return;
   }
   button.disabled = true;
