@@ -741,25 +741,17 @@ label {
   background: #f8fafc;
 }
 
-.modelDiagnosticGrid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+.modelDiagnosticsTable td:nth-child(2) {
+  max-width: 280px;
 }
 
-.modelDiagnosticItem {
-  min-width: 0;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 10px;
-  background: #ffffff;
-  font-size: 13px;
-  line-height: 1.45;
+.modelDiagnosticsTable td:last-child {
+  max-width: 360px;
+  color: var(--muted);
 }
 
-.modelDiagnosticItem.blocked {
-  border-color: #fecaca;
-  background: #fff7f7;
+.diagnosticBlockedRow td {
+  background: #fffafa;
 }
 
 .modelSecretRow {
@@ -789,6 +781,24 @@ label {
   border: 1px solid #fed7aa;
   background: #fff7ed;
   color: #c2410c;
+}
+
+.advancedModelPanel {
+  margin-top: 14px;
+}
+
+.advancedModelPanel summary {
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.advancedModelGrid {
+  margin-top: 14px;
+}
+
+.compactModelList .item {
+  padding: 10px;
 }
 
 input,

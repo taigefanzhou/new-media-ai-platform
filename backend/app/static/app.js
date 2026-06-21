@@ -1275,7 +1275,7 @@ function renderModelDiagnostics(report) {
       <div class="sectionHeader compactSectionHeader">
         <div>
           <h2>模型接入体检</h2>
-          <p>绿色表示真实接口已具备运行条件，橙色表示本地或 Mock，占位不产生真实效果，红色表示还缺接口地址或 Key。</p>
+          <p>只展示当前各模块能否真实调用，详细配置放到下方高级配置里。</p>
         </div>
         <div class="diagnosticCounts">
           <span>可用 ${formatNumber(report.ready_count)}</span>
@@ -1283,27 +1283,37 @@ function renderModelDiagnostics(report) {
           <span>待补齐 ${formatNumber(report.blocked_count)}</span>
         </div>
       </div>
-      <div class="modelDiagnosticGrid">
+      <table class="settingsTable compactTable modelDiagnosticsTable">
+        <thead>
+          <tr>
+            <th>模块</th>
+            <th>供应商 / 模型</th>
+            <th>状态</th>
+            <th>接口</th>
+            <th>Key</th>
+            <th>待处理</th>
+          </tr>
+        </thead>
+        <tbody>
         ${items
           .map(
             (item) => `
-              <div class="modelDiagnosticItem ${item.level === "blocked" ? "blocked" : ""}">
-                <div class="itemHeader">
-                  <strong>${escapeHtml(item.purpose_label || item.purpose)}</strong>
-                  <span class="status taskStatus ${modelDiagnosticStatusClass(item.level)}">${modelDiagnosticLabel(item.level)}</span>
-                </div>
-                <div class="recordMeta">${escapeHtml(providerLabel(item.purpose, item.provider || "-"))} · ${escapeHtml(item.model_name || "-")}</div>
-                <div>${escapeHtml(item.summary || "")}</div>
-                <div class="modelSecretRow">
-                  <span class="${item.has_api_base ? "ok" : "missing"}">接口地址${item.has_api_base ? "已填" : "缺失"}</span>
-                  <span class="${item.has_api_key ? "ok" : "missing"}">Key ${item.has_api_key ? "已保存" : "缺失"}</span>
-                </div>
-                <div class="recordMeta">${escapeHtml(item.next_action || "")}</div>
-              </div>
+              <tr class="${item.level === "blocked" ? "diagnosticBlockedRow" : ""}">
+                <td><strong>${escapeHtml(item.purpose_label || item.purpose)}</strong></td>
+                <td>
+                  ${escapeHtml(providerLabel(item.purpose, item.provider || "-"))}
+                  <div class="recordMeta">${escapeHtml(item.model_name || "-")}</div>
+                </td>
+                <td><span class="status taskStatus ${modelDiagnosticStatusClass(item.level)}">${modelDiagnosticLabel(item.level)}</span></td>
+                <td><span class="${item.has_api_base ? "ok" : "missing"}">${item.has_api_base ? "已填" : "缺失"}</span></td>
+                <td><span class="${item.has_api_key ? "ok" : "missing"}">${item.has_api_key ? "已保存" : "缺失"}</span></td>
+                <td>${item.level === "blocked" ? escapeHtml(item.next_action || item.summary || "") : "可运行"}</td>
+              </tr>
             `,
           )
           .join("")}
-      </div>
+        </tbody>
+      </table>
     </section>
   `;
 }
@@ -1323,12 +1333,8 @@ function renderModels(models) {
             <strong>${model.name}</strong>
             <span class="status taskStatus ${model.is_active ? "taskStatusApproved" : "taskStatusDraft"}">${model.is_active ? "启用" : "停用"}</span>
           </div>
-          <div>${providerLabel(model.purpose, model.provider)} · ${purposeLabel(model.purpose)}</div>
-          <div>${model.model_name}</div>
-          <div class="modelSecretRow">
-            <span class="${model.api_base ? "ok" : "missing"}">接口地址：${model.api_base ? "已填写" : "未填写"}</span>
-            <span class="${model.has_api_key ? "ok" : "missing"}">API Key：${model.has_api_key ? "已保存 Key" : "未保存 Key"}</span>
-          </div>
+          <div>${purposeLabel(model.purpose)} · ${providerLabel(model.purpose, model.provider)}</div>
+          <div class="recordMeta">${escapeHtml(model.model_name)} · 接口${model.api_base ? "已填" : "缺失"} · Key ${model.has_api_key ? "已保存" : "缺失"}</div>
           <div class="itemActions">
             <button type="button" class="secondary" data-action="test-model-config" data-id="${model.id}">测试</button>
             <button type="button" data-action="activate-model-config" data-id="${model.id}" ${model.is_active ? "disabled" : ""}>启用</button>

@@ -519,41 +519,44 @@
               <span>生成口播：/talks</span>
             </div>
           </section>
-          <section class="split">
-            <form id="modelConfigForm" class="panel">
-              <h2>AI 模型入口维护</h2>
-              <label>名称<input name="name" value="脚本生成模型" /></label>
-              <label>用途
-                <select name="purpose">
-                  <option value="script">脚本生成</option>
-                  <option value="tts">语音合成</option>
-                  <option value="voice_clone">声音复刻</option>
-                  <option value="video">视频生成</option>
-                  <option value="digital_human">数字人驱动</option>
-                  <option value="asr">语音识别</option>
-                  <option value="video_understanding">视频理解/深度拆解</option>
-                  <option value="compliance">合规检查</option>
-                  <option value="knowledge">知识库/文档/长文本</option>
-                </select>
-              </label>
-              <label>供应商
-                <select name="provider" id="providerSelect"></select>
-              </label>
-              <label>接口地址<input name="api_base" placeholder="https://api.example.com/v1" /></label>
-              <label>模型名<input name="model_name" placeholder="gpt-4.1-mini / deepseek-chat" /></label>
-              <label class="apiKeyField">API Key
-                <input name="api_key" type="password" placeholder="保存后不会展示明文" />
-                <span>已保存的 Key 只显示状态，不展示明文；重新填写会覆盖旧 Key。</span>
-              </label>
-              <label class="checkLine"><input name="is_active" type="checkbox" checked /> 设为启用</label>
-              <button type="submit">保存模型配置</button>
-            </form>
-            <div class="panel">
-              <h2>模型配置列表</h2>
-              <div id="modelTestResult" class="modelTestResult">点击“测试”会先检查接口地址和 Key；视频理解模型会额外发起一次轻量真实测试。</div>
-              <div id="modelConfigList" class="list"></div>
-            </div>
-          </section>
+          <details class="panel advancedModelPanel">
+            <summary>高级模型配置</summary>
+            <section class="split advancedModelGrid">
+              <form id="modelConfigForm">
+                <h2>AI 模型入口维护</h2>
+                <label>名称<input name="name" value="脚本生成模型" /></label>
+                <label>用途
+                  <select name="purpose">
+                    <option value="script">脚本生成</option>
+                    <option value="tts">语音合成</option>
+                    <option value="voice_clone">声音复刻</option>
+                    <option value="video">视频生成</option>
+                    <option value="digital_human">数字人驱动</option>
+                    <option value="asr">语音识别</option>
+                    <option value="video_understanding">视频理解/深度拆解</option>
+                    <option value="compliance">合规检查</option>
+                    <option value="knowledge">知识库/文档/长文本</option>
+                  </select>
+                </label>
+                <label>供应商
+                  <select name="provider" id="providerSelect"></select>
+                </label>
+                <label>接口地址<input name="api_base" placeholder="https://api.example.com/v1" /></label>
+                <label>模型名<input name="model_name" placeholder="gpt-4.1-mini / deepseek-chat" /></label>
+                <label class="apiKeyField">API Key
+                  <input name="api_key" type="password" placeholder="保存后不会展示明文" />
+                  <span>已保存的 Key 只显示状态，不展示明文；重新填写会覆盖旧 Key。</span>
+                </label>
+                <label class="checkLine"><input name="is_active" type="checkbox" checked /> 设为启用</label>
+                <button type="submit">保存模型配置</button>
+              </form>
+              <div>
+                <h2>模型配置列表</h2>
+                <div id="modelTestResult" class="modelTestResult">点击“测试”会检查接口地址和 Key。</div>
+                <div id="modelConfigList" class="list compactModelList"></div>
+              </div>
+            </section>
+          </details>
         </section>
 
         <section id="settings-tab-storage" class="settingsPane">
