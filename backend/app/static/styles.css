@@ -466,29 +466,61 @@ h2 {
   white-space: nowrap;
 }
 
+.usageTable {
+  min-width: 1120px;
+}
+
 .usageTable td:nth-child(1) {
   font-weight: 900;
 }
 
 .usageTable td:nth-child(2),
 .usageTable td:nth-child(3) {
-  max-width: 210px;
+  max-width: 240px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.usageTable td:nth-child(4),
-.usageTable td:nth-child(5),
-.usageTable td:nth-child(6),
-.usageTable td:nth-child(7),
-.usageTable td:nth-child(8) {
+.usageTable:not(.usageHistoryTable) td:nth-child(5),
+.usageTable:not(.usageHistoryTable) td:nth-child(6),
+.usageTable:not(.usageHistoryTable) td:nth-child(7),
+.usageTable:not(.usageHistoryTable) td:nth-child(8),
+.usageTable:not(.usageHistoryTable) td:nth-child(9),
+.usageTable:not(.usageHistoryTable) td:nth-child(10),
+.usageHistoryTable td:nth-child(4),
+.usageHistoryTable td:nth-child(5),
+.usageHistoryTable td:nth-child(6),
+.usageHistoryTable td:nth-child(7) {
   font-variant-numeric: tabular-nums;
 }
 
-.usageTable td:nth-child(6),
-.usageTable td:nth-child(7),
-.usageTable td:nth-child(8) {
+.usageTable:not(.usageHistoryTable) td:nth-child(5),
+.usageTable:not(.usageHistoryTable) td:nth-child(6),
+.usageTable:not(.usageHistoryTable) td:nth-child(7),
+.usageTable:not(.usageHistoryTable) td:nth-child(8),
+.usageTable:not(.usageHistoryTable) td:nth-child(9),
+.usageTable:not(.usageHistoryTable) td:nth-child(10),
+.usageHistoryTable td:nth-child(4),
+.usageHistoryTable td:nth-child(5),
+.usageHistoryTable td:nth-child(6),
+.usageHistoryTable td:nth-child(7) {
   text-align: right;
+}
+
+.usageHistoryDetails {
+  margin-top: 12px;
+}
+
+.usageHistoryDetails summary {
+  cursor: pointer;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.usageHistoryTable {
+  margin-top: 8px;
+  min-width: 960px;
 }
 
 .usageApiTag {

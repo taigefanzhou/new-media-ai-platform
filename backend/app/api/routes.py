@@ -464,17 +464,13 @@ def model_usage_summary(
 ) -> dict[str, object]:
     rows = session.exec(select(AIModelUsage).order_by(AIModelUsage.created_at.desc())).all()
     summary: dict[tuple[str, str, str], dict[str, object]] = {}
-    totals = {
+    all_time_totals = {
         "call_count": 0,
         "success_count": 0,
         "failed_count": 0,
-        "current_config_count": 0,
-        "historical_count": 0,
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
-        "real_api_count": 0,
-        "mock_count": 0,
     }
     active_configs = {purpose: _active_model_config(session, purpose) for purpose in MODEL_PURPOSE_ORDER}
     active_diagnostics = {
@@ -510,6 +506,7 @@ def model_usage_summary(
             },
         )
         item["real_api"] = _usage_provider_is_real_api(row.provider)
+        item["current_config"] = bool(item["current_config"]) or is_current_config
         item["call_count"] = int(item["call_count"]) + 1
         item["prompt_tokens"] = int(item["prompt_tokens"]) + row.prompt_tokens
         item["completion_tokens"] = int(item["completion_tokens"]) + row.completion_tokens
@@ -520,20 +517,82 @@ def model_usage_summary(
         if row.created_at > item["last_used_at"]:
             item["last_used_at"] = row.created_at
             item["last_status"] = row.status
-        totals["call_count"] += 1
-        totals["success_count" if row.status == "success" else "failed_count"] += 1
-        totals["current_config_count" if is_current_config else "historical_count"] += 1
-        totals["prompt_tokens"] += row.prompt_tokens
-        totals["completion_tokens"] += row.completion_tokens
-        totals["total_tokens"] += row.total_tokens
-    for item in summary.values():
-        if item["real_api"]:
-            totals["real_api_count"] += int(item["call_count"])
+        all_time_totals["call_count"] += 1
+        all_time_totals["success_count" if row.status == "success" else "failed_count"] += 1
+        all_time_totals["prompt_tokens"] += row.prompt_tokens
+        all_time_totals["completion_tokens"] += row.completion_tokens
+        all_time_totals["total_tokens"] += row.total_tokens
+    current_items: list[dict[str, object]] = []
+    historical_items: list[dict[str, object]] = []
+    totals = {
+        "call_count": 0,
+        "success_count": 0,
+        "failed_count": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "current_config_count": 0,
+        "historical_count": 0,
+        "real_api_count": 0,
+        "mock_count": 0,
+        "current_model_count": 0,
+        "historical_real_api_count": 0,
+        "historical_mock_count": 0,
+    }
+    active_keys: set[tuple[str, str, str]] = set()
+    for purpose in MODEL_PURPOSE_ORDER:
+        config = active_configs.get(purpose)
+        diagnostic = active_diagnostics.get(purpose) or {}
+        key = (purpose, config.provider, config.model_name) if config else None
+        if key:
+            active_keys.add(key)
+        item = dict(summary.get(key, {})) if key else {}
+        current_item = {
+            "purpose": purpose,
+            "purpose_label": MODEL_PURPOSE_LABELS.get(purpose, purpose),
+            "provider": config.provider if config else "-",
+            "model_name": config.model_name if config else "-",
+            "active_level": diagnostic.get("level", "blocked"),
+            "real_api": bool(diagnostic.get("real_api")),
+            "current_config": bool(config),
+            "call_count": int(item.get("call_count") or 0),
+            "prompt_tokens": int(item.get("prompt_tokens") or 0),
+            "completion_tokens": int(item.get("completion_tokens") or 0),
+            "total_tokens": int(item.get("total_tokens") or 0),
+            "success_count": int(item.get("success_count") or 0),
+            "failed_count": int(item.get("failed_count") or 0),
+            "last_status": item.get("last_status") or "",
+            "last_used_at": item.get("last_used_at"),
+        }
+        current_items.append(current_item)
+        totals["current_model_count"] += 1
+        totals["call_count"] += int(current_item["call_count"])
+        totals["success_count"] += int(current_item["success_count"])
+        totals["failed_count"] += int(current_item["failed_count"])
+        totals["prompt_tokens"] += int(current_item["prompt_tokens"])
+        totals["completion_tokens"] += int(current_item["completion_tokens"])
+        totals["total_tokens"] += int(current_item["total_tokens"])
+        totals["current_config_count"] += int(current_item["call_count"])
+        if current_item["real_api"]:
+            totals["real_api_count"] += int(current_item["call_count"])
         else:
-            totals["mock_count"] += int(item["call_count"])
+            totals["mock_count"] += int(current_item["call_count"])
+
+    for key, item in summary.items():
+        if key in active_keys:
+            continue
+        item["current_config"] = False
+        historical_items.append(item)
+        totals["historical_count"] += int(item["call_count"])
+        if item["real_api"]:
+            totals["historical_real_api_count"] += int(item["call_count"])
+        else:
+            totals["historical_mock_count"] += int(item["call_count"])
     return {
         "totals": totals,
-        "items": sorted(summary.values(), key=lambda item: item["last_used_at"], reverse=True),
+        "all_time_totals": all_time_totals,
+        "items": current_items,
+        "historical_items": sorted(historical_items, key=lambda item: item["last_used_at"], reverse=True),
         "recent": rows[:20],
     }
 

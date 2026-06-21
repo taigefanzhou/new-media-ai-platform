@@ -1407,8 +1407,8 @@ function renderModelUsage(report) {
   if (!summaryTarget || !listTarget) return;
   const totals = report?.totals || {};
   const cards = [
-    ["调用次数", totals.call_count],
-    ["当前配置调用", totals.current_config_count],
+    ["当前模型", totals.current_model_count],
+    ["当前调用", totals.call_count],
     ["历史旧记录", totals.historical_count],
     ["成功", totals.success_count],
     ["失败", totals.failed_count],
@@ -1426,48 +1426,111 @@ function renderModelUsage(report) {
     .join("");
 
   const items = report?.items || [];
+  const historyItems = report?.historical_items || [];
   if (!items.length) {
-    listTarget.innerHTML = `<div class="item">还没有模型调用记录。生成一次脚本后，这里会自动出现用量。</div>`;
+    listTarget.innerHTML = `<div class="item">还没有当前模型配置。先在“AI 模型接入”里启用模型。</div>`;
     return;
   }
-  listTarget.innerHTML = `
-    <table class="settingsTable usageTable compactTable">
-      <thead>
-        <tr>
-          <th>模块</th>
-          <th>来源</th>
-          <th>接口</th>
-          <th>模型</th>
-          <th>状态</th>
-          <th>调用</th>
-          <th>成功/失败</th>
-          <th>Token</th>
-          <th>最近调用</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${items
-          .map(
-            (item) => `
+  const statusBadge = (item) => {
+    const calls = Number(item.call_count || 0);
+    if (!item.current_config) {
+      return `<span class="status taskStatus taskStatusFailed">未配置</span>`;
+    }
+    if (!calls) {
+      return `<span class="status taskStatus taskStatusDraft">未调用</span>`;
+    }
+    if (item.last_status === "success") {
+      return `<span class="status taskStatus taskStatusApproved">最近成功</span>`;
+    }
+    return `<span class="status taskStatus taskStatusFailed">最近失败</span>`;
+  };
+  const modelRow = (item) => `
+    <tr>
+      <td>${escapeHtml(item.purpose_label || purposeLabel(item.purpose))}</td>
+      <td>
+        <span class="usageApiTag ${item.real_api ? "real" : "mock"}">${item.real_api ? "真实" : "本地/占位"}</span>
+        ${escapeHtml(providerLabel(item.purpose, item.provider))}
+      </td>
+      <td>${escapeHtml(item.model_name)}</td>
+      <td>${statusBadge(item)}</td>
+      <td>${formatNumber(item.call_count)}</td>
+      <td>${formatNumber(item.success_count)}</td>
+      <td>${formatNumber(item.failed_count)}</td>
+      <td>${formatNumber(item.prompt_tokens)}</td>
+      <td>${formatNumber(item.completion_tokens)}</td>
+      <td>${formatNumber(item.total_tokens)}</td>
+      <td>${formatDateTime(item.last_used_at)}</td>
+    </tr>
+  `;
+  const historicalBlock = historyItems.length
+    ? `
+      <details class="usageHistoryDetails">
+        <summary>历史旧记录 ${formatNumber(historyItems.reduce((sum, item) => sum + Number(item.call_count || 0), 0))} 次</summary>
+        <div class="settingsTableWrap">
+          <table class="settingsTable usageTable compactTable usageHistoryTable">
+            <thead>
               <tr>
-                <td>${escapeHtml(item.purpose_label || purposeLabel(item.purpose))}</td>
-                <td><span class="usageApiTag ${item.current_config ? "current" : "old"}">${item.current_config ? "当前配置" : "历史旧记录"}</span></td>
-                <td>
-                  <span class="usageApiTag ${item.real_api ? "real" : "mock"}">${item.real_api ? "真实" : "本地/占位"}</span>
-                  ${escapeHtml(providerLabel(item.purpose, item.provider))}
-                </td>
-                <td>${escapeHtml(item.model_name)}</td>
-                <td><span class="status taskStatus ${item.last_status === "success" ? "taskStatusApproved" : "taskStatusFailed"}">${item.last_status === "success" ? "最近成功" : "最近失败"}</span></td>
-                <td>${formatNumber(item.call_count)}</td>
-                <td>${formatNumber(item.success_count)} / ${formatNumber(item.failed_count)}</td>
-                <td>${formatNumber(item.total_tokens)}<div class="recordMeta">入 ${formatNumber(item.prompt_tokens)} · 出 ${formatNumber(item.completion_tokens)}</div></td>
-                <td>${formatDateTime(item.last_used_at)}</td>
+                <th>模块</th>
+                <th>接口</th>
+                <th>模型</th>
+                <th>调用</th>
+                <th>输入 Token</th>
+                <th>输出 Token</th>
+                <th>总 Token</th>
+                <th>最近调用</th>
               </tr>
-            `,
-          )
-          .join("")}
-      </tbody>
-    </table>
+            </thead>
+            <tbody>
+              ${historyItems
+                .map(
+                  (item) => `
+                    <tr>
+                      <td>${escapeHtml(item.purpose_label || purposeLabel(item.purpose))}</td>
+                      <td>
+                        <span class="usageApiTag old">旧记录</span>
+                        <span class="usageApiTag ${item.real_api ? "real" : "mock"}">${item.real_api ? "真实" : "本地/占位"}</span>
+                        ${escapeHtml(providerLabel(item.purpose, item.provider))}
+                      </td>
+                      <td>${escapeHtml(item.model_name)}</td>
+                      <td>${formatNumber(item.call_count)}</td>
+                      <td>${formatNumber(item.prompt_tokens)}</td>
+                      <td>${formatNumber(item.completion_tokens)}</td>
+                      <td>${formatNumber(item.total_tokens)}</td>
+                      <td>${formatDateTime(item.last_used_at)}</td>
+                    </tr>
+                  `,
+                )
+                .join("")}
+            </tbody>
+          </table>
+        </div>
+      </details>
+    `
+    : "";
+  listTarget.innerHTML = `
+    <div class="settingsTableWrap">
+      <table class="settingsTable usageTable compactTable">
+        <thead>
+          <tr>
+            <th>模块</th>
+            <th>接口</th>
+            <th>模型</th>
+            <th>状态</th>
+            <th>调用</th>
+            <th>成功</th>
+            <th>失败</th>
+            <th>输入 Token</th>
+            <th>输出 Token</th>
+            <th>总 Token</th>
+            <th>最近调用</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items.map(modelRow).join("")}
+        </tbody>
+      </table>
+    </div>
+    ${historicalBlock}
   `;
 }
 
