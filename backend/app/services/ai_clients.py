@@ -831,6 +831,38 @@ class MediaGenerationClient:
                 clip.close()
         return self._export_to_profile(str(output_path), export_profile)
 
+    async def compose_talking_avatar_sequence(self, avatar_clips: list[str]) -> str:
+        from moviepy.editor import VideoFileClip, concatenate_videoclips
+
+        local_inputs = [item for item in avatar_clips if self._is_local_path(item) and Path(item).exists()]
+        if not local_inputs:
+            return self._mock_asset("digital-human", "talking-avatar-sequence.mp4")
+
+        output_path = self._asset_path("digital-human", "talking-avatar-sequence.mp4")
+        clips = []
+        final_clip = None
+        try:
+            for path in local_inputs:
+                clips.append(VideoFileClip(path))
+            final_clip = concatenate_videoclips(clips, method="compose")
+            final_clip.write_videofile(
+                str(output_path),
+                fps=24,
+                codec="libx264",
+                audio_codec="aac",
+                preset="medium",
+                bitrate="3600k",
+                threads=4,
+                verbose=False,
+                logger=None,
+            )
+        finally:
+            if final_clip is not None:
+                final_clip.close()
+            for clip in clips:
+                clip.close()
+        return str(output_path)
+
     async def compose_talking_head_template(
         self,
         talking_clip_path: str,
@@ -943,26 +975,23 @@ class MediaGenerationClient:
                 y += 44
 
         def draw_card(canvas: Image.Image, draw, card: dict[str, object], t: float):
-            card_bg = Image.new("RGB", (720, main_h), (222, 244, 247))
-            bg_draw = ImageDraw.Draw(card_bg)
-            for i in range(10):
-                y = 80 + i * 70 + int(6 * math.sin(t * 0.8 + i))
-                bg_draw.line((90, y, 630, y + 28), fill=(164, 213, 220), width=2)
-            bg_draw.rounded_rectangle((94, 108, 626, 590), radius=24, fill=(248, 252, 252), outline=(185, 220, 225), width=2)
+            main = video_image(t, (720, main_h))
+            canvas.paste(main, (0, top_h))
+            overlay = Image.new("RGBA", frame_size, (0, 0, 0, 0))
+            overlay_draw = ImageDraw.Draw(overlay)
+            overlay_draw.rectangle((0, top_h, 720, top_h + main_h), fill=(0, 0, 0, 12))
+            overlay_draw.rounded_rectangle(
+                (46, bottom_y - 74, 674, bottom_y - 20),
+                radius=18,
+                fill=(2, 6, 23, 118),
+                outline=(255, 255, 255, 60),
+                width=2,
+            )
+            canvas.alpha_composite(overlay)
             screen_text = str(card.get("title") or card.get("screen_text") or "方案要点")
             visual = str(card.get("visual") or card.get("prompt") or "")
-            draw_center = ImageDraw.Draw(card_bg)
-            for idx, line in enumerate(wrap_text(screen_text, 12, 2)):
-                bbox = draw_center.textbbox((0, 0), line, font=card_title_font)
-                draw_center.text(((720 - (bbox[2] - bbox[0])) // 2, 238 + idx * 48), line, font=card_title_font, fill=(15, 23, 42))
-            bg_draw.line((236, 360, 484, 360), fill=(15, 118, 110), width=3)
-            for idx, line in enumerate(wrap_text(visual, 18, 3)):
-                bbox = draw_center.textbbox((0, 0), line, font=card_body_font)
-                draw_center.text(((720 - (bbox[2] - bbox[0])) // 2, 392 + idx * 36), line, font=card_body_font, fill=(51, 65, 85))
-
-            mini = video_image(t, (160, 270)).filter(ImageFilter.UnsharpMask(radius=1, percent=110, threshold=3))
-            card_bg.paste(mini, (52, main_h - 300))
-            canvas.paste(card_bg, (0, top_h))
+            draw = ImageDraw.Draw(canvas)
+            draw.text((72, bottom_y - 60), f"{screen_text[:10]} · {visual[:22]}", font=meta_font, fill=(255, 255, 255, 235))
             draw.rectangle((0, top_h, 720, bottom_y), outline=(255, 255, 255, 30), width=1)
 
         def make_frame(t: float):

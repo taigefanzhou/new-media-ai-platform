@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import re
 from sqlmodel import select
 from sqlmodel import Session
 from app.core.config import get_settings
@@ -70,7 +71,6 @@ class VideoPipeline:
             source_video = source_video_material.file_path if source_video_material else None
             source_video_url = source_video_material.source_url if source_video_material else None
             voice = await self._voice_for_human(human, source_video, task, source_video_url)
-            audio = await self._synthesize_voice(script, voice)
             if task.production_mode == "talking_head_template":
                 if human is None:
                     raise RuntimeError("数字人口播模板需要选择数字人。")
@@ -78,11 +78,12 @@ class VideoPipeline:
                     raise RuntimeError("数字人口播模板需要数字人头像或口播源视频素材。")
                 if not self.media.can_generate_talking_avatar():
                     raise RuntimeError("数字人口播模板需要先配置真实数字人驱动接口，不能使用头像或图文预览代替。")
-                avatar = await self._generate_talking_avatar(
+                avatar, audio = await self._generate_talking_avatar_for_script(
+                    script,
+                    voice,
                     portrait,
-                    audio,
                     source_video,
-                    script.seedance_prompt,
+                    task,
                     portrait_url=portrait_url,
                     source_video_url=source_video_url,
                 )
@@ -91,7 +92,7 @@ class VideoPipeline:
                     script.voiceover,
                     script.storyboard_plan,
                     title=self._script_title(script),
-                    speaker_name=human.name,
+                    speaker_name=self._speaker_name(human),
                     speaker_role=self._speaker_role(human),
                     duration_seconds=script.duration_seconds,
                     audio_path=audio,
@@ -110,6 +111,7 @@ class VideoPipeline:
                 self.session.refresh(task)
                 return task
             if task.production_mode == "seedance_scene":
+                audio = await self._synthesize_voice(script, voice)
                 clips = []
                 for segment in segments:
                     clip_path = await self._run_segment(segment, task)
@@ -122,6 +124,7 @@ class VideoPipeline:
                 self.session.refresh(task)
                 return task
             if task.production_mode == "dynamic_explainer":
+                audio = await self._synthesize_voice(script, voice)
                 task.output_path = await self.media.compose_dynamic_explainer(
                     script.voiceover,
                     script.storyboard_plan,
@@ -144,11 +147,12 @@ class VideoPipeline:
                 return task
             if task.production_mode == "digital_human" and not self.media.can_generate_talking_avatar():
                 raise RuntimeError("真人数字人口播需要先配置真实数字人驱动接口。")
-            avatar = await self._generate_talking_avatar(
+            avatar, _audio = await self._generate_talking_avatar_for_script(
+                script,
+                voice,
                 portrait,
-                audio,
                 source_video,
-                script.seedance_prompt,
+                task,
                 portrait_url=portrait_url,
                 source_video_url=source_video_url,
             )
@@ -211,8 +215,8 @@ class VideoPipeline:
             self._record_usage(
                 "video",
                 self.video_model_config,
-                provider=self.settings.video_generation_provider,
-                model_name=self.settings.seedance_model,
+                provider=self._usage_provider(self.video_model_config, self.settings.video_generation_provider),
+                model_name=self._usage_model(self.video_model_config, self.settings.seedance_model),
                 prompt_tokens=estimate_text_tokens(segment.prompt),
             )
             segment.output_path = clip_path
@@ -228,8 +232,8 @@ class VideoPipeline:
             self._record_usage(
                 "video",
                 self.video_model_config,
-                provider=self.settings.video_generation_provider,
-                model_name=self.settings.seedance_model,
+                provider=self._usage_provider(self.video_model_config, self.settings.video_generation_provider),
+                model_name=self._usage_model(self.video_model_config, self.settings.seedance_model),
                 prompt_tokens=estimate_text_tokens(segment.prompt),
                 status="failed",
             )
@@ -266,6 +270,13 @@ class VideoPipeline:
         if role:
             return role
         return "品牌顾问｜企业方案讲解｜数字人口播"
+
+    def _speaker_name(self, human: DigitalHuman) -> str:
+        name = (human.name or "").strip()
+        for candidate in ("李明亮", "梁欣欣"):
+            if candidate in name:
+                return candidate
+        return name[:8] if len(name) > 8 else name or "数字人"
 
     def _portrait_material(self, human: DigitalHuman | None) -> Material | None:
         if human is None or human.portrait_material_id is None:
@@ -310,15 +321,15 @@ class VideoPipeline:
             self._record_usage(
                 "voice_clone",
                 self.voice_clone_model_config,
-                provider=self.settings.voice_clone_provider,
-                model_name=self.settings.voice_clone_provider,
+                provider=self._usage_provider(self.voice_clone_model_config, self.settings.voice_clone_provider),
+                model_name=self._usage_model(self.voice_clone_model_config, self.settings.voice_clone_provider),
             )
         except Exception as exc:
             self._record_usage(
                 "voice_clone",
                 self.voice_clone_model_config,
-                provider=self.settings.voice_clone_provider,
-                model_name=self.settings.voice_clone_provider,
+                provider=self._usage_provider(self.voice_clone_model_config, self.settings.voice_clone_provider),
+                model_name=self._usage_model(self.voice_clone_model_config, self.settings.voice_clone_provider),
                 status="failed",
             )
             note = f"声音复刻未执行，继续使用默认语音：{exc}"
@@ -332,26 +343,104 @@ class VideoPipeline:
         return voice_id
 
     async def _synthesize_voice(self, script: Script, voice: str | None) -> str:
+        return await self._synthesize_text_voice(script.voiceover, voice)
+
+    async def _synthesize_text_voice(self, text: str, voice: str | None) -> str:
         try:
-            audio = await self.media.synthesize_voice(script.voiceover, voice)
+            audio = await self.media.synthesize_voice(text, voice)
             self._record_usage(
                 "tts",
                 self.tts_model_config,
-                provider=self.settings.tts_provider,
-                model_name=self.settings.tts_voice,
-                prompt_tokens=estimate_text_tokens(script.voiceover),
+                provider=self._usage_provider(self.tts_model_config, self.settings.tts_provider),
+                model_name=self._usage_model(self.tts_model_config, self.settings.tts_voice),
+                prompt_tokens=estimate_text_tokens(text),
             )
             return audio
         except Exception:
             self._record_usage(
                 "tts",
                 self.tts_model_config,
-                provider=self.settings.tts_provider,
-                model_name=self.settings.tts_voice,
-                prompt_tokens=estimate_text_tokens(script.voiceover),
+                provider=self._usage_provider(self.tts_model_config, self.settings.tts_provider),
+                model_name=self._usage_model(self.tts_model_config, self.settings.tts_voice),
+                prompt_tokens=estimate_text_tokens(text),
                 status="failed",
             )
             raise
+
+    async def _generate_talking_avatar_for_script(
+        self,
+        script: Script,
+        voice: str | None,
+        portrait_path: str | None,
+        source_video_path: str | None,
+        task: VideoTask,
+        portrait_url: str | None = None,
+        source_video_url: str | None = None,
+    ) -> tuple[str, str | None]:
+        chunks = self._voiceover_chunks(script.voiceover)
+        if self._should_split_talking_avatar_audio(script) and len(chunks) > 1:
+            avatars: list[str] = []
+            for index, chunk in enumerate(chunks):
+                audio = await self._synthesize_text_voice(chunk, voice)
+                avatars.append(
+                    await self._generate_talking_avatar(
+                        portrait_path,
+                        audio,
+                        source_video_path,
+                        f"{script.seedance_prompt}\nTalking-head section {index + 1}/{len(chunks)}.",
+                        portrait_url=portrait_url,
+                        source_video_url=source_video_url,
+                    )
+                )
+            avatar = await self.media.compose_talking_avatar_sequence(avatars)
+            note = f"数字人口播已自动拆成 {len(chunks)} 段短音频生成，再合成为一条完整口播。"
+            task.audit_notes = f"{task.audit_notes}\n{note}".strip()
+            self.session.add(task)
+            self.session.commit()
+            return avatar, None
+
+        audio = await self._synthesize_voice(script, voice)
+        avatar = await self._generate_talking_avatar(
+            portrait_path,
+            audio,
+            source_video_path,
+            script.seedance_prompt,
+            portrait_url=portrait_url,
+            source_video_url=source_video_url,
+        )
+        return avatar, audio
+
+    def _should_split_talking_avatar_audio(self, script: Script) -> bool:
+        config = self.digital_human_model_config
+        provider = (config.provider if config else self.settings.digital_human_provider or "").lower()
+        model_name = (config.model_name if config else self.settings.digital_human_provider or "").lower()
+        value = f"{provider} {model_name}"
+        return "wan" in value and "s2v" in value
+
+    def _voiceover_chunks(self, text: str, max_chars: int = 46) -> list[str]:
+        cleaned = re.sub(r"\s+", " ", (text or "").strip())
+        if not cleaned:
+            return []
+        sentences = [item.strip() for item in re.split(r"(?<=[。！？!?；;，,])", cleaned) if item.strip()]
+        chunks: list[str] = []
+        current = ""
+        for sentence in sentences or [cleaned]:
+            if len(sentence) > max_chars:
+                if current:
+                    chunks.append(current.strip())
+                    current = ""
+                chunks.extend(sentence[i : i + max_chars].strip() for i in range(0, len(sentence), max_chars))
+                continue
+            candidate = f"{current}{sentence}" if current else sentence
+            if len(candidate) <= max_chars:
+                current = candidate
+            else:
+                if current:
+                    chunks.append(current.strip())
+                current = sentence
+        if current:
+            chunks.append(current.strip())
+        return [chunk for chunk in chunks if chunk]
 
     async def _generate_talking_avatar(
         self,
@@ -374,16 +463,16 @@ class VideoPipeline:
             self._record_usage(
                 "digital_human",
                 self.digital_human_model_config,
-                provider=self.settings.digital_human_provider,
-                model_name=self.settings.digital_human_provider,
+                provider=self._usage_provider(self.digital_human_model_config, self.settings.digital_human_provider),
+                model_name=self._usage_model(self.digital_human_model_config, self.settings.digital_human_provider),
             )
             return avatar
         except Exception:
             self._record_usage(
                 "digital_human",
                 self.digital_human_model_config,
-                provider=self.settings.digital_human_provider,
-                model_name=self.settings.digital_human_provider,
+                provider=self._usage_provider(self.digital_human_model_config, self.settings.digital_human_provider),
+                model_name=self._usage_model(self.digital_human_model_config, self.settings.digital_human_provider),
                 status="failed",
             )
             raise
@@ -416,3 +505,9 @@ class VideoPipeline:
             completion_tokens=completion_tokens,
             status=status,
         )
+
+    def _usage_provider(self, config: AIModelConfig | None, fallback: str) -> str:
+        return config.provider if config and config.provider else fallback
+
+    def _usage_model(self, config: AIModelConfig | None, fallback: str) -> str:
+        return config.model_name if config and config.model_name else fallback
