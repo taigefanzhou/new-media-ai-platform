@@ -84,6 +84,7 @@ from app.services.asr import ASRClient
 from app.services.export_profiles import export_profile_options, resolve_export_profile
 from app.services.link_resolver import (
     LinkResolverCredential,
+    LinkResolution,
     ShortVideoLinkResolver,
     detect_short_video_platform,
 )
@@ -1199,6 +1200,17 @@ def _reference_tags(platform: str, tags: str, *extra_tags: str) -> str:
     return ",".join(deduped)
 
 
+def _merge_reference_tags(existing_tags: str, platform: str, resolver_name: str, parse_status: str) -> str:
+    retained = [
+        item.strip()
+        for item in existing_tags.split(",")
+        if item.strip()
+        and not item.strip().startswith("解析:")
+        and item.strip() not in {"已下载视频", "需上传源文件", "仅保存链接"}
+    ]
+    return _reference_tags(platform, ",".join(retained), f"解析:{resolver_name}", parse_status)
+
+
 def _media_suffix_from_response(source_url: str, content_type: str, content_disposition: str) -> str:
     disposition_parts = content_disposition.split(";") if content_disposition else []
     for part in disposition_parts:
@@ -1319,6 +1331,39 @@ def _link_resolver_credentials(session: Session, platform: str) -> list[LinkReso
     return result
 
 
+async def _resolve_and_download_reference_media(
+    source_url: str,
+    platform_name: str,
+    storage_dir: Path,
+    session: Session,
+) -> tuple[Path | None, LinkResolution | None]:
+    file_path: Path | None = None
+    resolution: LinkResolution | None = None
+    try:
+        file_path = await _download_reference_media(source_url, storage_dir)
+    except HTTPException:
+        raise
+    except Exception:
+        file_path = None
+    if file_path:
+        return file_path, resolution
+
+    try:
+        resolver = ShortVideoLinkResolver()
+        resolution = await resolver.resolve(
+            source_url,
+            platform_name,
+            _link_resolver_credentials(session, platform_name),
+        )
+        if resolution.media_url and resolution.media_url != source_url:
+            file_path = await _download_reference_media(resolution.media_url, storage_dir)
+    except HTTPException:
+        raise
+    except Exception:
+        file_path = None
+    return file_path, resolution
+
+
 @router.post("/reference-materials/from-link", response_model=Material)
 async def create_reference_material_from_link(
     payload: ReferenceMaterialLinkCreate,
@@ -1333,28 +1378,14 @@ async def create_reference_material_from_link(
     platform_name = detect_short_video_platform(source_url, payload.platform)
     storage_dir = get_storage_root(session) / "materials" / uuid4().hex
     file_path: Path | None = None
-    resolution = None
+    resolution: LinkResolution | None = None
     if payload.download:
-        try:
-            file_path = await _download_reference_media(source_url, storage_dir)
-        except HTTPException:
-            raise
-        except Exception:
-            file_path = None
-        if not file_path:
-            try:
-                resolver = ShortVideoLinkResolver()
-                resolution = await resolver.resolve(
-                    source_url,
-                    platform_name,
-                    _link_resolver_credentials(session, platform_name),
-                )
-                if resolution.media_url and resolution.media_url != source_url:
-                    file_path = await _download_reference_media(resolution.media_url, storage_dir)
-            except HTTPException:
-                raise
-            except Exception:
-                file_path = None
+        file_path, resolution = await _resolve_and_download_reference_media(
+            source_url,
+            platform_name,
+            storage_dir,
+            session,
+        )
 
     resolver_name = resolution.resolver_name if resolution else ("direct-download" if file_path else "link-only")
     title = (payload.title or "").strip() or (resolution.title if resolution else "") or _reference_title_from_url(source_url)
@@ -1367,6 +1398,42 @@ async def create_reference_material_from_link(
         source_url=source_url,
         tags=_reference_tags(platform_name, payload.tags, f"解析:{resolver_name}", parse_status),
     )
+    session.add(material)
+    session.commit()
+    session.refresh(material)
+    return material
+
+
+@router.post("/reference-materials/{material_id}/resolve-download", response_model=Material)
+async def resolve_download_reference_material(
+    material_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> Material:
+    material = session.get(Material, material_id)
+    if material is None:
+        raise HTTPException(status_code=404, detail="Material not found")
+    if material.kind != MaterialKind.reference or not material.source_url:
+        raise HTTPException(status_code=400, detail="只有通过链接保存的参考素材可以解析下载。")
+    if material.file_path and Path(material.file_path).exists():
+        return material
+
+    source_url = material.source_url.strip()
+    platform_name = detect_short_video_platform(source_url, "auto")
+    storage_dir = get_storage_root(session) / "materials" / uuid4().hex
+    file_path, resolution = await _resolve_and_download_reference_media(
+        source_url,
+        platform_name,
+        storage_dir,
+        session,
+    )
+    resolver_name = resolution.resolver_name if resolution else ("direct-download" if file_path else "link-only")
+    parse_status = "已下载视频" if file_path else "需上传源文件"
+    if file_path:
+        material.file_path = str(file_path)
+    if resolution and resolution.title and material.name == _reference_title_from_url(source_url):
+        material.name = resolution.title[:120]
+    material.tags = _merge_reference_tags(material.tags, platform_name, resolver_name, parse_status)
     session.add(material)
     session.commit()
     session.refresh(material)

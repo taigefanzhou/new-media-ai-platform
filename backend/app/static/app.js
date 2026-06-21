@@ -1253,7 +1253,7 @@ function renderAnalysisMaterialPreview() {
       <div>
         <strong>#${material.id} ${escapeHtml(material.name)}</strong>
         <div class="recordMeta">${materialKindLabel(material.kind)} · ${escapeHtml(material.tags || "未打标签")}</div>
-        <div class="recordMeta">${material.file_path ? "本地文件已就绪，可以拆解" : "仅保存链接，需要上传或提供直连视频"}</div>
+        <div class="recordMeta">${material.file_path ? "本地文件已就绪，可以拆解" : "仅保存链接，需要先解析下载或上传源文件"}</div>
       </div>
     </div>
   `;
@@ -1261,6 +1261,14 @@ function renderAnalysisMaterialPreview() {
 
 function latestAnalysisForMaterial(materialId) {
   return state.videoAnalyses.find((analysis) => Number(analysis.material_id) === Number(materialId));
+}
+
+function referenceAnalysisActionLabel(analysis) {
+  if (!analysis) return "详情";
+  if (analysis.status === "needs_review") return "查看/采纳";
+  if (analysis.status === "approved") return "查看详情";
+  if (analysis.status === "failed") return "查看失败";
+  return "查看进度";
 }
 
 function latestTranscriptionForMaterial(materialId) {
@@ -1284,6 +1292,7 @@ function renderReferenceMaterials(materials = state.materials) {
       const selected = String(document.querySelector("#analysisMaterialSelect")?.value || "") === String(material.id);
       const needsUpload = String(material.tags || "").includes("需上传源文件");
       const statusLabel = canAnalyze ? "可拆解" : needsUpload ? "需上传源文件" : "仅链接";
+      const hasSourceLink = Boolean(material.source_url);
       return `
         <div class="referenceMaterialCard ${selected ? "selectedReferenceCard" : ""}">
           ${renderMaterialPreview(material, "referenceMaterialMedia")}
@@ -1299,8 +1308,9 @@ function renderReferenceMaterials(materials = state.materials) {
             </div>
             <div class="referenceMaterialActions">
               <button type="button" class="secondary" data-action="select-reference-material" data-id="${material.id}">选择</button>
+              ${!canAnalyze && hasSourceLink ? `<button type="button" data-action="resolve-reference-material" data-id="${material.id}">解析下载</button>` : ""}
               <button type="button" data-action="analyze-reference-material" data-id="${material.id}" ${canAnalyze ? "" : "disabled"}>深度拆解</button>
-              <button type="button" class="secondary" data-action="view-reference-analysis" data-id="${analysis ? analysis.id : ""}" ${analysis ? "" : "disabled"}>详情</button>
+              <button type="button" class="secondary" data-action="view-reference-analysis" data-id="${analysis ? analysis.id : ""}" ${analysis ? "" : "disabled"}>${referenceAnalysisActionLabel(analysis)}</button>
               <button type="button" class="secondary" data-action="script-from-reference-analysis" data-id="${analysis ? analysis.id : ""}" ${canGenerateScript ? "" : "disabled"}>生成脚本</button>
               ${material.source_url ? `<a class="buttonLike ghostButton" href="${escapeHtml(material.source_url)}" target="_blank" rel="noreferrer">原链接</a>` : ""}
             </div>
@@ -1345,7 +1355,7 @@ function renderAnalysisDetailDrawer(analysisId) {
     <div class="drawerSummary">
       <span class="status taskStatus ${taskStatusClass(analysis.status)}">${analysisStatusLabel(analysis.status)}</span>
       ${analysisMetricsHtml(analysis)}
-      <div class="recordMeta">当前登录账号可确认这个拆解是否作为后续原创脚本的参考模板；这不是成片发布审核。</div>
+      <div class="recordMeta">审核入口在这里：管理员或审核人员确认是否采纳为后续原创脚本模板；这不是成片发布审核。</div>
       ${analysis.quality_summary ? `<div class="analysisQuality">${escapeHtml(analysis.quality_summary)}</div>` : ""}
       ${analysis.error_message ? `<div class="errorText">${escapeHtml(analysis.error_message)}</div>` : ""}
       <div class="referenceMaterialActions drawerActions">
@@ -3128,6 +3138,10 @@ async function saveReferenceLinkAndMaybeAnalyze(form, options = { analyze: false
     if (options.analyze && material.file_path) {
       const task = await createAndRunVideoAnalysis(material.id, language);
       toast(`已保存并完成深度拆解：${analysisStatusLabel(task.status)}`);
+      form.reset();
+      await refresh();
+      renderAnalysisDetailDrawer(task.id);
+      return;
     } else if (options.analyze) {
       toast("链接已保存，但还没解析出视频文件；请配置链接解析服务或上传源文件");
     } else {
@@ -3185,6 +3199,7 @@ document.querySelector("#createVideoAnalysisBtn").addEventListener("click", asyn
     const task = await createAndRunVideoAnalysis(Number(select.value), language, button);
     toast(`深度拆解完成：${analysisStatusLabel(task.status)}`);
     await refresh();
+    renderAnalysisDetailDrawer(task.id);
   } catch (error) {
     toast(error.message || "深度拆解失败，请确认素材是本地视频文件");
   }
@@ -3278,6 +3293,27 @@ document.querySelector("#referenceMaterialList").addEventListener("click", async
     renderAnalysisDetailDrawer(Number(button.dataset.id));
     return;
   }
+  if (button.dataset.action === "resolve-reference-material") {
+    const originalText = button.textContent;
+    try {
+      button.disabled = true;
+      button.textContent = "解析中...";
+      const material = await api.post(`/reference-materials/${materialId}/resolve-download`);
+      toast(material.file_path ? "已解析并下载源视频" : "仍未解析出视频文件，请检查解析服务配置");
+      await refresh();
+      const select = document.querySelector("#analysisMaterialSelect");
+      if (select) {
+        select.value = String(material.id);
+        renderAnalysisMaterialPreview();
+      }
+    } catch (error) {
+      toast(error.message || "解析下载失败");
+    } finally {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+    return;
+  }
   if (button.dataset.action === "analyze-reference-material") {
     const language = document.querySelector("#transcriptionForm [name='language']").value || "zh-CN";
     const material = state.materials.find((item) => Number(item.id) === materialId);
@@ -3289,6 +3325,7 @@ document.querySelector("#referenceMaterialList").addEventListener("click", async
       const task = await createAndRunVideoAnalysis(materialId, language, button);
       toast(`深度拆解完成：${analysisStatusLabel(task.status)}`);
       await refresh();
+      renderAnalysisDetailDrawer(task.id);
     } catch (error) {
       toast(error.message || "深度拆解失败");
     }
