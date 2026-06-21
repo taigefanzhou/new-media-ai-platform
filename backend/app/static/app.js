@@ -1553,8 +1553,8 @@ function renderVideoStorage(report) {
   const totals = report?.totals || {};
   const cards = [
     ["成片记录", totals.video_count],
-    ["文件存在", totals.existing_count],
-    ["文件缺失", totals.missing_count],
+    ["本地存在", totals.existing_count],
+    ["本地缺失", totals.missing_count],
     ["占用空间", formatBytes(totals.size_bytes)],
   ];
   summaryTarget.innerHTML = cards
@@ -1628,18 +1628,32 @@ function renderVideoStorage(report) {
       <tbody>
         ${videos
           .map(
-            (video) => `
+            (video) => {
+              const fileState = video.exists
+                ? { label: "存在", className: "storageFileOk" }
+                : video.storage_kind === "external"
+                  ? { label: "云端", className: "storageFileExternal" }
+                  : video.storage_kind === "placeholder"
+                    ? { label: "占位", className: "storageFilePlaceholder" }
+                    : { label: "缺失", className: "storageFileMissing" };
+              return `
               <tr>
                 <td>#${video.task_id}</td>
                 <td>${escapeHtml(video.script_title || `脚本 #${video.script_id}`).slice(0, 40)}</td>
                 <td><span class="status taskStatus ${taskStatusClass(video.status)}">${taskStatusLabel(video.status)}</span></td>
                 <td>${escapeHtml(exportProfileLabel(video.export_profile))}<div class="recordMeta">${video.export_width || "-"}x${video.export_height || "-"}</div></td>
-                <td><span class="storageFileState ${video.exists ? "storageFileOk" : "storageFileMissing"}">${video.exists ? "存在" : "缺失"}</span></td>
+                <td><span class="storageFileState ${fileState.className}">${fileState.label}</span></td>
                 <td>${formatBytes(video.size_bytes)}</td>
-                <td><code class="pathCode" title="${escapeHtml(video.output_path)}">${escapeHtml(video.output_path)}</code></td>
+                <td>
+                  <div class="storagePathCell">
+                    <code class="pathCode" title="${escapeHtml(video.output_path)}">${escapeHtml(video.output_path)}</code>
+                    <button type="button" class="secondary" data-action="copy-storage-path" data-path="${escapeHtml(video.output_path || "")}">复制</button>
+                  </div>
+                </td>
                 <td>${formatDateTime(video.updated_at || video.created_at)}</td>
               </tr>
-            `,
+            `;
+            },
           )
           .join("")}
       </tbody>
@@ -1661,6 +1675,14 @@ function renderRemoteUpload(settings) {
   if (stateLabel) {
     stateLabel.textContent = settings?.ready ? "已启用" : settings?.enabled ? "缺上传接口" : "未启用";
     stateLabel.className = `pill ${settings?.ready ? "ok" : "subtle"}`;
+  }
+  const hint = document.querySelector("#remoteUploadHintText");
+  if (hint) {
+    hint.textContent = settings?.ready
+      ? "素材会上传到服务器并生成公网地址。"
+      : settings?.enabled
+        ? "已勾选启用，但还缺上传接口。"
+        : "未启用时只保存在本机。";
   }
 }
 
@@ -2027,7 +2049,7 @@ async function refresh() {
 
 document.querySelector("#refreshBtn").addEventListener("click", () => refresh().then(() => toast("已刷新")));
 
-document.querySelector("#videoStoragePaths").addEventListener("click", async (event) => {
+document.querySelector("#settings-tab-storage").addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-action='copy-storage-path']");
   if (!button) return;
   const path = button.dataset.path || "";

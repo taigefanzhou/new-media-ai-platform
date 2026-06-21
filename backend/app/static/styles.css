@@ -556,6 +556,7 @@ h2 {
 
 .storagePanel {
   padding: 14px;
+  overflow: hidden;
 }
 
 .storagePathGrid {
@@ -565,10 +566,16 @@ h2 {
 
 .storageConfigForm {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 132px 132px;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
   align-items: end;
   margin-bottom: 10px;
+}
+
+.storageConfigForm > *,
+.remoteUploadForm > *,
+.remoteUploadFields > * {
+  min-width: 0;
 }
 
 .storageConfigForm label {
@@ -579,13 +586,59 @@ h2 {
   min-height: 42px;
 }
 
+.storageRootField {
+  min-width: 0;
+}
+
+.storageActions {
+  display: grid;
+  grid-template-columns: 132px 132px;
+  gap: 8px;
+}
+
 .remoteUploadForm {
-  grid-template-columns: 170px minmax(220px, 1.4fr) minmax(220px, 1.2fr) 110px minmax(180px, 0.8fr) 110px 150px;
+  display: grid;
+  gap: 12px;
+}
+
+.remoteUploadTopline,
+.remoteUploadActions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.remoteUploadFields {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.2fr) minmax(220px, 1.2fr) minmax(110px, 0.45fr) minmax(180px, 0.8fr);
+  gap: 10px;
+  align-items: end;
+}
+
+.remoteUploadFields label {
+  margin-bottom: 0;
 }
 
 .remoteUploadSwitch {
   min-height: 42px;
   align-items: center;
+}
+
+.remoteUploadHint {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-align: right;
+}
+
+.remoteUploadActions {
+  padding-top: 2px;
+}
+
+.remoteUploadActions button {
+  width: 180px;
 }
 
 .modelMaintenancePanel {
@@ -711,6 +764,20 @@ h2 {
   max-width: 360px;
 }
 
+.storagePathCell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.storagePathCell button {
+  width: auto;
+  min-height: 28px;
+  padding-inline: 10px;
+  font-size: 12px;
+}
+
 .storageFileState {
   display: inline-flex;
   align-items: center;
@@ -729,6 +796,16 @@ h2 {
 .storageFileMissing {
   background: #fef2f2;
   color: #b42318;
+}
+
+.storageFileExternal {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.storageFilePlaceholder {
+  background: #f8fafc;
+  color: #667085;
 }
 
 .settingsTable select {
@@ -2022,6 +2099,10 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
+  .remoteUploadFields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .creationParamBar .durationField {
     grid-column: auto;
   }
@@ -2086,6 +2167,28 @@ button:disabled {
   .modelDiagnosticGrid,
   .settingsSummary {
     grid-template-columns: 1fr;
+  }
+
+  .remoteUploadFields {
+    grid-template-columns: 1fr;
+  }
+
+  .remoteUploadTopline,
+  .remoteUploadActions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .remoteUploadHint {
+    text-align: left;
+  }
+
+  .remoteUploadActions button {
+    width: 100%;
+  }
+
+  .storageActions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .itemHeader {

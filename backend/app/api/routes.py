@@ -615,16 +615,30 @@ def video_storage_summary(
     videos = []
     total_size = 0
     existing_count = 0
+    missing_count = 0
+    external_count = 0
+    placeholder_count = 0
     for task in tasks:
         if not task.output_path:
             continue
         output_path = task.output_path
-        is_local_path = not output_path.startswith(("http://", "https://", "mock://"))
+        is_mock_path = output_path.startswith("mock://")
+        is_external_path = output_path.startswith(("http://", "https://"))
+        is_local_path = not is_external_path and not is_mock_path
         path = Path(output_path) if is_local_path else None
         exists = bool(path and path.exists() and path.is_file())
         size_bytes = path.stat().st_size if path and exists else 0
         total_size += size_bytes
-        existing_count += 1 if exists else 0
+        if is_local_path:
+            existing_count += 1 if exists else 0
+            missing_count += 0 if exists else 1
+            storage_kind = "local"
+        elif is_external_path:
+            external_count += 1
+            storage_kind = "external"
+        else:
+            placeholder_count += 1
+            storage_kind = "placeholder"
         script = session.get(Script, task.script_id)
         videos.append(
             {
@@ -638,6 +652,7 @@ def video_storage_summary(
                 "export_height": task.export_height,
                 "output_path": str(path.resolve()) if path else output_path,
                 "exists": exists,
+                "storage_kind": storage_kind,
                 "size_bytes": size_bytes,
                 "created_at": task.created_at,
                 "updated_at": task.updated_at,
@@ -655,7 +670,9 @@ def video_storage_summary(
         "totals": {
             "video_count": len(videos),
             "existing_count": existing_count,
-            "missing_count": len(videos) - existing_count,
+            "missing_count": missing_count,
+            "external_count": external_count,
+            "placeholder_count": placeholder_count,
             "size_bytes": total_size,
         },
         "videos": videos,
