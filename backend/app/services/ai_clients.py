@@ -1881,9 +1881,12 @@ class MediaGenerationClient:
             value = result.get(key)
             if isinstance(value, str) and value:
                 return value
-        data = result.get("data")
-        if isinstance(data, dict):
-            return self._extract_voice_id(data)
+        for nested_key in ("output", "data", "result"):
+            data = result.get(nested_key)
+            if isinstance(data, dict):
+                voice_id = self._extract_voice_id(data)
+                if voice_id:
+                    return voice_id
         return None
 
     def _is_local_path(self, value: str) -> bool:
