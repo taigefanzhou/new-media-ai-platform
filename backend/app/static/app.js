@@ -1132,7 +1132,11 @@ function isImageMaterial(material) {
 }
 
 function isVideoMaterial(material) {
-  return ["avatar_source", "video"].includes(material.kind);
+  return ["avatar_source", "video"].includes(material.kind) || (material.kind === "reference" && material.file_path);
+}
+
+function isReferenceMaterial(material) {
+  return ["avatar_source", "video", "reference"].includes(material.kind);
 }
 
 function renderMaterialPreview(material, className = "materialThumb") {
@@ -1142,6 +1146,9 @@ function renderMaterialPreview(material, className = "materialThumb") {
   }
   if (isVideoMaterial(material)) {
     return `<video class="${className}" src="${src}" controls preload="metadata"></video>`;
+  }
+  if (material.kind === "reference" && material.source_url) {
+    return `<div class="${className} materialFile">链接</div>`;
   }
   return `<div class="${className} materialFile">文件</div>`;
 }
@@ -1195,11 +1202,11 @@ function renderMaterialSelects(materials) {
   }
   if (analysisSelect) {
     const current = analysisSelect.value;
-    const references = materials.filter((item) => ["avatar_source", "video", "reference"].includes(item.kind));
+    const references = materials.filter(isReferenceMaterial);
     analysisSelect.innerHTML = `<option value="">先上传或选择参考素材</option>${references
       .map((item) => `<option value="${item.id}">#${item.id} ${escapeHtml(item.name)} · ${materialKindLabel(item.kind)}</option>`)
       .join("")}`;
-    const latestReference = materials.find((item) => ["avatar_source", "video", "reference"].includes(item.kind));
+    const latestReference = materials.find(isReferenceMaterial);
     analysisSelect.value = current || (latestReference ? latestReference.id : "");
     renderAnalysisMaterialPreview();
   }
@@ -1220,9 +1227,50 @@ function renderAnalysisMaterialPreview() {
       <div>
         <strong>#${material.id} ${escapeHtml(material.name)}</strong>
         <div class="recordMeta">${materialKindLabel(material.kind)} · ${escapeHtml(material.tags || "未打标签")}</div>
+        <div class="recordMeta">${material.file_path ? "本地文件已就绪，可以拆解" : "仅保存链接，需要上传或提供直连视频"}</div>
       </div>
     </div>
   `;
+}
+
+function latestAnalysisForMaterial(materialId) {
+  return state.videoAnalyses.find((analysis) => Number(analysis.material_id) === Number(materialId));
+}
+
+function renderReferenceMaterials(materials = state.materials) {
+  const target = document.querySelector("#referenceMaterialList");
+  if (!target) return;
+  const references = materials.filter(isReferenceMaterial);
+  if (!references.length) {
+    target.innerHTML = `<div class="item">还没有参考素材。粘贴视频链接后会自动进入这里。</div>`;
+    return;
+  }
+  target.innerHTML = references
+    .map((material) => {
+      const analysis = latestAnalysisForMaterial(material.id);
+      const canAnalyze = Boolean(material.file_path);
+      const canGenerateScript = analysis && ["needs_review", "approved"].includes(analysis.status);
+      return `
+        <div class="referenceMaterialCard">
+          ${renderMaterialPreview(material, "referenceMaterialMedia")}
+          <div class="referenceMaterialBody">
+            <div class="itemHeader">
+              <strong>#${material.id} ${escapeHtml(material.name)}</strong>
+              <span class="status ${canAnalyze ? "successStatus" : "pendingStatus"}">${canAnalyze ? "可拆解" : "仅链接"}</span>
+            </div>
+            <div class="recordMeta">${materialKindLabel(material.kind)} · ${escapeHtml(material.tags || "未打标签")}</div>
+            <div class="recordMeta">${analysis ? `最近拆解：#${analysis.id} · ${taskStatusLabel(analysis.status)}` : "还没有深度拆解结果"}</div>
+            <div class="referenceMaterialActions">
+              <button type="button" class="secondary" data-action="select-reference-material" data-id="${material.id}">选择</button>
+              <button type="button" data-action="analyze-reference-material" data-id="${material.id}" ${canAnalyze ? "" : "disabled"}>深度拆解</button>
+              <button type="button" class="secondary" data-action="script-from-reference-analysis" data-id="${analysis ? analysis.id : ""}" ${canGenerateScript ? "" : "disabled"}>生成原创脚本</button>
+              ${material.source_url ? `<a class="buttonLike ghostButton" href="${escapeHtml(material.source_url)}" target="_blank" rel="noreferrer">原链接</a>` : ""}
+            </div>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
 }
 
 function renderHumanSelects(humans) {
@@ -2039,6 +2087,7 @@ async function refresh() {
     renderTrending(searches, videos);
     renderTranscriptions(transcriptions);
     renderVideoAnalyses(videoAnalyses);
+    renderReferenceMaterials(materials);
     renderPublishRecords(publishRecords);
     renderPlatformAccounts(platformAccounts);
     renderScripts(scripts);
@@ -2823,6 +2872,92 @@ document.querySelector("#trendingManualForm").addEventListener("submit", async (
   await refresh();
 });
 
+async function createAndRunVideoAnalysis(materialId, language = "zh-CN", button = null) {
+  const originalText = button ? button.textContent : "";
+  if (button) {
+    button.disabled = true;
+    button.textContent = "拆解中...";
+  }
+  try {
+    const created = await api.post("/video-analyses", {
+      material_id: Number(materialId),
+      provider: "local",
+      language,
+    });
+    state.latestVideoAnalysisId = created.id;
+    const task = await api.post(`/video-analyses/${created.id}/run`);
+    state.latestVideoAnalysisId = task.id;
+    if (task.status === "failed") {
+      throw new Error(task.error_message || "深度拆解失败");
+    }
+    return task;
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  }
+}
+
+async function saveReferenceLinkAndMaybeAnalyze(form, options = { analyze: false }) {
+  const payload = formData(form);
+  const language = payload.language || "zh-CN";
+  delete payload.language;
+  payload.download = Boolean(options.analyze);
+  if (!payload.source_url) {
+    toast("请先粘贴视频链接");
+    return;
+  }
+  const button = options.button || null;
+  const originalText = button ? button.textContent : "";
+  if (button) {
+    button.disabled = true;
+    button.textContent = options.analyze ? "保存并拆解中..." : "保存中...";
+  }
+  try {
+    const material = await api.post("/reference-materials/from-link", payload);
+    state.latestSourceVideoId = material.id;
+    const select = document.querySelector("#analysisMaterialSelect");
+    if (select) {
+      select.value = String(material.id);
+      renderAnalysisMaterialPreview();
+    }
+    if (options.analyze && material.file_path) {
+      const task = await createAndRunVideoAnalysis(material.id, language);
+      toast(`已保存并完成深度拆解：${taskStatusLabel(task.status)}`);
+    } else if (options.analyze) {
+      toast("参考链接已保存，但这个链接不能直接下载视频，请上传源文件后拆解");
+    } else {
+      toast(`参考素材已保存 #${material.id}`);
+    }
+    form.reset();
+    await refresh();
+  } catch (error) {
+    toast(error.message || "参考链接保存失败");
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  }
+}
+
+document.querySelector("#referenceLinkForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  await saveReferenceLinkAndMaybeAnalyze(event.currentTarget, {
+    analyze: true,
+    button: event.submitter,
+  });
+});
+
+document.querySelector("#saveReferenceOnlyBtn").addEventListener("click", async (event) => {
+  const form = document.querySelector("#referenceLinkForm");
+  await saveReferenceLinkAndMaybeAnalyze(form, {
+    analyze: false,
+    button: event.currentTarget,
+  });
+});
+
 document.querySelector("#analysisMaterialSelect").addEventListener("change", renderAnalysisMaterialPreview);
 
 document.querySelector("#goAssetPageBtn").addEventListener("click", () => switchPage("humans"));
@@ -2834,25 +2969,18 @@ document.querySelector("#createVideoAnalysisBtn").addEventListener("click", asyn
     toast("请先选择参考视频素材");
     return;
   }
+  const material = state.materials.find((item) => String(item.id) === String(select.value));
+  if (material && !material.file_path) {
+    toast("这个参考素材只有链接，还没有本地视频文件，请上传源文件或使用可下载直链");
+    return;
+  }
   const button = document.querySelector("#createVideoAnalysisBtn");
-  const originalText = button.textContent;
-  button.disabled = true;
-  button.textContent = "后台拆解中...";
   try {
-    const created = await api.post("/video-analyses", {
-      material_id: Number(select.value),
-      provider: "local",
-      language,
-    });
-    state.latestVideoAnalysisId = created.id;
-    const task = await api.post(`/video-analyses/${created.id}/run`);
+    const task = await createAndRunVideoAnalysis(Number(select.value), language, button);
     toast(`深度拆解完成：${taskStatusLabel(task.status)}`);
     await refresh();
-  } catch {
-    toast("深度拆解失败，请确认素材是本地视频文件");
-  } finally {
-    button.disabled = false;
-    button.textContent = originalText;
+  } catch (error) {
+    toast(error.message || "深度拆解失败，请确认素材是本地视频文件");
   }
 });
 
@@ -2900,20 +3028,78 @@ document.querySelector("#transcriptionList").addEventListener("click", async (ev
   }
 });
 
+document.querySelector("#referenceMaterialList").addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-action]");
+  if (!button || button.disabled) return;
+  const materialId = Number(button.dataset.id);
+  if (button.dataset.action === "select-reference-material") {
+    const select = document.querySelector("#analysisMaterialSelect");
+    if (select) {
+      select.value = String(materialId);
+      renderAnalysisMaterialPreview();
+    }
+    toast(`已选择参考素材 #${materialId}`);
+    return;
+  }
+  if (button.dataset.action === "analyze-reference-material") {
+    const language = document.querySelector("#transcriptionForm [name='language']").value || "zh-CN";
+    const material = state.materials.find((item) => Number(item.id) === materialId);
+    if (!material || !material.file_path) {
+      toast("这个素材还没有本地视频文件，不能深度拆解");
+      return;
+    }
+    try {
+      const task = await createAndRunVideoAnalysis(materialId, language, button);
+      toast(`深度拆解完成：${taskStatusLabel(task.status)}`);
+      await refresh();
+    } catch (error) {
+      toast(error.message || "深度拆解失败");
+    }
+    return;
+  }
+  if (button.dataset.action === "script-from-reference-analysis") {
+    const analysisId = Number(button.dataset.id);
+    if (!analysisId) {
+      toast("请先完成深度拆解");
+      return;
+    }
+    const originalText = button.textContent;
+    button.disabled = true;
+    button.textContent = "生成中...";
+    try {
+      const script = await api.post(`/video-analyses/${analysisId}/generate-script`);
+      state.latestScriptId = script.id;
+      state.highlightedScriptId = script.id;
+      toast(`已按拆解模板生成原创脚本 #${script.id}`);
+      await refresh();
+      switchPage("creation");
+    } catch {
+      toast("生成脚本失败，请检查脚本模型配置");
+    } finally {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  }
+});
+
 document.querySelector("#videoAnalysisList").addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-action]");
   if (!button || button.disabled) return;
   const id = Number(button.dataset.id);
   if (button.dataset.action === "run-video-analysis") {
-    button.disabled = true;
-    button.textContent = "拆解中...";
+    const originalText = button.textContent;
     try {
+      button.disabled = true;
+      button.textContent = "拆解中...";
       const task = await api.post(`/video-analyses/${id}/run`);
       state.latestVideoAnalysisId = task.id;
       toast(`深度拆解完成：${taskStatusLabel(task.status)}`);
       await refresh();
     } catch {
       toast("深度拆解失败，请确认素材是本地视频文件");
+    } finally {
+      button.disabled = false;
+      button.textContent = originalText;
     }
     return;
   }

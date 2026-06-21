@@ -209,37 +209,74 @@
       </section>
 
       <section id="page-analysis" class="page">
-        <section class="split">
-          <form id="transcriptionForm" class="panel">
-            <h2>拆解参考视频/音频</h2>
-            <label>参考素材
-              <select name="material_id" id="analysisMaterialSelect">
-                <option value="">先上传或选择参考素材</option>
+        <section class="panel referenceWorkbench">
+          <div class="sectionHeader">
+            <div>
+              <h2>参考视频拆解工作台</h2>
+              <p>粘贴视频链接后保存为参考素材，系统会自动下载可识别的视频并拆解脚本、拍摄和剪辑方法。</p>
+            </div>
+            <span class="status">Reference Lab</span>
+          </div>
+          <form id="referenceLinkForm" class="referenceLinkForm">
+            <label class="referenceUrlField">视频链接
+              <input name="source_url" placeholder="粘贴视频号、抖音或可下载的视频链接" />
+            </label>
+            <label>素材标题
+              <input name="title" placeholder="例如：视频号口播参考：旺季心法" />
+            </label>
+            <label>平台
+              <select name="platform">
+                <option value="wechat_channels">视频号</option>
+                <option value="douyin">抖音</option>
+                <option value="xiaohongshu">小红书</option>
+                <option value="kuaishou">快手</option>
+                <option value="manual">其他</option>
               </select>
             </label>
-            <div id="analysisMaterialPreview" class="analysisMaterialPreview"></div>
             <label>语言
               <select name="language">
                 <option value="zh-CN">中文</option>
                 <option value="en-US">英文</option>
               </select>
             </label>
-            <div class="actions">
-              <button type="submit">创建转写</button>
-              <button id="runTranscriptionBtn" type="button" class="secondary">运行转写</button>
+            <label>标签
+              <input name="tags" placeholder="口播参考,酒店营销,剪辑模板" />
+            </label>
+            <div class="referenceActions">
+              <button type="submit">保存并深度拆解</button>
+              <button id="saveReferenceOnlyBtn" type="button" class="secondary">只保存到参考列表</button>
             </div>
-            <div class="actions">
-              <button id="createVideoAnalysisBtn" type="button">一键深度拆解</button>
-            </div>
-            <button id="goAssetPageBtn" type="button" class="secondary">去上传参考素材</button>
           </form>
-          <div class="panel">
-            <h2>和其他菜单的关系</h2>
-            <div class="list">
-              <div class="item">从“数字人素材”选择参考视频或音频。</div>
-              <div class="item">转写后提炼开头钩子、内容结构和可改写方向。</div>
-              <div class="item">深度拆解由后台自动完成，会分析脚本结构、拍摄方式、剪辑节奏和可复用模板。</div>
-              <div class="item">点击“生成原创脚本”会把拆解结果带到内容创作页，可继续创建视频任务。</div>
+          <div class="referenceContentGrid">
+            <form id="transcriptionForm" class="referenceExistingForm">
+              <h3>已有参考素材</h3>
+              <label>选择素材
+                <select name="material_id" id="analysisMaterialSelect">
+                  <option value="">先上传或选择参考素材</option>
+                </select>
+              </label>
+              <div id="analysisMaterialPreview" class="analysisMaterialPreview"></div>
+              <label>转写语言
+                <select name="language">
+                  <option value="zh-CN">中文</option>
+                  <option value="en-US">英文</option>
+                </select>
+              </label>
+              <div class="actions">
+                <button id="createVideoAnalysisBtn" type="button">一键深度拆解</button>
+                <button type="submit" class="secondary">创建转写</button>
+                <button id="runTranscriptionBtn" type="button" class="secondary">运行转写</button>
+              </div>
+              <button id="goAssetPageBtn" type="button" class="ghostButton">上传本地参考素材</button>
+            </form>
+            <div class="referenceListPanel">
+              <div class="sectionHeader compactHeader">
+                <div>
+                  <h3>参考素材列表</h3>
+                  <p>能预览的视频可直接深度拆解；只有链接的素材需要先下载或上传源文件。</p>
+                </div>
+              </div>
+              <div id="referenceMaterialList" class="referenceMaterialList"></div>
             </div>
           </div>
         </section>

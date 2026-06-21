@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import mimetypes
 import platform
 import subprocess
 from datetime import datetime
@@ -55,6 +56,7 @@ from app.schemas.requests import (
     PlatformCredentialPublic,
     PlatformCredentialUpdate,
     PublishPrepareRequest,
+    ReferenceMaterialLinkCreate,
     ReferenceVideoAnalysisCreate,
     RemoteUploadSettingsUpdate,
     PublishRecordUpdate,
@@ -1070,6 +1072,163 @@ def list_video_export_profiles() -> list[dict[str, object]]:
 @router.post("/materials", response_model=Material)
 def create_material(payload: MaterialCreate, session: Session = Depends(get_session)) -> Material:
     material = Material.model_validate(payload)
+    session.add(material)
+    session.commit()
+    session.refresh(material)
+    return material
+
+
+REFERENCE_MEDIA_EXTENSIONS = {
+    ".mp4",
+    ".mov",
+    ".m4v",
+    ".webm",
+    ".mkv",
+    ".avi",
+    ".mp3",
+    ".m4a",
+    ".aac",
+    ".wav",
+}
+
+
+def _reference_title_from_url(source_url: str) -> str:
+    parsed = urlparse(source_url)
+    filename = Path(parsed.path).name
+    stem = Path(filename).stem if filename else ""
+    if stem and stem.lower() not in {"stodownload", "download", "video"}:
+        return stem[:80]
+    return parsed.netloc or "参考视频链接"
+
+
+def _reference_tags(platform: str, tags: str) -> str:
+    values = ["参考素材", platform.strip()]
+    values.extend(item.strip() for item in tags.split(",") if item.strip())
+    deduped = []
+    for value in values:
+        if value and value not in deduped:
+            deduped.append(value)
+    return ",".join(deduped)
+
+
+def _media_suffix_from_response(source_url: str, content_type: str, content_disposition: str) -> str:
+    disposition_parts = content_disposition.split(";") if content_disposition else []
+    for part in disposition_parts:
+        if "filename=" not in part:
+            continue
+        filename = part.split("=", 1)[1].strip().strip('"')
+        suffix = Path(filename).suffix.lower()
+        if suffix in REFERENCE_MEDIA_EXTENSIONS:
+            return suffix
+
+    parsed_url = urlparse(source_url)
+    url_suffix = Path(parsed_url.path).suffix.lower()
+    if url_suffix in REFERENCE_MEDIA_EXTENSIONS:
+        return url_suffix
+    if "finder.video.qq.com" in parsed_url.netloc and "stodownload" in parsed_url.path:
+        return ".mp4"
+
+    normalized_type = content_type.split(";", 1)[0].strip().lower()
+    if normalized_type == "video/mp4":
+        return ".mp4"
+    if normalized_type == "video/quicktime":
+        return ".mov"
+    if normalized_type == "audio/mpeg":
+        return ".mp3"
+    if normalized_type == "audio/mp4":
+        return ".m4a"
+    guessed = mimetypes.guess_extension(normalized_type) or ""
+    if guessed in REFERENCE_MEDIA_EXTENSIONS:
+        return guessed
+    if normalized_type.startswith("video/"):
+        return ".mp4"
+    if normalized_type.startswith("audio/"):
+        return ".m4a"
+    return ""
+
+
+def _response_looks_like_reference_media(source_url: str, content_type: str, content_disposition: str) -> bool:
+    normalized_type = content_type.split(";", 1)[0].strip().lower()
+    if normalized_type.startswith(("video/", "audio/")):
+        return True
+    if _media_suffix_from_response(source_url, content_type, content_disposition):
+        return True
+    return False
+
+
+async def _download_reference_media(source_url: str, storage_dir: Path) -> Path | None:
+    parsed = urlparse(source_url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise HTTPException(status_code=400, detail="请输入有效的视频链接。")
+
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+        ),
+        "Accept": "video/mp4,video/*;q=0.9,audio/*;q=0.8,*/*;q=0.5",
+    }
+    max_bytes = 800 * 1024 * 1024
+    async with httpx.AsyncClient(timeout=600, follow_redirects=True, headers=headers) as client:
+        async with client.stream("GET", source_url) as response:
+            response.raise_for_status()
+            content_type = response.headers.get("content-type", "")
+            content_disposition = response.headers.get("content-disposition", "")
+            if not _response_looks_like_reference_media(source_url, content_type, content_disposition):
+                return None
+            suffix = _media_suffix_from_response(source_url, content_type, content_disposition) or ".mp4"
+            content_length = response.headers.get("content-length")
+            if content_length and int(content_length) > max_bytes:
+                raise HTTPException(status_code=400, detail="参考视频文件超过 800MB，请先下载后上传。")
+
+            storage_dir.mkdir(parents=True, exist_ok=True)
+            file_path = storage_dir / f"source{suffix}"
+            total = 0
+            with open(file_path, "wb") as output:
+                async for chunk in response.aiter_bytes(chunk_size=1024 * 1024):
+                    if not chunk:
+                        continue
+                    total += len(chunk)
+                    if total > max_bytes:
+                        output.close()
+                        _delete_local_file(str(file_path))
+                        raise HTTPException(status_code=400, detail="参考视频文件超过 800MB，请先下载后上传。")
+                    output.write(chunk)
+            if total == 0:
+                _delete_local_file(str(file_path))
+                return None
+            return file_path
+
+
+@router.post("/reference-materials/from-link", response_model=Material)
+async def create_reference_material_from_link(
+    payload: ReferenceMaterialLinkCreate,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> Material:
+    source_url = payload.source_url.strip()
+    parsed = urlparse(source_url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise HTTPException(status_code=400, detail="请输入 http 或 https 开头的视频链接。")
+
+    storage_dir = get_storage_root(session) / "materials" / uuid4().hex
+    file_path: Path | None = None
+    if payload.download:
+        try:
+            file_path = await _download_reference_media(source_url, storage_dir)
+        except HTTPException:
+            raise
+        except Exception:
+            file_path = None
+
+    material = Material(
+        name=(payload.title or "").strip() or _reference_title_from_url(source_url),
+        kind=MaterialKind.reference,
+        copyright_status=CopyrightStatus.reference_only,
+        file_path=str(file_path) if file_path else None,
+        source_url=source_url,
+        tags=_reference_tags(payload.platform, payload.tags),
+    )
     session.add(material)
     session.commit()
     session.refresh(material)

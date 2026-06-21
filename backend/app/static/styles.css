@@ -1677,6 +1677,63 @@ button:disabled {
   background: var(--accent);
 }
 
+.referenceWorkbench {
+  display: grid;
+  gap: 16px;
+}
+
+.referenceLinkForm {
+  display: grid;
+  grid-template-columns: minmax(280px, 2fr) minmax(200px, 1fr) 150px 140px minmax(180px, 1fr);
+  gap: 12px;
+  align-items: end;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+
+.referenceUrlField {
+  grid-column: span 2;
+}
+
+.referenceActions {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) minmax(180px, 260px);
+  gap: 10px;
+}
+
+.referenceContentGrid {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.85fr) minmax(0, 1.15fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.referenceExistingForm,
+.referenceListPanel {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  background: white;
+}
+
+.referenceExistingForm h3,
+.referenceListPanel h3 {
+  margin: 0 0 10px;
+  font-size: 18px;
+}
+
+.compactHeader {
+  margin-bottom: 10px;
+}
+
+.compactHeader p {
+  margin: 4px 0 0;
+  font-size: 13px;
+}
+
 .analysisMaterialPreview {
   margin-bottom: 12px;
 }
@@ -1699,6 +1756,82 @@ button:disabled {
   border-radius: 6px;
   object-fit: cover;
   background: #eef2f7;
+}
+
+.referenceMaterialList {
+  display: grid;
+  gap: 10px;
+  max-height: 520px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.referenceMaterialCard {
+  display: grid;
+  grid-template-columns: 116px minmax(0, 1fr);
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: #fbfcfd;
+}
+
+.referenceMaterialMedia {
+  display: block;
+  width: 116px;
+  aspect-ratio: 9 / 16;
+  border-radius: 6px;
+  object-fit: cover;
+  background: #eef2f7;
+}
+
+.referenceMaterialBody {
+  min-width: 0;
+}
+
+.referenceMaterialActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.referenceMaterialActions button,
+.referenceMaterialActions .buttonLike {
+  width: auto;
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+.buttonLike,
+.ghostButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  border-radius: 6px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  background: #f8fafc;
+  color: #1d4ed8;
+  font-weight: 800;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.ghostButton {
+  width: auto;
+}
+
+.successStatus {
+  background: #dcfce7;
+  color: #047857;
+}
+
+.pendingStatus {
+  background: #eef2ff;
+  color: #4f46e5;
 }
 
 .analysisResultList {
@@ -2089,6 +2222,7 @@ button:disabled {
   .creationParamBar,
   .productionModeBar,
   .analysisGrid,
+  .referenceContentGrid,
   .modelConfigForm,
   .storageConfigForm,
   .advancedTaskGrid,
@@ -2097,6 +2231,18 @@ button:disabled {
   .scriptEditGrid,
   .settingsAccountForm {
     grid-template-columns: 1fr;
+  }
+
+  .referenceLinkForm {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .referenceUrlField {
+    grid-column: 1 / -1;
+  }
+
+  .referenceActions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .remoteUploadFields {
@@ -2153,6 +2299,9 @@ button:disabled {
   .creationParamBar,
   .productionModeBar,
   .analysisGrid,
+  .referenceLinkForm,
+  .referenceContentGrid,
+  .referenceActions,
   .modelConfigForm,
   .storageConfigForm,
   .advancedTaskGrid,
@@ -2167,6 +2316,11 @@ button:disabled {
   .modelDiagnosticGrid,
   .settingsSummary {
     grid-template-columns: 1fr;
+  }
+
+  .referenceUrlField,
+  .referenceActions {
+    grid-column: 1 / -1;
   }
 
   .remoteUploadFields {
@@ -2197,6 +2351,14 @@ button:disabled {
 
   .analysisPreviewCard {
     grid-template-columns: 1fr;
+  }
+
+  .referenceMaterialCard {
+    grid-template-columns: 88px minmax(0, 1fr);
+  }
+
+  .referenceMaterialMedia {
+    width: 88px;
   }
 
   .storagePathRow {

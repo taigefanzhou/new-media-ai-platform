@@ -119,6 +119,14 @@ class MaterialCreate(BaseModel):
     tags: str = ""
 
 
+class ReferenceMaterialLinkCreate(BaseModel):
+    source_url: str = Field(..., min_length=8)
+    title: Optional[str] = None
+    platform: str = "wechat_channels"
+    tags: str = ""
+    download: bool = True
+
+
 class TopicCreate(BaseModel):
     title: str
     industry: Optional[str] = None
