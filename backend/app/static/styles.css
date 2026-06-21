@@ -1691,7 +1691,7 @@ button:disabled {
 
 .referenceLinkForm {
   display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.48fr);
   gap: 12px;
   align-items: end;
   padding: 14px;
@@ -1701,27 +1701,36 @@ button:disabled {
 }
 
 .referenceUrlField {
-  grid-column: span 5;
+  grid-column: auto;
 }
 
-.referenceTitleField {
-  grid-column: span 3;
-}
-
-.referencePlatformField,
-.referenceLanguageField {
-  grid-column: span 2;
-}
-
-.referenceTagsField {
-  grid-column: span 4;
+.referenceUrlField input {
+  min-height: 54px;
 }
 
 .referenceActions {
-  grid-column: span 8;
+  grid-column: auto;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr);
   gap: 10px;
+}
+
+.referenceOptionalSettings {
+  grid-column: 1 / -1;
+}
+
+.referenceOptionalSettings summary {
+  width: max-content;
+  cursor: pointer;
+  color: #0f766e;
+  font-weight: 900;
+}
+
+.referenceOptionalGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) repeat(3, minmax(0, 0.7fr));
+  gap: 12px;
+  margin-top: 12px;
 }
 
 .referenceContentGrid {
@@ -2292,22 +2301,19 @@ button:disabled {
 
 @media (max-width: 1320px) {
   .referenceLinkForm {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .referenceTitleField,
-  .referencePlatformField,
-  .referenceLanguageField {
-    grid-column: auto;
+    grid-template-columns: 1fr;
   }
 
   .referenceUrlField,
-  .referenceTagsField,
   .referenceActions {
     grid-column: 1 / -1;
   }
 
   .referenceActions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .referenceOptionalGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -2345,21 +2351,6 @@ button:disabled {
   .scriptEditGrid,
   .settingsAccountForm {
     grid-template-columns: 1fr;
-  }
-
-  .referenceLinkForm {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .referenceTitleField,
-  .referencePlatformField,
-  .referenceLanguageField {
-    grid-column: auto;
-  }
-
-  .referenceUrlField,
-  .referenceTagsField {
-    grid-column: 1 / -1;
   }
 
   .referenceActions {
@@ -2446,6 +2437,10 @@ button:disabled {
   .referenceTagsField,
   .referenceActions {
     grid-column: 1 / -1;
+  }
+
+  .referenceOptionalGrid {
+    grid-template-columns: 1fr;
   }
 
   .remoteUploadFields {

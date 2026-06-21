@@ -1282,13 +1282,15 @@ function renderReferenceMaterials(materials = state.materials) {
       const canAnalyze = Boolean(material.file_path);
       const canGenerateScript = analysis && analysis.status === "approved";
       const selected = String(document.querySelector("#analysisMaterialSelect")?.value || "") === String(material.id);
+      const needsUpload = String(material.tags || "").includes("需上传源文件");
+      const statusLabel = canAnalyze ? "可拆解" : needsUpload ? "需上传源文件" : "仅链接";
       return `
         <div class="referenceMaterialCard ${selected ? "selectedReferenceCard" : ""}">
           ${renderMaterialPreview(material, "referenceMaterialMedia")}
           <div class="referenceMaterialBody">
             <div class="itemHeader">
               <strong>#${material.id} ${escapeHtml(material.name)}</strong>
-              <span class="status ${canAnalyze ? "successStatus" : "pendingStatus"}">${canAnalyze ? "可拆解" : "仅链接"}</span>
+              <span class="status ${canAnalyze ? "successStatus" : "pendingStatus"}">${statusLabel}</span>
             </div>
             <div class="recordMeta">${materialKindLabel(material.kind)} · ${escapeHtml(material.tags || "未打标签")}</div>
             <div class="recordMeta">
@@ -1970,6 +1972,7 @@ function platformLabel(value) {
 
 function credentialPurposeLabel(value) {
   return {
+    link_resolver: "链接解析/下载",
     trending: "爆款采集",
     publishing: "自动发布",
     analytics: "数据回收",
@@ -3087,7 +3090,7 @@ async function saveReferenceLinkAndMaybeAnalyze(form, options = { analyze: false
       const task = await createAndRunVideoAnalysis(material.id, language);
       toast(`已保存并完成深度拆解：${analysisStatusLabel(task.status)}`);
     } else if (options.analyze) {
-      toast("参考链接已保存，但这个链接不能直接下载视频，请上传源文件后拆解");
+      toast("链接已保存，但还没解析出视频文件；请配置链接解析服务或上传源文件");
     } else {
       toast(`参考素材已保存 #${material.id}`);
     }

@@ -122,7 +122,7 @@ class MaterialCreate(BaseModel):
 class ReferenceMaterialLinkCreate(BaseModel):
     source_url: str = Field(..., min_length=8)
     title: Optional[str] = None
-    platform: str = "wechat_channels"
+    platform: str = "auto"
     tags: str = ""
     download: bool = True
 

@@ -81,6 +81,11 @@ from app.schemas.requests import (
 from app.services.ai_clients import ScriptGenerator
 from app.services.asr import ASRClient
 from app.services.export_profiles import export_profile_options, resolve_export_profile
+from app.services.link_resolver import (
+    LinkResolverCredential,
+    ShortVideoLinkResolver,
+    detect_short_video_platform,
+)
 from app.services.pipeline import VideoPipeline
 from app.services.trending import TrendingCollector
 from app.services.usage import estimate_text_tokens, record_generated_model_usage, record_model_usage
@@ -1101,9 +1106,10 @@ def _reference_title_from_url(source_url: str) -> str:
     return parsed.netloc or "参考视频链接"
 
 
-def _reference_tags(platform: str, tags: str) -> str:
+def _reference_tags(platform: str, tags: str, *extra_tags: str) -> str:
     values = ["参考素材", platform.strip()]
     values.extend(item.strip() for item in tags.split(",") if item.strip())
+    values.extend(item.strip() for item in extra_tags if item and item.strip())
     deduped = []
     for value in values:
         if value and value not in deduped:
@@ -1200,6 +1206,37 @@ async def _download_reference_media(source_url: str, storage_dir: Path) -> Path 
             return file_path
 
 
+def _link_resolver_credentials(session: Session, platform: str) -> list[LinkResolverCredential]:
+    credentials = session.exec(
+        select(PlatformCredential).where(
+            PlatformCredential.purpose == "link_resolver",
+            PlatformCredential.is_active == True,  # noqa: E712
+        )
+    ).all()
+    allowed_platforms = {platform, "manual"}
+    result = []
+    for credential in credentials:
+        credential_platform = (
+            credential.platform.value if hasattr(credential.platform, "value") else str(credential.platform)
+        )
+        if credential_platform not in allowed_platforms:
+            continue
+        if not credential.api_base:
+            continue
+        result.append(
+            LinkResolverCredential(
+                platform=credential_platform,
+                display_name=credential.display_name,
+                api_base=credential.api_base,
+                client_id=credential.client_id or "",
+                client_secret=credential.client_secret or "",
+                access_token=credential.access_token or "",
+                notes=credential.notes or "",
+            )
+        )
+    return result
+
+
 @router.post("/reference-materials/from-link", response_model=Material)
 async def create_reference_material_from_link(
     payload: ReferenceMaterialLinkCreate,
@@ -1211,8 +1248,10 @@ async def create_reference_material_from_link(
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise HTTPException(status_code=400, detail="请输入 http 或 https 开头的视频链接。")
 
+    platform_name = detect_short_video_platform(source_url, payload.platform)
     storage_dir = get_storage_root(session) / "materials" / uuid4().hex
     file_path: Path | None = None
+    resolution = None
     if payload.download:
         try:
             file_path = await _download_reference_media(source_url, storage_dir)
@@ -1220,14 +1259,31 @@ async def create_reference_material_from_link(
             raise
         except Exception:
             file_path = None
+        if not file_path:
+            try:
+                resolver = ShortVideoLinkResolver()
+                resolution = await resolver.resolve(
+                    source_url,
+                    platform_name,
+                    _link_resolver_credentials(session, platform_name),
+                )
+                if resolution.media_url and resolution.media_url != source_url:
+                    file_path = await _download_reference_media(resolution.media_url, storage_dir)
+            except HTTPException:
+                raise
+            except Exception:
+                file_path = None
 
+    resolver_name = resolution.resolver_name if resolution else ("direct-download" if file_path else "link-only")
+    title = (payload.title or "").strip() or (resolution.title if resolution else "") or _reference_title_from_url(source_url)
+    parse_status = "已下载视频" if file_path else ("需上传源文件" if payload.download else "仅保存链接")
     material = Material(
-        name=(payload.title or "").strip() or _reference_title_from_url(source_url),
+        name=title,
         kind=MaterialKind.reference,
         copyright_status=CopyrightStatus.reference_only,
         file_path=str(file_path) if file_path else None,
         source_url=source_url,
-        tags=_reference_tags(payload.platform, payload.tags),
+        tags=_reference_tags(platform_name, payload.tags, f"解析:{resolver_name}", parse_status),
     )
     session.add(material)
     session.commit()
