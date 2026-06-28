@@ -73,7 +73,7 @@
 | 视频合成/专业包装 | 可用 | 是 | 线上 `COMPOSITION_PROVIDER=remotion`，通过独立 Remotion 渲染服务做专业包装；FFmpeg 通用 concat 链路仍未作为主链路启用。 |
 | 字幕引擎 | 可用 | 是 | 已内置自研字幕后处理：脚本文案自动断句、生成 SRT/ASS、按模板烧录到本地视频。依赖 FFmpeg 和真实本地视频；如果前置视频仍是 `mock://` 或云端 URL，会跳过烧录并记录真实状态。 |
 | 链接素材采集 | 部分可用 | 否 | 系统支持粘贴链接保存为参考素材，也支持外部解析器下载视频；当前公开视频号 worker 在本机可解析，但线上服务器访问 `sph.litao.workers.dev` 不可达，需切换 Just One/TikHub/自有解析服务。 |
-| 爆款采集 | 可用 | 否 | 当前 `mock`。 |
+| 爆款采集 | 可用 | 否 | 已支持按主题、点赞/评论阈值、排序和采集数量创建任务；线上当前未配置真实 TikHub/自有采集 token，仍会回退到 `mock`。 |
 | ASR 转写 | 可用 | 是 | 线上模型配置显示 `aliyun-bailian / qwen3-asr-flash` 已配置为真实 API。 |
 
 已经真实打通的能力：
@@ -86,7 +86,7 @@
 
 - FFmpeg 通用 concat 链路：未作为主链路启用；当前真实专业包装主链路是 Remotion。
 - 链接素材采集：粘贴链接保存已可用；自动解析下载依赖第三方/自有链接解析服务。公开视频号 worker `https://sph.litao.workers.dev/api/fetch_video_profile` 在本机可解析测试链接，但生产服务器访问该域名报 `Network is unreachable` 或超时，不能作为稳定线上解析服务。
-- 爆款采集：当前 `mock`。
+- 爆款采集：功能链路已可用，支持平台采集配置 `purpose=trending`，也内置 TikHub 抖音搜索预设；线上仍未配置真实采集 token，所以当前真实状态为 `mock`/待接入。
 - 真实接口的费用/配额/失败重试策略：数字人、Seedance、TTS、ASR 已显示真实 API 可用，但正式批量跑之前仍要确认费用阈值、并发限制和失败重试策略。
 
 ## 已经验证的功能
@@ -132,6 +132,24 @@
   - 链接解析服务支持 `timeout=秒数` 备注，默认不再长时间卡住页面。
   - 后端新增 `provider=justone` 支持，可直接配置 Just One 视频号解析：`api_base=http://47.117.133.51:30015`，Access Token 填 Just One token。
 - 下一步要把线上解析从公开视频号 worker 切换到服务器可访问的正式 provider，例如 Just One、TikHub 或自有解析中转。
+
+### 爆款采集
+
+- 线上页面：`https://media.tech-ark.com/#trending`。
+- 已支持以主题为线索创建采集任务：
+  - 平台、关键词、行业/分类。
+  - 采集数量，默认 20，最多 100。
+  - 最低点赞、最低评论过滤。
+  - 按综合互动、点赞、评论或播放排序。
+- 采集结果列表会展示播放、点赞、评论、分享等关键指标，并可把条目保存到“参考拆解”的素材库中。
+- 后端支持两类真实来源：
+  - 环境变量 `TRENDING_SEARCH_PROVIDER=http-json` + `TRENDING_SEARCH_API_BASE`。
+  - 系统设置里的平台采集配置 `purpose=trending`，激活后优先使用数据库配置。
+- 已内置 TikHub 抖音搜索预设：
+  - `api_base=https://api.tikhub.io`
+  - `notes` 中 `provider=tikhub`、`method=post`、`path=/api/v1/douyin/search/fetch_video_search_v2`
+  - `Access Token` 填 TikHub API Key。
+- 当前线上真实状态：没有激活可用的真实爆款采集配置时，系统会返回 mock 示例，不会假装已经从抖音/视频号真实采集。
 
 ### 内容创作页面
 

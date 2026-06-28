@@ -121,6 +121,18 @@ def apply_sqlite_migrations() -> None:
             if video_task_rows and column not in video_task_columns:
                 connection.execute(text(statement))
 
+        trending_search_rows = connection.execute(text("PRAGMA table_info(trendingsearch)")).fetchall()
+        trending_search_columns = {row[1] for row in trending_search_rows}
+        trending_search_migrations = {
+            "limit": 'ALTER TABLE trendingsearch ADD COLUMN "limit" INTEGER DEFAULT 20',
+            "min_like_count": "ALTER TABLE trendingsearch ADD COLUMN min_like_count INTEGER DEFAULT 0",
+            "min_comment_count": "ALTER TABLE trendingsearch ADD COLUMN min_comment_count INTEGER DEFAULT 0",
+            "sort_by": "ALTER TABLE trendingsearch ADD COLUMN sort_by VARCHAR DEFAULT 'engagement'",
+        }
+        for column, statement in trending_search_migrations.items():
+            if trending_search_rows and column not in trending_search_columns:
+                connection.execute(text(statement))
+
         video_segment_rows = connection.execute(text("PRAGMA table_info(videosegment)")).fetchall()
         video_segment_columns = {row[1] for row in video_segment_rows}
         video_segment_migrations = {

@@ -1194,6 +1194,22 @@ async def test_link_resolver(
 @router.get("/integrations/status")
 def integrations_status(session: Session = Depends(get_session)) -> dict[str, dict[str, object]]:
     settings = get_settings()
+    trending_credentials = [
+        credential
+        for credential in session.exec(
+            select(PlatformCredential).where(
+                PlatformCredential.purpose == "trending",
+                PlatformCredential.is_active == True,  # noqa: E712
+            )
+        ).all()
+        if (credential.api_base or "").strip()
+    ]
+    trending_env_real_api = settings.trending_search_provider != "mock" and bool(settings.trending_search_api_base)
+    trending_provider = (
+        trending_credentials[0].display_name
+        if trending_credentials
+        else settings.trending_search_provider
+    )
     return {
         "script_model": _configured_model_status(
             session,
@@ -1249,9 +1265,15 @@ def integrations_status(session: Session = Depends(get_session)) -> dict[str, di
             else ["remotion_render_api_base" if settings.composition_provider == "remotion" else "composition_provider"],
         },
         "trending_search": {
-            "provider": settings.trending_search_provider,
-            "configured": settings.trending_search_provider == "mock" or bool(settings.trending_search_api_base),
-            "real_api": settings.trending_search_provider != "mock" and bool(settings.trending_search_api_base),
+            "provider": trending_provider,
+            "configured": settings.trending_search_provider == "mock"
+            or bool(settings.trending_search_api_base)
+            or bool(trending_credentials),
+            "real_api": trending_env_real_api or bool(trending_credentials),
+            "credential_count": len(trending_credentials),
+            "missing": []
+            if trending_env_real_api or trending_credentials or settings.trending_search_provider == "mock"
+            else ["trending_search_api_base 或平台采集配置"],
         },
         "asr": _configured_model_status(
             session,
@@ -2973,7 +2995,18 @@ async def run_trending_search(
     session.commit()
 
     credential = _active_platform_credential(session, search.platform, "trending")
-    videos = await TrendingCollector(credential).collect(search)
+    try:
+        videos = await TrendingCollector(credential).collect(search)
+    except Exception as exc:
+        search.status = TaskStatus.failed
+        search.notes = f"采集失败：{str(exc)[:400]}"
+        session.add(search)
+        session.commit()
+        session.refresh(search)
+        return search
+    existing_videos = session.exec(select(TrendingVideo).where(TrendingVideo.search_id == search.id)).all()
+    for existing_video in existing_videos:
+        session.delete(existing_video)
     for video in videos:
         session.add(video)
     search.status = TaskStatus.needs_review

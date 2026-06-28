@@ -1209,6 +1209,26 @@ button:disabled {
   margin-top: 10px;
 }
 
+.metricRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.metricRow span {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #eef5f7;
+}
+
+.mutedLine {
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
 .inlineForm {
   display: grid;
   grid-template-columns: minmax(140px, 1fr) minmax(140px, 1fr) 120px;

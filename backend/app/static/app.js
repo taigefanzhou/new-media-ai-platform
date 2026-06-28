@@ -133,6 +133,18 @@ const linkResolverPresets = {
     webhook_url: "",
     notes: "method=post\ntimeout=12\n返回结构：data.feedInfo.h264VideoInfo.videoUrl / data.feedInfo.videoUrl\n说明：请填写你自己的解析接口地址；8099 已收回为服务器内部素材上传端口，不再作为公网解析入口。",
   },
+  "trending-tikhub": {
+    display_name: "TikHub 主题爆款采集",
+    platform: "douyin",
+    purpose: "trending",
+    api_base: "https://api.tikhub.io",
+    client_id: "",
+    client_secret: "",
+    access_token: "",
+    refresh_token: "",
+    webhook_url: "",
+    notes: "provider=tikhub\nmethod=post\ntimeout=20\npath=/api/v1/douyin/search/fetch_video_search_v2\n说明：Access Token 填 TikHub API Key；如接视频号或其他平台，请按 TikHub 控制台文档替换 path。采集结果只做选题和结构参考。",
+  },
 };
 
 const pages = {
@@ -415,6 +427,17 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function compactNumber(value) {
+  const number = Number(value || 0);
+  if (!Number.isFinite(number) || number <= 0) return "0";
+  if (number >= 10000) return `${(number / 10000).toFixed(number >= 100000 ? 0 : 1)}万`;
+  return String(Math.round(number));
+}
+
+function isHttpUrl(value) {
+  return /^https?:\/\//i.test(String(value || ""));
 }
 
 function toDateTimeInput(value) {
@@ -2934,9 +2957,10 @@ function renderTrending(searches, videos) {
           (item) => `
             <div class="item">
               <strong>#${item.id} ${item.keyword}</strong>
-              <div>${item.platform} · ${item.category || "-"}</div>
+              <div>${platformLabel(item.platform)} · ${item.category || "-"} · ${item.limit || 20}条 · ${escapeHtml(item.sort_by || "engagement")}</div>
               <span class="status">${item.status}</span>
               <div>结果：${item.result_count}</div>
+              ${item.notes ? `<div class="errorText">${escapeHtml(item.notes)}</div>` : ""}
             </div>
           `,
         )
@@ -2945,17 +2969,32 @@ function renderTrending(searches, videos) {
 
   videoTarget.innerHTML = videos.length
     ? videoPageInfo.items
-        .map(
-          (item) => `
+        .map((item) => {
+          const canSaveReference = isHttpUrl(item.source_url);
+          return `
             <div class="item">
-              <strong>${item.title}</strong>
-              <div>${item.platform} · ${item.author || "-"}</div>
-              <div>${item.summary || item.hook || ""}</div>
-              <div>${item.source_url}</div>
+              <strong>${escapeHtml(item.title)}</strong>
+              <div>${platformLabel(item.platform)} · ${escapeHtml(item.author || "-")}</div>
+              <div class="metricRow">
+                <span>播放 ${compactNumber(item.play_count)}</span>
+                <span>点赞 ${compactNumber(item.like_count)}</span>
+                <span>评论 ${compactNumber(item.comment_count)}</span>
+                <span>分享 ${compactNumber(item.share_count)}</span>
+              </div>
+              <div>${escapeHtml(item.summary || item.hook || "")}</div>
+              <div class="mutedLine">${escapeHtml(item.source_url)}</div>
               <span class="status">参考，不搬运</span>
+              <div class="itemActions">
+                ${
+                  canSaveReference
+                    ? `<button type="button" data-action="save-trending-reference" data-id="${item.id}">保存到参考素材</button>
+                       <a class="buttonLike secondary" href="${escapeHtml(item.source_url)}" target="_blank" rel="noreferrer">打开链接</a>`
+                    : `<span class="status subtle">真实采集链接才可保存</span>`
+                }
+              </div>
             </div>
-          `,
-        )
+          `;
+        })
         .join("") + pagerHtml("trendingVideos", videoPageInfo)
     : `<div class="item">还没有爆款参考</div>`;
 }
@@ -4483,6 +4522,37 @@ document.querySelector("#trendingManualForm").addEventListener("submit", async (
   toast(`参考视频已保存 #${video.id}`);
   event.currentTarget.reset();
   await refresh();
+});
+
+document.querySelector("#trendingVideoList").addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-action='save-trending-reference']");
+  if (!button) return;
+  const video = state.trendingVideos.find((item) => String(item.id) === String(button.dataset.id));
+  if (!video || !video.source_url) {
+    toast("这条参考没有可保存的链接");
+    return;
+  }
+  button.disabled = true;
+  const originalText = button.textContent;
+  button.textContent = "保存中...";
+  try {
+    const material = await api.post("/reference-materials/from-link", {
+      source_url: video.source_url,
+      title: video.title,
+      platform: video.platform,
+      tags: `爆款采集,${video.tags || ""}`,
+      download: true,
+    });
+    toast(`已保存到参考素材 #${material.id}`);
+    setPage("analysis");
+    setReferenceTab("history");
+    await refresh();
+  } catch (error) {
+    toast(apiErrorMessage(error, "保存参考素材失败"));
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
 });
 
 async function createAndRunVideoAnalysis(materialId, language = "zh-CN", button = null) {

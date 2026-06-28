@@ -118,6 +118,10 @@ class TrendingSearch(SQLModel, table=True):
     platform: TrendingSource
     keyword: str
     category: Optional[str] = None
+    limit: int = 20
+    min_like_count: int = 0
+    min_comment_count: int = 0
+    sort_by: str = "engagement"
     status: TaskStatus = TaskStatus.queued
     result_count: int = 0
     notes: str = ""

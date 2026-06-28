@@ -560,6 +560,17 @@
             </label>
             <label>关键词<input name="keyword" value="数字人获客" /></label>
             <label>分类<input name="category" value="企业服务" /></label>
+            <label>采集数量<input name="limit" type="number" min="1" max="100" value="20" /></label>
+            <label>最低点赞<input name="min_like_count" type="number" min="0" value="0" /></label>
+            <label>最低评论<input name="min_comment_count" type="number" min="0" value="0" /></label>
+            <label>排序
+              <select name="sort_by">
+                <option value="engagement">综合热度</option>
+                <option value="likes">点赞最多</option>
+                <option value="comments">评论最多</option>
+                <option value="plays">播放最多</option>
+              </select>
+            </label>
             <div class="actions">
               <button type="submit">创建采集</button>
               <button id="runTrendingBtn" type="button" class="secondary">运行采集</button>
@@ -773,6 +784,7 @@
                   <button type="button" class="secondary" data-action="fill-link-resolver-preset" data-preset="wechat-public">视频号公开测试</button>
                   <button type="button" class="secondary" data-action="fill-link-resolver-preset" data-preset="wechat-justone">Just One 视频号</button>
                   <button type="button" class="secondary" data-action="fill-link-resolver-preset" data-preset="wechat-self-hosted">视频号自有服务</button>
+                  <button type="button" class="secondary" data-action="fill-link-resolver-preset" data-preset="trending-tikhub">TikHub 爆款采集</button>
                 </div>
                 <p>预设会自动填好平台、用途、接口地址和备注；正式使用建议换成你自己的解析服务地址。</p>
               </div>

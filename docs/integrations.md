@@ -378,11 +378,32 @@ Payload:
   "platform": "douyin",
   "keyword": "数字人获客",
   "category": "企业服务",
-  "limit": 20
+  "limit": 20,
+  "count": 20,
+  "cursor": 0,
+  "sort_type": "0",
+  "sort_by": "engagement",
+  "min_like_count": 1000,
+  "min_comment_count": 50
 }
 ```
 
-The response may be a list or an object containing `items`, `videos`, `data`, `results`, or `list`.
+Platform credentials can override the generic endpoint. Add a platform credential with:
+
+```text
+purpose=trending
+api_base=https://api.tikhub.io
+access_token=<TikHub API Key>
+notes:
+provider=tikhub
+method=post
+timeout=20
+path=/api/v1/douyin/search/fetch_video_search_v2
+```
+
+For TikHub Douyin search, the backend sends `keyword`, `cursor`, `sort_type`, `publish_time`, `filter_duration`, `content_type`, `search_id`, and `backtrace`, matching the documented video search V2 shape. Replace `path` for WeChat Channels or other providers according to the provider console.
+
+The response may be a list or an object containing `items`, `videos`, `data`, `results`, `list`, `aweme_list`, `awemes`, `feeds`, or `records`.
 
 Each item can use common field names:
 
@@ -402,7 +423,9 @@ Each item can use common field names:
 }
 ```
 
-This module is for compliant topic research. Do not copy footage, captions, or scripts from unlicensed videos.
+The extractor also recognizes common nested Douyin/TikTok fields such as `statistics.digg_count`, `statistics.comment_count`, `statistics.share_count`, and `share_info.share_url`.
+
+This module is for compliant topic research. Save collected entries as reference materials for analysis, not as proof of download rights. Do not copy footage, captions, or scripts from unlicensed videos.
 
 ## ASR / Reference Video Transcription
 

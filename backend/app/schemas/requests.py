@@ -92,6 +92,10 @@ class TrendingSearchCreate(BaseModel):
     platform: TrendingSource
     keyword: str
     category: Optional[str] = None
+    limit: int = Field(default=20, ge=1, le=100)
+    min_like_count: int = Field(default=0, ge=0)
+    min_comment_count: int = Field(default=0, ge=0)
+    sort_by: str = "engagement"
     notes: str = ""
 
 
