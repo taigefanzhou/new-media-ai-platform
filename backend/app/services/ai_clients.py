@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import base64
+from datetime import datetime, timezone
+import hashlib
+import hmac
 import json
 import mimetypes
 import re
@@ -11,6 +14,7 @@ import math
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional
+from urllib.parse import quote, urlencode, urlparse
 from uuid import uuid4
 import httpx
 from app.core.config import get_settings
@@ -58,7 +62,7 @@ SCRIPT_REALISM_PRESET = {
 }
 
 KEYLESS_VOICE_CLONE_PROVIDERS = {"cosyvoice-clone", "f5-tts", "openvoice"}
-KEYLESS_DIGITAL_HUMAN_PROVIDERS = {"http-json", "sadtalker"}
+KEYLESS_DIGITAL_HUMAN_PROVIDERS = {"http-json", "sadtalker", "volcengine-jimeng-digital-human"}
 DASHSCOPE_TTS_PROVIDERS = {"aliyun-cosyvoice", "aliyun-tts"}
 DASHSCOPE_VOICE_CLONE_PROVIDERS = {"aliyun-cosyvoice-clone"}
 DID_DIGITAL_HUMAN_PROVIDERS = {"d-id", "did"}
@@ -488,12 +492,14 @@ class MediaGenerationClient:
         video_model_config=None,
         tts_model_config=None,
         digital_human_model_config=None,
+        digital_human_platform_credential=None,
         storage_dir: str | Path | None = None,
     ) -> None:
         self.settings = get_settings()
         self.video_model_config = video_model_config
         self.tts_model_config = tts_model_config
         self.digital_human_model_config = digital_human_model_config
+        self.digital_human_platform_credential = digital_human_platform_credential
         self.storage_dir = Path(storage_dir or self.settings.storage_dir)
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 
@@ -629,6 +635,15 @@ class MediaGenerationClient:
             )
         if self._is_did_provider(provider):
             return await self._generate_did_talk(portrait_path, audio_path, api_base, api_key, style_prompt)
+        if self._is_volcengine_jimeng_provider(provider):
+            return await self._generate_volcengine_jimeng_video(
+                portrait_path,
+                source_video_path,
+                api_base,
+                style_prompt,
+                portrait_url,
+                source_video_url,
+            )
 
         if self._is_local_path(audio_path) and (
             self._is_local_path(portrait_path or "") or self._is_local_path(source_video_path or "")
@@ -699,6 +714,7 @@ class MediaGenerationClient:
         index: int,
         total: int,
         export_profile: str | None = None,
+        reference_media: list[dict[str, object]] | None = None,
     ) -> str:
         provider = self.video_model_config.provider if self.video_model_config else self.settings.video_generation_provider
         api_base = self.video_model_config.api_base if self.video_model_config and self.video_model_config.api_base else ""
@@ -710,6 +726,7 @@ class MediaGenerationClient:
                 self._segment_prompt(prompt, index, total),
                 duration_seconds,
                 export_profile,
+                reference_media=reference_media,
             )
 
         if "seedance" in provider and self.settings.seedance_api_base:
@@ -719,6 +736,7 @@ class MediaGenerationClient:
                 self._segment_prompt(prompt, index, total),
                 duration_seconds,
                 export_profile,
+                reference_media=reference_media,
             )
 
         comfyui_base = api_base if provider == "comfyui" else self.settings.comfyui_api_base
@@ -1488,7 +1506,7 @@ class MediaGenerationClient:
             if not audio_url:
                 raise RuntimeError("阿里云 VideoRetalk 需要公网可访问的音频 URL，请确认语音合成返回了公网音频地址。")
             input_payload: dict[str, object] = {"video_url": video_url, "audio_url": audio_url}
-            if image_url:
+            if image_url and self._config_note_bool(self.digital_human_model_config, "use_ref_image"):
                 input_payload["ref_image_url"] = image_url
             model = "videoretalk"
             parameters: dict[str, object] = {}
@@ -1516,6 +1534,216 @@ class MediaGenerationClient:
         task_id = await self._submit_aliyun_video_synthesis_task(api_base, api_key, model, input_payload, parameters)
         result_url = await self._poll_aliyun_video_synthesis_task(api_base, api_key, task_id)
         return await self._download_media(result_url, "digital-human", f"{task_id}.mp4")
+
+    async def _generate_volcengine_jimeng_video(
+        self,
+        portrait_path: Optional[str],
+        source_video_path: Optional[str],
+        api_base: str,
+        style_prompt: str = "",
+        portrait_url: Optional[str] = None,
+        source_video_url: Optional[str] = None,
+    ) -> str:
+        credential = self.digital_human_platform_credential
+        access_key = (getattr(credential, "client_id", "") or "").strip()
+        secret_key = (getattr(credential, "client_secret", "") or "").strip()
+        if not access_key or not secret_key:
+            raise RuntimeError("火山即梦数字人需要配置 AccessKeyID/SecretAccessKey。")
+        image_url = self._public_media_url(portrait_url) or self._public_media_url(portrait_path)
+        video_url = self._public_media_url(source_video_url) or self._public_media_url(source_video_path)
+        if not image_url:
+            raise RuntimeError("火山即梦有参考生成需要公网可访问的头像图片 URL。")
+        if not video_url:
+            raise RuntimeError("火山即梦有参考生成需要公网可访问的参考视频 URL。")
+        req_key = (
+            self._config_note_value(self.digital_human_model_config, "req_key")
+            or "pippit_iv2v_v20_cvtob_with_vinput"
+        )
+        app_id = self._config_note_int(self.digital_human_model_config, "app_id") or 101606596
+        prompt = self._volcengine_jimeng_prompt(style_prompt)
+        submit_payload = {
+            "req_key": req_key,
+            "app_id": app_id,
+            "prompt": prompt,
+            "img_url_list": [image_url],
+            "video_url_list": [video_url],
+        }
+        task_id = await self._submit_volcengine_cv_task(api_base, access_key, secret_key, submit_payload)
+        result_url = await self._poll_volcengine_cv_task(api_base, access_key, secret_key, req_key, task_id)
+        return await self._download_media(result_url, "digital-human", f"{task_id}.mp4")
+
+    def _volcengine_jimeng_prompt(self, style_prompt: str = "") -> str:
+        configured = self._config_note_value(self.digital_human_model_config, "prompt")
+        allow_script_prompt = self._config_note_bool(self.digital_human_model_config, "allow_script_prompt")
+        if configured:
+            base = configured
+        elif allow_script_prompt and style_prompt:
+            base = style_prompt
+        else:
+            base = (
+                "生成一段干净的商务人物口播视频底片。人物使用参考图片中的形象，"
+                "参考视频只用于坐姿、手势、镜头节奏和自然口播动作。背景真实简洁，"
+                "人物面部稳定，嘴部自然，表情真实，商务专业。"
+            )
+        guard = (
+            " 画面里绝对不要出现任何文字、字幕、标题、关键词、数字、Logo、贴纸、UI、"
+            "白色大字、说明文字或屏幕文字；不要生成文字层；不要把脚本内容写在画面上。"
+            " 后期字幕会由系统单独添加。"
+        )
+        if "不要出现任何文字" in base or "不要生成文字" in base:
+            return base
+        return f"{base}{guard}"
+
+    async def _submit_volcengine_cv_task(
+        self,
+        api_base: str,
+        access_key: str,
+        secret_key: str,
+        payload: dict[str, object],
+    ) -> str:
+        result = await self._volcengine_cv_request(
+            api_base,
+            access_key,
+            secret_key,
+            "CVSync2AsyncSubmitTask",
+            payload,
+            "火山即梦提交任务",
+        )
+        code = result.get("code")
+        if code != 10000:
+            raise RuntimeError(f"火山即梦提交任务失败：{result.get('message') or result}")
+        task_id = self._extract_task_id(result)
+        if not task_id:
+            raise RuntimeError(f"火山即梦未返回 task_id：{result}")
+        return task_id
+
+    async def _poll_volcengine_cv_task(
+        self,
+        api_base: str,
+        access_key: str,
+        secret_key: str,
+        req_key: str,
+        task_id: str,
+    ) -> str:
+        query_payload = {"req_key": req_key, "task_id": task_id}
+        last_result: dict[str, object] | None = None
+        for _ in range(120):
+            await asyncio.sleep(5)
+            result = await self._volcengine_cv_request(
+                api_base,
+                access_key,
+                secret_key,
+                "CVSync2AsyncGetResult",
+                query_payload,
+                "火山即梦查询任务",
+            )
+            last_result = result
+            code = result.get("code")
+            if code != 10000:
+                raise RuntimeError(f"火山即梦查询任务失败：{result.get('message') or result}")
+            data = result.get("data") if isinstance(result.get("data"), dict) else {}
+            status = str(data.get("status") or "").lower()
+            if status in {"done", "succeeded", "success"}:
+                video_url = self._extract_nested_media_url(data)
+                if not video_url:
+                    raise RuntimeError(f"火山即梦任务完成但未返回视频 URL：{result}")
+                return video_url
+            if status in {"failed", "fail", "error", "cancelled", "canceled"}:
+                raise RuntimeError(f"火山即梦任务失败：{result.get('message') or result}")
+        raise RuntimeError(f"火山即梦任务超时：{task_id}，最后状态：{last_result}")
+
+    async def _volcengine_cv_request(
+        self,
+        api_base: str,
+        access_key: str,
+        secret_key: str,
+        action: str,
+        payload: dict[str, object],
+        stage: str,
+    ) -> dict[str, object]:
+        base = (api_base or "https://visual.volcengineapi.com").rstrip("/")
+        query = {"Action": action, "Version": "2022-08-31"}
+        body = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+        headers = self._volcengine_signed_headers(base, query, body, access_key, secret_key)
+        async with httpx.AsyncClient(timeout=240, trust_env=False) as client:
+            response = await self._request_with_retries(
+                client,
+                "POST",
+                f"{base}?{urlencode(query)}",
+                stage,
+                headers=headers,
+                content=body,
+            )
+        return response.json()
+
+    def _volcengine_signed_headers(
+        self,
+        api_base: str,
+        query: dict[str, str],
+        body: str,
+        access_key: str,
+        secret_key: str,
+    ) -> dict[str, str]:
+        parsed = urlparse(api_base)
+        host = parsed.netloc
+        path = parsed.path or "/"
+        body_hash = hashlib.sha256(body.encode("utf-8")).hexdigest()
+        now = datetime.now(timezone.utc)
+        x_date = now.strftime("%Y%m%dT%H%M%SZ")
+        short_date = now.strftime("%Y%m%d")
+        region = self._config_note_value(self.digital_human_model_config, "region") or "cn-north-1"
+        service = self._config_note_value(self.digital_human_model_config, "service") or "cv"
+        canonical_query = self._volcengine_canonical_query(query)
+        content_type = "application/json"
+        signed_headers = "content-type;host;x-content-sha256;x-date"
+        canonical_headers = (
+            f"content-type:{content_type}\n"
+            f"host:{host}\n"
+            f"x-content-sha256:{body_hash}\n"
+            f"x-date:{x_date}\n"
+        )
+        canonical_request = "\n".join(
+            ["POST", path, canonical_query, canonical_headers, signed_headers, body_hash]
+        )
+        credential_scope = f"{short_date}/{region}/{service}/request"
+        string_to_sign = "\n".join(
+            [
+                "HMAC-SHA256",
+                x_date,
+                credential_scope,
+                hashlib.sha256(canonical_request.encode("utf-8")).hexdigest(),
+            ]
+        )
+        signing_key = self._volcengine_signing_key(secret_key, short_date, region, service)
+        signature = hmac.new(signing_key, string_to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
+        authorization = (
+            f"HMAC-SHA256 Credential={access_key}/{credential_scope}, "
+            f"SignedHeaders={signed_headers}, Signature={signature}"
+        )
+        return {
+            "Authorization": authorization,
+            "Content-Type": content_type,
+            "Host": host,
+            "X-Content-Sha256": body_hash,
+            "X-Date": x_date,
+        }
+
+    def _volcengine_signing_key(self, secret_key: str, short_date: str, region: str, service: str) -> bytes:
+        date_key = hmac.new(secret_key.encode("utf-8"), short_date.encode("utf-8"), hashlib.sha256).digest()
+        region_key = hmac.new(date_key, region.encode("utf-8"), hashlib.sha256).digest()
+        service_key = hmac.new(region_key, service.encode("utf-8"), hashlib.sha256).digest()
+        return hmac.new(service_key, b"request", hashlib.sha256).digest()
+
+    def _volcengine_canonical_query(self, query: dict[str, str]) -> str:
+        items = []
+        for key in sorted(query):
+            value = query[key]
+            if isinstance(value, list):
+                for item in value:
+                    items.append(f"{quote(str(key), safe='-_.~')}={quote(str(item), safe='-_.~')}")
+            else:
+                items.append(f"{quote(str(key), safe='-_.~')}={quote(str(value), safe='-_.~')}")
+        return "&".join(items).replace("+", "%20")
 
     async def _submit_aliyun_video_synthesis_task(
         self,
@@ -1739,6 +1967,7 @@ class MediaGenerationClient:
         prompt: str,
         duration_seconds: int = 5,
         export_profile: str | None = None,
+        reference_media: list[dict[str, object]] | None = None,
     ) -> str:
         config = self.video_model_config
         api_base = config.api_base if config and config.api_base else self.settings.seedance_api_base
@@ -1752,7 +1981,7 @@ class MediaGenerationClient:
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
         payload = {
             "model": model_name,
-            "content": [{"type": "text", "text": self._seedance_prompt(prompt, duration_seconds, export_profile)}],
+            "content": self._seedance_content(prompt, duration_seconds, export_profile, reference_media),
         }
         async with httpx.AsyncClient(timeout=180, trust_env=False) as client:
             async def seedance_request(method: str, url: str, stage: str, **kwargs) -> httpx.Response:
@@ -2125,6 +2354,39 @@ class MediaGenerationClient:
             return prompt
         return f"{prompt.strip()} {controls}"
 
+    def _seedance_content(
+        self,
+        prompt: str,
+        duration_seconds: int = 5,
+        export_profile: str | None = None,
+        reference_media: list[dict[str, object]] | None = None,
+    ) -> list[dict[str, object]]:
+        content: list[dict[str, object]] = [
+            {"type": "text", "text": self._seedance_prompt(prompt, duration_seconds, export_profile)}
+        ]
+        for item in reference_media or []:
+            media = self._seedance_reference_content_item(item)
+            if media:
+                content.append(media)
+        return content
+
+    def _seedance_reference_content_item(self, item: dict[str, object]) -> dict[str, object] | None:
+        source_url = str(item.get("source_url") or "").strip()
+        file_path = str(item.get("file_path") or "").strip()
+        media_url = self._public_media_url(source_url) or self._public_media_url(file_path)
+        if not media_url:
+            return None
+
+        kind = str(item.get("kind") or "").lower()
+        mime_type = mimetypes.guess_type(media_url)[0] or mimetypes.guess_type(file_path)[0] or ""
+        if kind in {"image", "portrait", "product"} or mime_type.startswith("image/"):
+            return {"type": "image_url", "image_url": {"url": media_url}}
+        if kind in {"video", "reference", "avatar_source"} or mime_type.startswith("video/"):
+            return {"type": "video_url", "video_url": {"url": media_url}, "role": "reference_video"}
+        if mime_type.startswith("audio/"):
+            return {"type": "audio_url", "audio_url": {"url": media_url}}
+        return None
+
     def _seedance_video_url(self, task_data: dict[str, object]) -> Optional[str]:
         content = task_data.get("content")
         if isinstance(content, dict):
@@ -2160,6 +2422,12 @@ class MediaGenerationClient:
     def _is_aliyun_videoretalk(self, provider: str, model_name: str) -> bool:
         value = f"{provider} {model_name}".lower()
         return "videoretalk" in value
+
+    def _is_volcengine_jimeng_provider(self, provider: str) -> bool:
+        value = (provider or "").lower()
+        return value in {"volcengine-jimeng-digital-human", "jimeng-digital-human"} or (
+            "jimeng" in value and "digital" in value
+        )
 
     def _aliyun_video_synthesis_endpoint(self, api_base: str) -> str:
         base = api_base.rstrip("/")

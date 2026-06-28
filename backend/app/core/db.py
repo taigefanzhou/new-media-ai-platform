@@ -86,8 +86,21 @@ def apply_sqlite_migrations() -> None:
 
         human_rows = connection.execute(text("PRAGMA table_info(digitalhuman)")).fetchall()
         human_columns = {row[1] for row in human_rows}
-        if human_rows and "source_video_material_id" not in human_columns:
-            connection.execute(text("ALTER TABLE digitalhuman ADD COLUMN source_video_material_id INTEGER"))
+        human_migrations = {
+            "source_video_material_id": "ALTER TABLE digitalhuman ADD COLUMN source_video_material_id INTEGER",
+            "volcengine_auth_status": "ALTER TABLE digitalhuman ADD COLUMN volcengine_auth_status VARCHAR DEFAULT 'not_started'",
+            "volcengine_auth_url": "ALTER TABLE digitalhuman ADD COLUMN volcengine_auth_url VARCHAR",
+            "volcengine_byted_token": "ALTER TABLE digitalhuman ADD COLUMN volcengine_byted_token VARCHAR",
+            "volcengine_auth_result_code": "ALTER TABLE digitalhuman ADD COLUMN volcengine_auth_result_code VARCHAR",
+            "volcengine_asset_group_id": "ALTER TABLE digitalhuman ADD COLUMN volcengine_asset_group_id VARCHAR",
+            "volcengine_asset_group_uri": "ALTER TABLE digitalhuman ADD COLUMN volcengine_asset_group_uri VARCHAR",
+            "volcengine_asset_uri": "ALTER TABLE digitalhuman ADD COLUMN volcengine_asset_uri VARCHAR",
+            "volcengine_asset_status": "ALTER TABLE digitalhuman ADD COLUMN volcengine_asset_status VARCHAR",
+            "volcengine_auth_payload": "ALTER TABLE digitalhuman ADD COLUMN volcengine_auth_payload VARCHAR DEFAULT ''",
+        }
+        for column, statement in human_migrations.items():
+            if human_rows and column not in human_columns:
+                connection.execute(text(statement))
 
         script_rows = connection.execute(text("PRAGMA table_info(script)")).fetchall()
         script_columns = {row[1] for row in script_rows}

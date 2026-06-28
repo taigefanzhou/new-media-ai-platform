@@ -1,16 +1,19 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
+from datetime import datetime, timezone
+from html import escape
 import json
 import math
 import mimetypes
-from datetime import datetime
 from pathlib import Path
 from typing import Optional
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, quote, urlencode, urlparse, urlunparse
 from uuid import uuid4
 import httpx
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Header, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Header, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse
 from sqlmodel import Session, func, select
 from app.core.config import get_settings
 from app.core.auth import current_user
@@ -78,6 +81,7 @@ from app.schemas.requests import (
     VideoTaskBatchRunRequest,
     VideoTaskPublishPrepareRequest,
     VideoTaskCreate,
+    VolcenginePortraitAuthSessionCreate,
 )
 from app.services.ai_clients import MediaGenerationClient, ScriptGenerator
 from app.services.asr import ASRClient
@@ -170,13 +174,233 @@ def _model_requires_api_key(purpose: str, provider: str) -> bool:
         return False
     if purpose == "video" and provider == "comfyui":
         return False
+    if purpose == "digital_human" and _is_volcengine_jimeng_provider(provider):
+        return False
     return True
+
+
+def _is_volcengine_jimeng_provider(provider: str) -> bool:
+    normalized = (provider or "").strip().lower()
+    return normalized in {"volcengine-jimeng-digital-human", "jimeng-digital-human"} or (
+        "jimeng" in normalized and "digital" in normalized
+    )
+
+
+def _active_volcengine_jimeng_credential(session: Session) -> PlatformCredential | None:
+    return session.exec(
+        select(PlatformCredential).where(
+            PlatformCredential.platform == "volcengine",
+            PlatformCredential.purpose == "digital_human",
+            PlatformCredential.is_active == True,  # noqa: E712
+        )
+    ).first()
+
+
+def _volcengine_jimeng_credential_ready(session: Session) -> bool:
+    credential = _active_volcengine_jimeng_credential(session)
+    return bool(
+        credential
+        and (credential.client_id or "").strip()
+        and (credential.client_secret or "").strip()
+    )
+
+
+def _credential_note_value(credential: PlatformCredential | None, key: str) -> str | None:
+    if credential is None:
+        return None
+    prefix = f"{key}="
+    for line in (credential.notes or "").splitlines():
+        clean = line.strip()
+        if clean.startswith(prefix):
+            return clean.removeprefix(prefix).strip() or None
+    return None
+
+
+def _append_query_param(url: str, key: str, value: str) -> str:
+    parsed = urlparse(url)
+    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    query[key] = value
+    return urlunparse(parsed._replace(query=urlencode(query)))
+
+
+def _volcengine_canonical_query(query: dict[str, str]) -> str:
+    items = []
+    for key in sorted(query):
+        value = query[key]
+        items.append(f"{quote(str(key), safe='-_.~')}={quote(str(value), safe='-_.~')}")
+    return "&".join(items)
+
+
+def _volcengine_signing_key(secret_key: str, short_date: str, region: str, service: str) -> bytes:
+    date_key = hmac.new(secret_key.encode("utf-8"), short_date.encode("utf-8"), hashlib.sha256).digest()
+    region_key = hmac.new(date_key, region.encode("utf-8"), hashlib.sha256).digest()
+    service_key = hmac.new(region_key, service.encode("utf-8"), hashlib.sha256).digest()
+    return hmac.new(service_key, b"request", hashlib.sha256).digest()
+
+
+def _volcengine_signed_headers(
+    api_base: str,
+    query: dict[str, str],
+    body: str,
+    access_key: str,
+    secret_key: str,
+    *,
+    region: str,
+    service: str,
+) -> dict[str, str]:
+    parsed = urlparse(api_base)
+    host = parsed.netloc
+    path = parsed.path or "/"
+    body_hash = hashlib.sha256(body.encode("utf-8")).hexdigest()
+    now = datetime.now(timezone.utc)
+    x_date = now.strftime("%Y%m%dT%H%M%SZ")
+    short_date = now.strftime("%Y%m%d")
+    canonical_query = _volcengine_canonical_query(query)
+    content_type = "application/json"
+    signed_headers = "content-type;host;x-content-sha256;x-date"
+    canonical_headers = (
+        f"content-type:{content_type}\n"
+        f"host:{host}\n"
+        f"x-content-sha256:{body_hash}\n"
+        f"x-date:{x_date}\n"
+    )
+    canonical_request = "\n".join(["POST", path, canonical_query, canonical_headers, signed_headers, body_hash])
+    credential_scope = f"{short_date}/{region}/{service}/request"
+    string_to_sign = "\n".join(
+        [
+            "HMAC-SHA256",
+            x_date,
+            credential_scope,
+            hashlib.sha256(canonical_request.encode("utf-8")).hexdigest(),
+        ]
+    )
+    signing_key = _volcengine_signing_key(secret_key, short_date, region, service)
+    signature = hmac.new(signing_key, string_to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
+    return {
+        "Authorization": (
+            f"HMAC-SHA256 Credential={access_key}/{credential_scope}, "
+            f"SignedHeaders={signed_headers}, Signature={signature}"
+        ),
+        "Content-Type": content_type,
+        "Host": host,
+        "X-Content-Sha256": body_hash,
+        "X-Date": x_date,
+    }
+
+
+async def _volcengine_portrait_request(
+    session: Session,
+    action: str,
+    payload: dict[str, object],
+) -> dict[str, object]:
+    credential = _active_volcengine_jimeng_credential(session)
+    access_key = (getattr(credential, "client_id", "") or "").strip()
+    secret_key = (getattr(credential, "client_secret", "") or "").strip()
+    if not access_key or not secret_key:
+        raise HTTPException(status_code=400, detail="请先在系统设置中启用火山数字人 AK/SK 凭证。")
+    api_base = (
+        _credential_note_value(credential, "portrait_api_base")
+        or _credential_note_value(credential, "asset_api_base")
+        or "https://ark.cn-beijing.volcengineapi.com"
+    ).rstrip("/")
+    region = _credential_note_value(credential, "portrait_region") or "cn-beijing"
+    service = _credential_note_value(credential, "portrait_service") or "ark"
+    version = _credential_note_value(credential, "portrait_version") or "2024-01-01"
+    query = {"Action": action, "Version": version}
+    body = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    headers = _volcengine_signed_headers(
+        api_base,
+        query,
+        body,
+        access_key,
+        secret_key,
+        region=region,
+        service=service,
+    )
+    async with httpx.AsyncClient(timeout=60, trust_env=False) as client:
+        response = await client.post(f"{api_base}?{urlencode(query)}", headers=headers, content=body)
+    try:
+        data = response.json()
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=f"火山接口返回非 JSON：HTTP {response.status_code}") from exc
+    if response.status_code >= 400:
+        request_id = response.headers.get("X-Tt-Logid") or response.headers.get("X-Tt-LogId") or ""
+        raise HTTPException(status_code=400, detail=f"火山接口 HTTP {response.status_code}：{data} {request_id}".strip())
+    metadata = data.get("ResponseMetadata") if isinstance(data, dict) else None
+    error = metadata.get("Error") if isinstance(metadata, dict) else None
+    if isinstance(error, dict) and error:
+        request_id = metadata.get("RequestId") or metadata.get("RequestID") or ""
+        message = error.get("Message") or error.get("Code") or data
+        raise HTTPException(status_code=400, detail=f"火山接口 {action} 失败：{message} RequestId={request_id}".strip())
+    return data
+
+
+def _volcengine_result_payload(data: dict[str, object]) -> dict[str, object]:
+    result = data.get("Result") or data.get("result") or data.get("Data") or data.get("data")
+    if isinstance(result, dict):
+        return result
+    return data
+
+
+def _nested_value(payload: object, keys: set[str]) -> str | None:
+    if isinstance(payload, dict):
+        for key, value in payload.items():
+            if key in keys and value not in (None, ""):
+                return str(value)
+        for value in payload.values():
+            nested = _nested_value(value, keys)
+            if nested:
+                return nested
+    if isinstance(payload, list):
+        for item in payload:
+            nested = _nested_value(item, keys)
+            if nested:
+                return nested
+    return None
+
+
+def _human_portrait_auth_state(human: DigitalHuman) -> dict[str, object]:
+    return {
+        "digital_human_id": human.id,
+        "status": human.volcengine_auth_status or "not_started",
+        "auth_url": human.volcengine_auth_url,
+        "byted_token": human.volcengine_byted_token,
+        "result_code": human.volcengine_auth_result_code,
+        "asset_group_id": human.volcengine_asset_group_id,
+        "asset_group_uri": human.volcengine_asset_group_uri,
+        "asset_uri": human.volcengine_asset_uri,
+        "asset_status": human.volcengine_asset_status,
+    }
+
+
+async def _sync_volcengine_portrait_auth_result(session: Session, human: DigitalHuman) -> dict[str, object]:
+    token = (human.volcengine_byted_token or "").strip()
+    if not token:
+        raise HTTPException(status_code=400, detail="这个数字人还没有 BytedToken，请先创建 H5 认证链接。")
+    data = await _volcengine_portrait_request(session, "GetVisualValidateResult", {"BytedToken": token})
+    result = _volcengine_result_payload(data)
+    result_code = _nested_value(result, {"ResultCode", "resultCode", "Code", "code"})
+    group_id = _nested_value(result, {"GroupId", "groupId", "AssetGroupId", "assetGroupId", "asset_group_id"})
+    group_uri = _nested_value(result, {"GroupUri", "groupUri", "AssetGroupUri", "assetGroupUri", "asset_group_uri"})
+    human.volcengine_auth_result_code = result_code or human.volcengine_auth_result_code
+    human.volcengine_asset_group_id = group_id or human.volcengine_asset_group_id
+    human.volcengine_asset_group_uri = group_uri or human.volcengine_asset_group_uri
+    if group_id or group_uri or result_code == "10000":
+        human.volcengine_auth_status = "active"
+    elif result_code:
+        human.volcengine_auth_status = "failed"
+    human.volcengine_auth_payload = json.dumps(result, ensure_ascii=False)[:4000]
+    session.add(human)
+    session.commit()
+    session.refresh(human)
+    return _human_portrait_auth_state(human)
 
 
 def _diagnose_model_config(
     config: AIModelConfig | None,
     purpose: str | None = None,
     require_active: bool = True,
+    session: Session | None = None,
 ) -> dict[str, object]:
     resolved_purpose = purpose or (config.purpose if config else "")
     if not config:
@@ -213,6 +437,13 @@ def _diagnose_model_config(
             missing.append("valid_api_base")
     if _model_requires_api_key(config.purpose, provider) and not has_api_key:
         missing.append("api_key")
+    if (
+        config.purpose == "digital_human"
+        and _is_volcengine_jimeng_provider(provider)
+        and session is not None
+        and not _volcengine_jimeng_credential_ready(session)
+    ):
+        missing.append("volcengine_ak_sk")
 
     configured = not missing
     real_api = configured and provider not in MODEL_LOCAL_PROVIDERS
@@ -231,6 +462,7 @@ def _diagnose_model_config(
             "api_base": "接口地址",
             "valid_api_base": "有效接口地址",
             "api_key": "API Key",
+            "volcengine_ak_sk": "火山 AccessKeyID/SecretAccessKey",
         }
         missing_text = "、".join(missing_labels.get(item, item) for item in missing)
         summary = f"配置不完整，缺少：{missing_text}。"
@@ -289,7 +521,7 @@ def _configured_model_status(
 ) -> dict[str, object]:
     config = _active_model_config(session, purpose)
     if config:
-        diagnostic = _diagnose_model_config(config, require_active=False)
+        diagnostic = _diagnose_model_config(config, require_active=False, session=session)
         return {
             "provider": config.provider,
             "configured": diagnostic["configured"],
@@ -537,7 +769,7 @@ def model_diagnostics(
     items = []
     for purpose in MODEL_PURPOSE_ORDER:
         config = _active_model_config(session, purpose)
-        items.append(_diagnose_model_config(config, purpose))
+        items.append(_diagnose_model_config(config, purpose, session=session))
     return {
         "items": items,
         "ready_count": sum(1 for item in items if item["level"] == "ready"),
@@ -563,7 +795,11 @@ def model_usage_summary(
     }
     active_configs = {purpose: _active_model_config(session, purpose) for purpose in MODEL_PURPOSE_ORDER}
     active_diagnostics = {
-        item["purpose"]: item for item in (_diagnose_model_config(active_configs.get(purpose), purpose) for purpose in MODEL_PURPOSE_ORDER)
+        item["purpose"]: item
+        for item in (
+            _diagnose_model_config(active_configs.get(purpose), purpose, session=session)
+            for purpose in MODEL_PURPOSE_ORDER
+        )
     }
     for row in rows:
         key = (row.purpose, row.provider, row.model_name)
@@ -948,7 +1184,7 @@ async def test_model_config(
     if config is None:
         raise HTTPException(status_code=404, detail="Model config not found")
     try:
-        diagnostic = _diagnose_model_config(config, require_active=False)
+        diagnostic = _diagnose_model_config(config, require_active=False, session=session)
         if not diagnostic["configured"]:
             raise ValueError(str(diagnostic["summary"]))
         if config.purpose == "video_understanding":
@@ -2382,14 +2618,31 @@ def _validate_video_task_inputs(
         and human.source_video_material_id is None
     ):
         raise HTTPException(status_code=400, detail="数字人口播需要先上传该数字人的头像或口播源视频。")
+    if (
+        production_mode in {"digital_human", "talking_head_template"}
+        and _digital_human_model_needs_source_video(session)
+        and human.source_video_material_id is None
+    ):
+        raise HTTPException(status_code=400, detail="当前 VideoRetalk 数字人模型需要先上传该数字人的口播源视频。")
     if production_mode in {"digital_human", "talking_head_template"} and not _digital_human_service_ready(session):
         raise HTTPException(status_code=400, detail="数字人口播需要先在系统设置里配置真实数字人驱动接口。")
+
+
+def _digital_human_model_needs_source_video(session: Session) -> bool:
+    model_config = _smart_model_config(session, "digital_human", "talking_head_template")
+    settings = get_settings()
+    provider = model_config.provider if model_config else settings.digital_human_provider
+    model_name = model_config.model_name if model_config else settings.digital_human_provider
+    value = f"{provider} {model_name}".lower()
+    return "videoretalk" in value or "jimeng" in value
 
 
 def _digital_human_service_ready(session: Session) -> bool:
     model_config = _smart_model_config(session, "digital_human", "talking_head_template")
     settings = get_settings()
     if model_config:
+        if _is_volcengine_jimeng_provider(model_config.provider):
+            return is_model_config_ready(model_config) and _volcengine_jimeng_credential_ready(session)
         return is_model_config_ready(model_config)
     api_base = model_config.api_base if model_config and model_config.api_base else settings.digital_human_api_base
     provider = model_config.provider if model_config else settings.digital_human_provider
@@ -2577,6 +2830,142 @@ def list_digital_humans(session: Session = Depends(get_session)) -> list[Digital
     return list(session.exec(select(DigitalHuman).order_by(DigitalHuman.created_at.desc())).all())
 
 
+@router.post("/digital-humans/{human_id}/volcengine-auth/session")
+async def create_volcengine_portrait_auth_session(
+    human_id: int,
+    payload: VolcenginePortraitAuthSessionCreate,
+    request: Request,
+    session: Session = Depends(get_session),
+) -> dict[str, object]:
+    human = session.get(DigitalHuman, human_id)
+    if human is None:
+        raise HTTPException(status_code=404, detail="Digital human not found")
+    callback_url = (payload.callback_url or str(request.url_for("volcengine_portrait_auth_callback"))).strip()
+    callback_url = _append_query_param(callback_url, "human_id", str(human_id))
+    request_payload = {
+        "CallbackURL": callback_url,
+        "ProjectName": "default",
+    }
+    if payload.subject_name:
+        request_payload["SubjectName"] = payload.subject_name.strip()
+    if payload.remark:
+        request_payload["Remark"] = payload.remark
+    data = await _volcengine_portrait_request(session, "CreateVisualValidateSession", request_payload)
+    result = _volcengine_result_payload(data)
+    auth_url = _nested_value(
+        result,
+        {
+            "H5Link",
+            "h5Link",
+            "h5_link",
+            "H5Url",
+            "H5URL",
+            "h5Url",
+            "h5_url",
+            "AuthURL",
+            "AuthUrl",
+            "authUrl",
+            "Url",
+            "url",
+            "ValidateUrl",
+        },
+    )
+    byted_token = _nested_value(result, {"BytedToken", "bytedToken", "byted_token", "Token", "token"})
+    if not auth_url or not byted_token:
+        raise HTTPException(status_code=400, detail=f"火山未返回 H5 认证链接或 BytedToken：{result}")
+    human.volcengine_auth_status = "pending"
+    human.volcengine_auth_url = auth_url
+    human.volcengine_byted_token = byted_token
+    human.volcengine_auth_result_code = None
+    human.volcengine_auth_payload = json.dumps(result, ensure_ascii=False)[:4000]
+    session.add(human)
+    session.commit()
+    session.refresh(human)
+    return _human_portrait_auth_state(human)
+
+
+@router.post("/digital-humans/{human_id}/volcengine-auth/sync")
+async def sync_volcengine_portrait_auth_session(
+    human_id: int,
+    session: Session = Depends(get_session),
+) -> dict[str, object]:
+    human = session.get(DigitalHuman, human_id)
+    if human is None:
+        raise HTTPException(status_code=404, detail="Digital human not found")
+    return await _sync_volcengine_portrait_auth_result(session, human)
+
+
+@router.get("/digital-humans/{human_id}/volcengine-auth/status")
+def get_volcengine_portrait_auth_status(
+    human_id: int,
+    session: Session = Depends(get_session),
+) -> dict[str, object]:
+    human = session.get(DigitalHuman, human_id)
+    if human is None:
+        raise HTTPException(status_code=404, detail="Digital human not found")
+    return _human_portrait_auth_state(human)
+
+
+@router.get("/volcengine/portrait-auth/callback", name="volcengine_portrait_auth_callback")
+async def volcengine_portrait_auth_callback(
+    request: Request,
+    session: Session = Depends(get_session),
+) -> HTMLResponse:
+    params = dict(request.query_params)
+    human_id = int(str(params.get("human_id") or "0") or 0)
+    human = session.get(DigitalHuman, human_id) if human_id else None
+    result_code = str(params.get("resultCode") or params.get("ResultCode") or "")
+    detail = "未找到对应数字人，请回到系统详情页手动同步。"
+    status = "failed"
+    if human is not None:
+        token = str(params.get("BytedToken") or params.get("bytedToken") or params.get("byted_token") or "")
+        if token and human.volcengine_byted_token and token != human.volcengine_byted_token:
+            detail = "回调 Token 与数字人记录不一致，请回到系统详情页重新创建认证链接。"
+        else:
+            human.volcengine_auth_result_code = result_code or human.volcengine_auth_result_code
+            human.volcengine_auth_payload = json.dumps(params, ensure_ascii=False)[:4000]
+            human.volcengine_auth_status = "callback_received" if result_code == "10000" else "failed"
+            session.add(human)
+            session.commit()
+            session.refresh(human)
+            if result_code == "10000":
+                try:
+                    state = await _sync_volcengine_portrait_auth_result(session, human)
+                    status = str(state.get("status") or "active")
+                    detail = "认证已完成，系统已同步真人 Asset Group。"
+                except HTTPException as exc:
+                    status = "callback_received"
+                    detail = f"认证已完成，但自动同步 Asset Group 失败：{exc.detail}"
+            else:
+                detail = f"真人认证未通过或已取消，resultCode={result_code or '-'}。"
+    html = f"""
+    <!doctype html>
+    <html lang="zh-CN">
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>火山真人认证结果</title>
+        <style>
+          body {{ margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f8fafc; color: #111827; }}
+          main {{ max-width: 620px; margin: 12vh auto; padding: 28px; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; }}
+          h1 {{ margin: 0 0 12px; font-size: 24px; }}
+          p {{ line-height: 1.7; color: #4b5563; }}
+          a {{ color: #2563eb; font-weight: 700; }}
+        </style>
+      </head>
+      <body>
+        <main>
+          <h1>火山真人认证结果</h1>
+          <p>状态：{escape(status)}</p>
+          <p>{escape(detail)}</p>
+          <p><a href="/">返回系统</a></p>
+        </main>
+      </body>
+    </html>
+    """
+    return HTMLResponse(html)
+
+
 @router.delete("/digital-humans/{human_id}")
 def delete_digital_human(human_id: int, session: Session = Depends(get_session)) -> dict[str, object]:
     human = session.get(DigitalHuman, human_id)
@@ -2727,12 +3116,20 @@ def update_video_segment_material(
         material = session.get(Material, payload.material_id)
         if material is None:
             raise HTTPException(status_code=404, detail="Material not found")
-        if material.kind not in {MaterialKind.video, MaterialKind.image, MaterialKind.product, MaterialKind.portrait}:
-            raise HTTPException(status_code=400, detail="请选择素材库里的图片、产品图或视频素材；参考素材不能直接用于成片。")
-        if material.copyright_status in {CopyrightStatus.blocked, CopyrightStatus.reference_only}:
+        allowed_kinds = {MaterialKind.video, MaterialKind.image, MaterialKind.product, MaterialKind.portrait}
+        if task.production_mode == "seedance_scene":
+            allowed_kinds.update({MaterialKind.reference, MaterialKind.avatar_source})
+        if material.kind not in allowed_kinds:
+            raise HTTPException(status_code=400, detail="请选择素材库里的图片、产品图、视频或参考素材。")
+        if material.copyright_status == CopyrightStatus.blocked:
             raise HTTPException(status_code=400, detail="这个素材未获得成片使用授权。")
+        if task.production_mode == "material_mix" and material.copyright_status == CopyrightStatus.reference_only:
+            raise HTTPException(status_code=400, detail="参考素材不能直接混剪进成片，请改用 Seedance 参考生成。")
         segment.material_id = material.id
-        segment.material_match_notes = f"人工指定素材 #{material.id}：{material.name}"
+        if material.copyright_status == CopyrightStatus.reference_only:
+            segment.material_match_notes = f"人工指定参考素材 #{material.id}：{material.name}，仅作为 Seedance 参考输入。"
+        else:
+            segment.material_match_notes = f"人工指定素材 #{material.id}：{material.name}"
     else:
         segment.material_id = None
         segment.material_match_notes = "人工取消素材，生成时将由 Seedance 补镜头。"

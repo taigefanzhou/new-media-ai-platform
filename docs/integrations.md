@@ -216,6 +216,43 @@ Runtime behavior:
 - Current timing is automatically distributed from the script voiceover text and final video duration.
 - When real ASR or word-level timestamps are available, the same ASS/SRT stage can be fed with ASR-derived cue timing for more accurate karaoke/highlight captions.
 
+## Volcengine Jimeng Digital Human
+
+The system has an adapter entry for Volcengine Jimeng digital human:
+
+```text
+provider=volcengine-jimeng-digital-human
+purpose=digital_human
+api_base=https://visual.volcengineapi.com
+credential platform=volcengine
+credential purpose=digital_human
+service=cv
+region=cn-north-1
+submit action=CVSync2AsyncSubmitTask
+result action=CVSync2AsyncGetResult
+version=2022-08-31
+app_id=101606596
+req_key=pippit_iv2v_v20_cvtob_with_vinput
+```
+
+Credential mapping:
+
+```text
+PlatformCredential.client_id     -> AccessKeyID
+PlatformCredential.client_secret -> SecretAccessKey
+```
+
+This is not marked as the default production adapter yet. The local adapter can sign and submit Volcengine OpenAPI requests with AK/SK, and the same signing chain has been validated against IAM. After Volcengine Xiaoyunque service activation, a real sample was generated:
+
+```text
+task_id=1fd5262a72c711f1a494043f72b46be0
+sample=https://media.tech-ark.com/asset-uploads/volcengine-jimeng-sample-20260628.mp4
+```
+
+This route uses a public portrait image URL plus a public reference video URL. It is a reference-video generation route, not strict audio-driven lip sync.
+
+See `docs/volcengine-jimeng-digital-human.md`.
+
 ## Remotion Professional Renderer
 
 The project includes a Remotion-based renderer in `services/remotion-renderer`.

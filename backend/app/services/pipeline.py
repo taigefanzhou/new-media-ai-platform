@@ -12,6 +12,7 @@ from app.models.entities import (
     DigitalHuman,
     Material,
     MaterialKind,
+    PlatformCredential,
     Script,
     TaskStatus,
     VideoSegment,
@@ -32,11 +33,13 @@ class VideoPipeline:
         self.video_model_config = choose_model_config(session, "video", "seedance_scene")
         self.tts_model_config = choose_model_config(session, "tts", "voice_preview")
         self.digital_human_model_config = choose_model_config(session, "digital_human", "talking_head_template")
+        self.digital_human_platform_credential = self._active_platform_credential("volcengine", "digital_human")
         self.voice_clone_model_config = choose_model_config(session, "voice_clone", "digital_human")
         self.media = MediaGenerationClient(
             self.video_model_config,
             self.tts_model_config,
             self.digital_human_model_config,
+            self.digital_human_platform_credential,
             storage_dir=get_storage_root(session),
         )
 
@@ -244,7 +247,12 @@ class VideoPipeline:
         self.session.commit()
         try:
             material = self.session.get(Material, segment.material_id) if segment.material_id else None
-            if task.production_mode == "material_mix" and material and material.file_path:
+            if (
+                task.production_mode == "material_mix"
+                and material
+                and material.file_path
+                and material.copyright_status in {CopyrightStatus.owned, CopyrightStatus.licensed}
+            ):
                 clip_path = await self.media.material_to_scene_clip(
                     material.file_path,
                     segment.duration_seconds,
@@ -257,6 +265,7 @@ class VideoPipeline:
                     segment.segment_index - 1,
                     task.segment_count,
                     task.export_profile,
+                    reference_media=self._seedance_reference_media(material),
                 )
                 self._record_usage(
                     "video",
@@ -362,8 +371,19 @@ class VideoPipeline:
             return None, "没有足够关键词，生成时将由 Seedance 补镜头。"
         candidates = self.session.exec(
             select(Material).where(
-                Material.kind.in_([MaterialKind.video, MaterialKind.image, MaterialKind.product, MaterialKind.portrait]),
-                Material.copyright_status.in_([CopyrightStatus.owned, CopyrightStatus.licensed]),
+                Material.kind.in_([
+                    MaterialKind.video,
+                    MaterialKind.image,
+                    MaterialKind.product,
+                    MaterialKind.portrait,
+                    MaterialKind.reference,
+                    MaterialKind.avatar_source,
+                ]),
+                Material.copyright_status.in_([
+                    CopyrightStatus.owned,
+                    CopyrightStatus.licensed,
+                    CopyrightStatus.reference_only,
+                ]),
             )
         ).all()
         best: tuple[int, Material] | None = None
@@ -380,6 +400,33 @@ class VideoPipeline:
             return None, "素材库暂无匹配素材，生成时将由 Seedance 补镜头。"
         material = best[1]
         return material, f"系统推荐素材 #{material.id}：{material.name}"
+
+    def _seedance_reference_media(self, material: Material | None) -> list[dict[str, object]]:
+        if material is None:
+            return []
+        if material.copyright_status == CopyrightStatus.blocked:
+            return []
+        if material.kind not in {
+            MaterialKind.video,
+            MaterialKind.image,
+            MaterialKind.product,
+            MaterialKind.portrait,
+            MaterialKind.reference,
+            MaterialKind.avatar_source,
+        }:
+            return []
+        return [
+            {
+                "id": material.id,
+                "name": material.name,
+                "kind": material.kind.value if hasattr(material.kind, "value") else str(material.kind),
+                "file_path": material.file_path or "",
+                "source_url": material.source_url or "",
+                "copyright_status": material.copyright_status.value
+                if hasattr(material.copyright_status, "value")
+                else str(material.copyright_status),
+            }
+        ]
 
     def _match_tokens(self, text: str) -> set[str]:
         raw = re.findall(r"[a-zA-Z0-9\u4e00-\u9fff]{2,}", text or "")
@@ -572,13 +619,24 @@ class VideoPipeline:
         self.video_model_config = choose_model_config(self.session, "video", video_scenario)
         self.tts_model_config = choose_model_config(self.session, "tts", "voice_preview")
         self.digital_human_model_config = choose_model_config(self.session, "digital_human", digital_scenario)
+        self.digital_human_platform_credential = self._active_platform_credential("volcengine", "digital_human")
         self.voice_clone_model_config = choose_model_config(self.session, "voice_clone", "digital_human")
         self.media = MediaGenerationClient(
             self.video_model_config,
             self.tts_model_config,
             self.digital_human_model_config,
+            self.digital_human_platform_credential,
             storage_dir=get_storage_root(self.session),
         )
+
+    def _active_platform_credential(self, platform: str, purpose: str) -> PlatformCredential | None:
+        return self.session.exec(
+            select(PlatformCredential).where(
+                PlatformCredential.platform == platform,
+                PlatformCredential.purpose == purpose,
+                PlatformCredential.is_active == True,  # noqa: E712
+            )
+        ).first()
 
     def _record_usage(
         self,

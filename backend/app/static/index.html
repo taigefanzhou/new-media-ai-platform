@@ -705,6 +705,8 @@
               </div>
             </div>
             <div class="modelPresetBar">
+              <button type="button" data-model-preset="volcengine-jimeng-digital-human">火山即梦数字人</button>
+              <button type="button" data-model-preset="aliyun-videoretalk">阿里云 VideoRetalk</button>
               <button type="button" data-model-preset="aliyun-wan-s2v">阿里云万相数字人</button>
               <button type="button" data-model-preset="did">D-ID 数字人口播</button>
               <button type="button" data-model-preset="qwen-asr">Qwen-ASR 转写</button>
@@ -825,6 +827,7 @@
                   <button type="button" class="secondary" data-action="fill-link-resolver-preset" data-preset="wechat-justone">Just One 视频号</button>
                   <button type="button" class="secondary" data-action="fill-link-resolver-preset" data-preset="wechat-self-hosted">视频号自有服务</button>
                   <button type="button" class="secondary" data-action="fill-link-resolver-preset" data-preset="trending-tikhub">TikHub 抖音主题采集</button>
+                  <button type="button" class="secondary" data-action="fill-link-resolver-preset" data-preset="volcengine-jimeng-digital-human">火山即梦 AK/SK</button>
                 </div>
                 <p>预设会自动填好平台、用途、接口地址和备注；正式使用建议换成你自己的解析服务地址。</p>
               </div>
@@ -835,6 +838,8 @@
                   <option value="wechat_channels">视频号</option>
                   <option value="xiaohongshu">小红书</option>
                   <option value="kuaishou">快手</option>
+                  <option value="volcengine">火山引擎</option>
+                  <option value="aliyun">阿里云</option>
                   <option value="manual">通用/其他</option>
                 </select>
               </label>
@@ -842,6 +847,7 @@
                 <select name="purpose">
                   <option value="link_resolver">链接解析/下载</option>
                   <option value="trending">主题采集</option>
+                  <option value="digital_human">数字人生成</option>
                   <option value="publishing">自动发布</option>
                   <option value="analytics">数据回收</option>
                 </select>

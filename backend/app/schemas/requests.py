@@ -180,6 +180,12 @@ class DigitalHumanCreate(BaseModel):
     authorization_scope: str = "internal_marketing"
 
 
+class VolcenginePortraitAuthSessionCreate(BaseModel):
+    callback_url: Optional[str] = None
+    subject_name: Optional[str] = None
+    remark: str = ""
+
+
 class VideoTaskCreate(BaseModel):
     script_id: int
     digital_human_id: Optional[int] = None

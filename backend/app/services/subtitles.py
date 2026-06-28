@@ -25,6 +25,7 @@ class SubtitleCue:
 class SubtitleTemplate:
     key: str
     label: str
+    font_name: str
     font_size: int
     margin_v: int
     primary_color: str
@@ -42,6 +43,7 @@ SUBTITLE_TEMPLATES: dict[str, SubtitleTemplate] = {
     "business": SubtitleTemplate(
         key="business",
         label="商务清晰",
+        font_name="Noto Sans CJK SC",
         font_size=52,
         margin_v=150,
         primary_color="&H00FFFFFF",
@@ -53,6 +55,7 @@ SUBTITLE_TEMPLATES: dict[str, SubtitleTemplate] = {
     "viral": SubtitleTemplate(
         key="viral",
         label="爆款大字",
+        font_name="Noto Sans CJK SC",
         font_size=64,
         margin_v=210,
         primary_color="&H00FFFFFF",
@@ -65,18 +68,23 @@ SUBTITLE_TEMPLATES: dict[str, SubtitleTemplate] = {
     ),
     "digital_human": SubtitleTemplate(
         key="digital_human",
-        label="数字人口播",
-        font_size=50,
-        margin_v=165,
+        label="参考口播字幕",
+        font_name="Noto Serif CJK SC",
+        font_size=64,
+        margin_v=225,
         primary_color="&H00FFFFFF",
-        highlight_color="&H0000E8D1",
-        outline_color="&H00101924",
-        back_color="&H9A101924",
+        highlight_color="&H0000D7FF",
+        outline_color="&H00000000",
+        back_color="&H80000000",
+        outline=4,
+        shadow=2,
         max_chars_per_line=15,
+        max_lines=1,
     ),
     "tutorial": SubtitleTemplate(
         key="tutorial",
         label="教程说明",
+        font_name="Noto Sans CJK SC",
         font_size=48,
         margin_v=135,
         primary_color="&H00F8FAFC",
@@ -88,6 +96,7 @@ SUBTITLE_TEMPLATES: dict[str, SubtitleTemplate] = {
     "minimal": SubtitleTemplate(
         key="minimal",
         label="极简底栏",
+        font_name="Noto Sans CJK SC",
         font_size=44,
         margin_v=120,
         primary_color="&H00FFFFFF",
@@ -179,6 +188,8 @@ class SubtitleEngine:
 
     def _build_cues(self, text: str, duration: float, template: SubtitleTemplate) -> list[SubtitleCue]:
         chunks = self._split_text(text, template.max_chars_per_line * template.max_lines)
+        if template.key == "digital_human":
+            chunks = self._polish_talking_head_chunks(chunks, template.max_chars_per_line)
         if not chunks:
             return []
         weights = [max(4, len(re.sub(r"\s+", "", chunk))) for chunk in chunks]
@@ -244,6 +255,18 @@ class SubtitleEngine:
             chunks.append(current)
         return chunks
 
+    def _polish_talking_head_chunks(self, chunks: list[str], max_chars: int) -> list[str]:
+        polished: list[str] = []
+        for chunk in chunks:
+            text = re.sub(r"[，,、：:；;。！？!?]+$", "", chunk.strip())
+            if not text:
+                continue
+            if polished and len(text) <= 4 and len(polished[-1] + text) <= max_chars + 2:
+                polished[-1] = f"{polished[-1]}{text}"
+            else:
+                polished.append(text)
+        return polished
+
     def _to_srt(self, cues: Iterable[SubtitleCue]) -> str:
         blocks = []
         for index, cue in enumerate(cues, start=1):
@@ -271,7 +294,7 @@ class SubtitleEngine:
                 "Shadow, Alignment, MarginL, MarginR, MarginV, Encoding"
             ),
             (
-                f"Style: Default,Arial,{template.font_size},{template.primary_color},{template.highlight_color},"
+                f"Style: Default,{template.font_name},{template.font_size},{template.primary_color},{template.highlight_color},"
                 f"{template.outline_color},{template.back_color},{template.bold},0,0,0,100,100,0,0,1,"
                 f"{template.outline},{template.shadow},2,64,64,{template.margin_v},1"
             ),
@@ -292,6 +315,16 @@ class SubtitleEngine:
             return escaped
         patterns = [
             r"\d+(?:\.\d+)?%?",
+            r"旺季",
+            r"利润",
+            r"入住",
+            r"控房",
+            r"能耗",
+            r"智能(?:房态|门锁|化)?",
+            r"动态调价",
+            r"自助入住",
+            r"保洁",
+            r"清单",
             r"省(?:钱|电|成本)?",
             r"酒店",
             r"客户",
@@ -355,13 +388,18 @@ class SubtitleEngine:
 
     def _burn_ass(self, input_path: Path, ass_path: Path, output_path: Path) -> None:
         filter_path = str(ass_path.resolve()).replace("\\", "\\\\").replace(":", "\\:")
+        fonts_dir = self._subtitle_fonts_dir()
+        filter_value = f"ass={filter_path}"
+        if fonts_dir:
+            escaped_fonts_dir = str(fonts_dir.resolve()).replace("\\", "\\\\").replace(":", "\\:")
+            filter_value = f"{filter_value}:fontsdir={escaped_fonts_dir}"
         command = [
             self.settings.ffmpeg_binary,
             "-y",
             "-i",
             str(input_path),
             "-vf",
-            f"ass={filter_path}",
+            filter_value,
             "-c:v",
             "libx264",
             "-preset",
@@ -379,6 +417,14 @@ class SubtitleEngine:
         except subprocess.CalledProcessError as exc:
             detail = (exc.stderr or "").strip().splitlines()[-1:] or ["未知错误"]
             raise RuntimeError(f"字幕烧录失败：{detail[0]}") from exc
+
+    def _subtitle_fonts_dir(self) -> Path | None:
+        storage_root = get_storage_root()
+        candidates = [storage_root / "fonts", storage_root.parent / "fonts"]
+        for candidate in candidates:
+            if candidate.exists() and any(candidate.glob("NotoSansCJK*.ttc")):
+                return candidate
+        return None
 
     def _probe_duration(self, input_path: Path) -> float | None:
         command = [

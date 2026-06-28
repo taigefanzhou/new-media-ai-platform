@@ -67,7 +67,7 @@
 | 脚本生成 | 可用 | 是 | 线上模型配置显示 `volcengine-ark / doubao-seed-2-0-pro-260215` 已配置为真实 API。 |
 | TTS 语音合成 | 可用 | 是 | 线上模型配置显示 `aliyun-cosyvoice / cosyvoice-v3-flash` 已配置为真实 API。 |
 | 声音复刻 | 可用 | 是 | 已接入阿里云百炼 CosyVoice，provider 为 `aliyun-cosyvoice-clone`。 |
-| 数字人驱动 | 可用 | 是 | 线上模型配置显示 `aliyun-wan-s2v / wan2.2-s2v` 已配置为真实 API。正式运行会产生模型费用。 |
+| 数字人驱动 | 可用 | 是 | 线上默认仍使用 `aliyun-wan-s2v / wan2.2-s2v`。`aliyun-videoretalk / videoretalk` 已接入并跑通，但当前样片存在嘴型和脸部抖动，不建议作为默认生产模型；`aliyun-liveportrait / liveportrait` 测试出现脸部乱码，已标记为不推荐生产使用；`volcengine-jimeng-digital-human` 已完成小云雀有参考生视频 Submit/GetResult 适配、`app_id=101606596` 参数和 AK/SK 签名校验，并已生成真实样片，待人工确认画质后再切默认。正式运行会产生模型费用。 |
 | 视频生成 | 可用 | 是 | 线上模型配置显示 `seedance / doubao-seedance-2-0-260128` 已配置为真实 API。正式运行会产生模型费用。 |
 | 视频理解/深度拆解 | 可用 | 是 | 线上模型配置显示 `volcengine-ark / doubao-seed-2-0-pro-260215` 已配置为真实 API。 |
 | 视频合成/专业包装 | 可用 | 是 | 线上 `COMPOSITION_PROVIDER=remotion`，通过独立 Remotion 渲染服务做专业包装；FFmpeg 通用 concat 链路仍未作为主链路启用。 |
@@ -81,11 +81,16 @@
 - 素材上传到公网：可用。
 - 阿里云 CosyVoice 声音复刻：可用。
 - 黄丽数字人声音复刻：已完成并写回 `voice_id`。
+- 阿里云 VideoRetalk 源视频驱动：已在本地和线上真实调用跑通，但当前样片存在嘴型和脸部抖动，已从默认模型切回 `wan2.2-s2v`。
+- 阿里云 LivePortrait：使用压缩头像后可生成，但测试样片出现脸部乱码，已从快捷入口移除并标记为实验/不推荐。
+- 火山即梦数字人：已新增模型预设 `volcengine-jimeng-digital-human` 和平台凭证预设 `volcengine / digital_human`，并已在线上配置启用 AK/SK；已适配 `CVSync2AsyncSubmitTask` / `CVSync2AsyncGetResult`，并按火山反馈补充 `app_id=101606596`。开通后已真实生成样片：`https://media.tech-ark.com/asset-uploads/volcengine-jimeng-sample-20260628.mp4`。
+- 视频生成质量护栏：已把火山即梦默认 prompt 改为“干净底片、禁止画面文字”，避免脚本文字被模型画进视频；数字人口播字幕已改为参考口播短句风格，并使用 `Noto Serif CJK SC` 中文字体，避免方块字幕和黑块遮挡。
 
 尚未真实打通或仍需验证的能力：
 
 - FFmpeg 通用 concat 链路：未作为主链路启用；当前真实专业包装主链路是 Remotion。
 - 链接素材采集：粘贴链接保存已可用；自动解析下载依赖第三方/自有链接解析服务。公开视频号 worker `https://sph.litao.workers.dev/api/fetch_video_profile` 在本机可解析测试链接，但生产服务器访问该域名报 `Network is unreachable` 或超时，不能作为稳定线上解析服务。
+- 火山即梦数字人真实生成：当前方舟 `ark-*` / `sk-*` API Key 不能复用；OpenAPI AK/SK 已配置且签名链路已验证。调用参数保持 `app_id=101606596`、`req_key=pippit_iv2v_v20_cvtob_with_vinput`；下一步是人工验收样片质量，再决定是否切为默认数字人模型。
 - 主题采集：功能链路已可用，支持平台采集配置 `purpose=trending`，也内置 TikHub 抖音搜索预设；线上仍未配置真实采集 token，所以当前真实状态为待接入。
 - 真实接口的费用/配额/失败重试策略：数字人、Seedance、TTS、ASR 已显示真实 API 可用，但正式批量跑之前仍要确认费用阈值、并发限制和失败重试策略。
 

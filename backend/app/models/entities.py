@@ -51,6 +51,8 @@ class PublishPlatform(str, Enum):
     wechat_channels = "wechat_channels"
     xiaohongshu = "xiaohongshu"
     kuaishou = "kuaishou"
+    volcengine = "volcengine"
+    aliyun = "aliyun"
     manual = "manual"
 
 
@@ -228,6 +230,15 @@ class DigitalHuman(SQLModel, table=True):
     source_video_material_id: Optional[int] = None
     default_voice: Optional[str] = None
     authorization_scope: str = "internal_marketing"
+    volcengine_auth_status: str = "not_started"
+    volcengine_auth_url: Optional[str] = None
+    volcengine_byted_token: Optional[str] = None
+    volcengine_auth_result_code: Optional[str] = None
+    volcengine_asset_group_id: Optional[str] = None
+    volcengine_asset_group_uri: Optional[str] = None
+    volcengine_asset_uri: Optional[str] = None
+    volcengine_asset_status: Optional[str] = None
+    volcengine_auth_payload: str = ""
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 

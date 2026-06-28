@@ -145,6 +145,18 @@ const linkResolverPresets = {
     webhook_url: "",
     notes: "provider=tikhub\nmethod=post\ntimeout=20\npath=/api/v1/douyin/search/fetch_video_search_v2\n说明：Access Token 填 TikHub API Key；如接视频号或其他平台，请按 TikHub 控制台文档替换 path。采集结果只做选题和结构参考。",
   },
+  "volcengine-jimeng-digital-human": {
+    display_name: "火山即梦数字人 AK/SK",
+    platform: "volcengine",
+    purpose: "digital_human",
+    api_base: "https://visual.volcengineapi.com",
+    client_id: "",
+    client_secret: "",
+    access_token: "",
+    refresh_token: "",
+    webhook_url: "",
+    notes: "provider=volcengine_jimeng\ncredential_type=ak_sk\nclient_id=AccessKeyID\nclient_secret=SecretAccessKey\nservice=cv\nregion=cn-north-1\napp_id=101606596\nreq_key=pippit_iv2v_v20_cvtob_with_vinput\n说明：需先在火山控制台开通即梦 AI 小云雀/动作模仿对应 OpenAPI 能力；模型配置里选择“火山即梦数字人”。",
+  },
 };
 
 const pages = {
@@ -197,6 +209,9 @@ const providerOptions = {
     { value: "mock", label: "Mock 测试", model: "mock-video" },
   ],
   digital_human: [
+    { value: "volcengine-jimeng-digital-human", label: "火山引擎 / 即梦数字人（预接入）", model: "jimeng-digital-human", base: "https://visual.volcengineapi.com" },
+    { value: "aliyun-videoretalk", label: "阿里云百炼 / VideoRetalk 源视频驱动", model: "videoretalk", base: "https://dashscope.aliyuncs.com/api/v1" },
+    { value: "aliyun-liveportrait", label: "阿里云百炼 / LivePortrait 实验项（不推荐）", model: "liveportrait", base: "https://dashscope.aliyuncs.com/api/v1" },
     { value: "aliyun-wan-s2v", label: "阿里云百炼 / 万相数字人", model: "wan2.2-s2v", base: "https://dashscope.aliyuncs.com/api/v1" },
     { value: "volcengine-digital-human", label: "火山引擎 / 数字人驱动", model: "volcengine-digital-human" },
     { value: "sadtalker", label: "SadTalker 本地/HTTP 服务", model: "sadtalker", base: "http://localhost:7860" },
@@ -684,6 +699,30 @@ function applyProviderDefaultModel() {
 }
 
 const modelPresets = {
+  "volcengine-jimeng-digital-human": {
+    name: "火山即梦数字人",
+    purpose: "digital_human",
+    provider: "volcengine-jimeng-digital-human",
+    api_base: "https://visual.volcengineapi.com",
+    model_name: "jimeng-digital-human",
+    notes: "real_adapter=volcengine_jimeng\nadapter_route=xiaoyunque_reference\ncredential_platform=volcengine\ncredential_purpose=digital_human\ncredential_type=ak_sk\nservice=cv\nregion=cn-north-1\napp_id=101606596\nreq_key=pippit_iv2v_v20_cvtob_with_vinput\nallow_script_prompt=false\nprompt_policy=clean_no_text_plate\nsubtitle_policy=reference_style_short_captions\nrequires_public_portrait_url=true\nrequires_public_source_video_url=true\nstatus=adapter_ready",
+  },
+  "aliyun-videoretalk": {
+    name: "阿里云百炼 VideoRetalk 源视频驱动",
+    purpose: "digital_human",
+    provider: "aliyun-videoretalk",
+    api_base: "https://dashscope.aliyuncs.com/api/v1",
+    model_name: "videoretalk",
+    notes: "real_adapter=aliyun_videoretalk\nrequires_public_source_video_url=true\nrequires_public_audio_url=true\nuse_ref_image=false",
+  },
+  "aliyun-liveportrait": {
+    name: "阿里云百炼 LivePortrait 头像驱动（实验项）",
+    purpose: "digital_human",
+    provider: "aliyun-liveportrait",
+    api_base: "https://dashscope.aliyuncs.com/api/v1",
+    model_name: "liveportrait",
+    notes: "real_adapter=aliyun_liveportrait\nrequires_public_portrait_url=true\nrequires_public_audio_url=true\ntemplate_id=normal\nquality_status=failed_face_artifacts\nnot_for_production=true",
+  },
   "aliyun-wan-s2v": {
     name: "阿里云百炼万相数字人",
     purpose: "digital_human",
@@ -1962,6 +2001,25 @@ function assetStateLabel(hasValue, readyLabel, pendingLabel) {
   return `<span class="assetState ${hasValue ? "ready" : "pending"}">${hasValue ? readyLabel : pendingLabel}</span>`;
 }
 
+function volcengineAuthStatusLabel(status) {
+  return {
+    not_started: "未认证",
+    pending: "认证中",
+    callback_received: "已回调",
+    active: "已通过",
+    failed: "未通过",
+  }[status || "not_started"] || status || "未认证";
+}
+
+function volcengineAuthStateLabel(human) {
+  const active = human?.volcengine_auth_status === "active" || Boolean(human?.volcengine_asset_group_id);
+  return `<span class="assetState ${active ? "ready" : "pending"}">火山真人${volcengineAuthStatusLabel(human?.volcengine_auth_status)}</span>`;
+}
+
+function volcengineCallbackUrl() {
+  return `${window.location.origin}/api/volcengine/portrait-auth/callback`;
+}
+
 function materialSummaryPreview(material) {
   const src = authenticatedMediaUrl(`/api/materials/${material.id}/preview`);
   if (isImageMaterial(material)) {
@@ -2287,6 +2345,7 @@ function openAssetDetailDrawer(kind, id) {
             <span class="status">${escapeHtml(human.style)}</span>
             ${assetStateLabel(Boolean(human.default_voice), "声音已复刻", "声音未复刻")}
             ${assetStateLabel(Boolean(sourceVideo), "已绑定视频源", "未绑定视频源")}
+            ${volcengineAuthStateLabel(human)}
           </div>
         </div>
         <div class="assetDetailGrid">
@@ -2294,10 +2353,34 @@ function openAssetDetailDrawer(kind, id) {
           <div><span>口播源视频</span><strong>#${human.source_video_material_id || "-"}</strong></div>
           <div><span>授权范围</span><strong>${escapeHtml(human.authorization_scope || "-")}</strong></div>
           <div><span>创建时间</span><strong>${formatDateTime(human.created_at)}</strong></div>
+          <div><span>火山真人认证</span><strong>${volcengineAuthStatusLabel(human.volcengine_auth_status)}</strong></div>
+          <div><span>Asset Group</span><strong>${escapeHtml(human.volcengine_asset_group_id || "-")}</strong></div>
         </div>
         <div class="assetVoiceBlock">
           <span>声音 ID</span>
           <code>${escapeHtml(human.default_voice || "未复刻")}</code>
+        </div>
+        <div class="volcengineAuthBlock">
+          <div>
+            <strong>火山真人资产认证</strong>
+            <span>通过 H5 真人认证后，后续才能把这个数字人作为火山 Asset Group / Asset URI 使用。</span>
+          </div>
+          <div class="assetVoiceBlock">
+            <span>认证链接</span>
+            <code>${escapeHtml(human.volcengine_auth_url || "未创建")}</code>
+          </div>
+          <div class="assetDetailGrid">
+            <div><span>BytedToken</span><strong>${escapeHtml(human.volcengine_byted_token || "-")}</strong></div>
+            <div><span>认证结果码</span><strong>${escapeHtml(human.volcengine_auth_result_code || "-")}</strong></div>
+            <div><span>Asset Group URI</span><strong>${escapeHtml(human.volcengine_asset_group_uri || "-")}</strong></div>
+            <div><span>Asset URI</span><strong>${escapeHtml(human.volcengine_asset_uri || "-")}</strong></div>
+          </div>
+          <div class="drawerActions">
+            <button type="button" data-action="create-volcengine-auth" data-id="${human.id}">创建认证链接</button>
+            ${human.volcengine_auth_url ? `<button type="button" class="secondary" data-action="open-volcengine-auth" data-url="${escapeHtml(human.volcengine_auth_url)}">打开认证页</button>` : ""}
+            ${human.volcengine_auth_url ? `<button type="button" class="secondary" data-action="copy-volcengine-auth-url" data-url="${escapeHtml(human.volcengine_auth_url)}">复制链接</button>` : ""}
+            <button type="button" class="secondary" data-action="sync-volcengine-auth" data-id="${human.id}">同步认证结果</button>
+          </div>
         </div>
       </div>
       <div class="assetDrawerMediaGrid">
@@ -2392,6 +2475,7 @@ function renderDigitalHumans(humans) {
           <th>风格</th>
           <th>声音</th>
           <th>素材绑定</th>
+          <th>火山认证</th>
           <th>创建时间</th>
           <th>操作</th>
         </tr>
@@ -2409,6 +2493,10 @@ function renderDigitalHumans(humans) {
             <td>
               <div>头像 #${human.portrait_material_id || "-"}</div>
               <div class="recordMeta">口播源 #${human.source_video_material_id || "-"}</div>
+            </td>
+            <td>
+              ${volcengineAuthStateLabel(human)}
+              <div class="recordMeta">${escapeHtml(human.volcengine_asset_group_id || "未生成 Asset Group")}</div>
             </td>
             <td>${formatDateTime(human.created_at)}</td>
             <td>
@@ -2931,6 +3019,8 @@ function platformLabel(value) {
     wechat_channels: "视频号",
     xiaohongshu: "小红书",
     kuaishou: "快手",
+    volcengine: "火山引擎",
+    aliyun: "阿里云",
     manual: "手动",
   }[value] || value;
 }
@@ -2987,6 +3077,7 @@ function credentialPurposeLabel(value) {
   return {
     link_resolver: "链接解析/下载",
     trending: "主题采集",
+    digital_human: "数字人生成",
     publishing: "自动发布",
     analytics: "数据回收",
   }[value] || value;
@@ -4188,6 +4279,63 @@ document.querySelector("#assetDetailDrawer").addEventListener("click", async (ev
     } finally {
       uploadButton.disabled = false;
       uploadButton.textContent = originalText;
+    }
+    return;
+  }
+  const createAuthButton = event.target.closest("button[data-action='create-volcengine-auth']");
+  if (createAuthButton) {
+    createAuthButton.disabled = true;
+    const originalText = createAuthButton.textContent;
+    createAuthButton.textContent = "创建中...";
+    const humanId = createAuthButton.dataset.id;
+    try {
+      const result = await api.post(`/digital-humans/${humanId}/volcengine-auth/session`, {
+        callback_url: volcengineCallbackUrl(),
+      });
+      toast("火山真人认证链接已创建");
+      await refresh();
+      openAssetDetailDrawer("human", humanId);
+      if (result.auth_url) window.open(result.auth_url, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      toast(apiErrorMessage(error, "火山认证链接创建失败，请检查服务开通和 AK/SK 权限"));
+    } finally {
+      createAuthButton.disabled = false;
+      createAuthButton.textContent = originalText;
+    }
+    return;
+  }
+  const syncAuthButton = event.target.closest("button[data-action='sync-volcengine-auth']");
+  if (syncAuthButton) {
+    syncAuthButton.disabled = true;
+    const originalText = syncAuthButton.textContent;
+    syncAuthButton.textContent = "同步中...";
+    const humanId = syncAuthButton.dataset.id;
+    try {
+      await api.post(`/digital-humans/${humanId}/volcengine-auth/sync`);
+      toast("火山真人认证结果已同步");
+      await refresh();
+      openAssetDetailDrawer("human", humanId);
+    } catch (error) {
+      toast(apiErrorMessage(error, "同步失败，完成 H5 认证后再试一次"));
+    } finally {
+      syncAuthButton.disabled = false;
+      syncAuthButton.textContent = originalText;
+    }
+    return;
+  }
+  const openAuthButton = event.target.closest("button[data-action='open-volcengine-auth']");
+  if (openAuthButton) {
+    const url = openAuthButton.dataset.url || "";
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
+    return;
+  }
+  const copyAuthButton = event.target.closest("button[data-action='copy-volcengine-auth-url']");
+  if (copyAuthButton) {
+    try {
+      await navigator.clipboard.writeText(copyAuthButton.dataset.url || "");
+      toast("认证链接已复制");
+    } catch {
+      toast(copyAuthButton.dataset.url || "");
     }
     return;
   }

@@ -42,6 +42,9 @@ PURPOSE_PROVIDER_SCORES = {
     },
     "digital_human": {
         "aliyun-wan-s2v": 95,
+        "aliyun-videoretalk": 45,
+        "aliyun-liveportrait": 20,
+        "volcengine-jimeng-digital-human": 70,
         "d-id": 65,
         "did": 65,
         "volcengine-digital-human": 55,
@@ -101,6 +104,8 @@ def model_requires_api_key(purpose: str, provider: str) -> bool:
     if provider in LOCAL_PROVIDERS or provider in LOCAL_HTTP_PROVIDERS:
         return False
     if purpose == "video" and provider == "comfyui":
+        return False
+    if purpose == "digital_human" and provider in {"volcengine-jimeng-digital-human", "jimeng-digital-human"}:
         return False
     return True
 
