@@ -9,7 +9,7 @@
         window.location.replace("/login.html");
       }
     </script>
-    <link rel="stylesheet" href="/styles.css?v=20260628-capture-platforms" />
+    <link rel="stylesheet" href="/styles.css?v=20260628-mobile-shell" />
   </head>
   <body class="auth-pending">
     <aside class="sidebar">
@@ -38,6 +38,8 @@
         </div>
       </nav>
     </aside>
+    <button id="mobileNavToggle" class="mobileNavToggle" type="button" aria-label="打开导航" aria-expanded="false">☰</button>
+    <div id="mobileNavBackdrop" class="mobileNavBackdrop" aria-hidden="true"></div>
 
     <main>
       <header>
@@ -957,6 +959,6 @@
     </div>
 
     <div id="toast"></div>
-    <script src="/app.js?v=20260628-capture-platforms"></script>
+    <script src="/app.js?v=20260628-mobile-shell"></script>
   </body>
 </html>

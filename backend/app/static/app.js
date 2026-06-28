@@ -524,6 +524,21 @@ function rerenderPagedList(key) {
     overviewTasks: () => renderOverviewActivity(),
   };
   renderers[key]?.();
+  enhanceResponsiveTables();
+}
+
+function enhanceResponsiveTables(root = document) {
+  root.querySelectorAll("table").forEach((table) => {
+    const headers = Array.from(table.querySelectorAll("thead th")).map((header) => header.textContent.trim());
+    if (!headers.length) return;
+    table.classList.add("responsiveTable");
+    table.querySelectorAll("tbody tr").forEach((row) => {
+      Array.from(row.children).forEach((cell, index) => {
+        if (cell.tagName !== "TD") return;
+        cell.dataset.label = headers[index] || "";
+      });
+    });
+  });
 }
 
 function roleLabel(role) {
@@ -3255,6 +3270,15 @@ function hideAccountMenu() {
   document.querySelector("#accountMenuButton")?.setAttribute("aria-expanded", "false");
 }
 
+function setMobileNavOpen(open) {
+  document.body.classList.toggle("nav-open", open);
+  document.querySelector("#mobileNavToggle")?.setAttribute("aria-expanded", String(open));
+}
+
+function closeMobileNav() {
+  setMobileNavOpen(false);
+}
+
 function positionAccountMenu() {
   const menu = document.querySelector("#accountMenu");
   const button = document.querySelector("#accountMenuButton");
@@ -3358,9 +3382,16 @@ async function refresh() {
     renderDigitalHumans(digitalHumans);
     renderTasks(videoTasks);
   }
+  enhanceResponsiveTables();
 }
 
 document.querySelector("#refreshBtn").addEventListener("click", () => refresh().then(() => toast("已刷新")));
+
+document.querySelector("#mobileNavToggle")?.addEventListener("click", () => {
+  setMobileNavOpen(!document.body.classList.contains("nav-open"));
+});
+
+document.querySelector("#mobileNavBackdrop")?.addEventListener("click", closeMobileNav);
 
 document.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-action='list-page-prev'], button[data-action='list-page-next']");
@@ -3374,6 +3405,19 @@ document.addEventListener("click", (event) => {
   if (key === "taskScripts") state.taskScriptPage = state.listPages[key];
   rerenderPagedList(key);
 }, true);
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    closeMobileNav();
+  }
+});
+
+const responsiveTableObserver = new MutationObserver((mutations) => {
+  if (mutations.some((mutation) => Array.from(mutation.addedNodes).some((node) => node.nodeType === Node.ELEMENT_NODE))) {
+    enhanceResponsiveTables();
+  }
+});
+responsiveTableObserver.observe(document.body, { childList: true, subtree: true });
 
 document.querySelectorAll("[data-overview-tab]").forEach((button) => {
   button.addEventListener("click", () => {
@@ -3592,11 +3636,17 @@ document.querySelector("#remoteUploadForm").addEventListener("submit", async (ev
 });
 
 document.querySelectorAll(".navItem").forEach((item) => {
-  item.addEventListener("click", () => switchPage(item.dataset.page, item.dataset.settingsSection || null));
+  item.addEventListener("click", () => {
+    closeMobileNav();
+    switchPage(item.dataset.page, item.dataset.settingsSection || null);
+  });
 });
 
 document.querySelectorAll(".subNavItem").forEach((item) => {
-  item.addEventListener("click", () => switchPage(item.dataset.page, item.dataset.settingsSection));
+  item.addEventListener("click", () => {
+    closeMobileNav();
+    switchPage(item.dataset.page, item.dataset.settingsSection);
+  });
 });
 
 document.querySelector("#humanAssetForm").addEventListener("submit", async (event) => {

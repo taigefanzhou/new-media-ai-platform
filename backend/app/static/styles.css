@@ -25,6 +25,8 @@ body {
 }
 
 body.auth-pending .sidebar,
+body.auth-pending .mobileNavToggle,
+body.auth-pending .mobileNavBackdrop,
 body.auth-pending main > header,
 body.auth-pending main > .page {
   display: none;
@@ -37,6 +39,11 @@ body.auth-pending main > .page {
   background: #111827;
   color: #f9fafb;
   padding: 22px 18px;
+}
+
+.mobileNavToggle,
+.mobileNavBackdrop {
+  display: none;
 }
 
 .brand {
@@ -3166,6 +3173,10 @@ button:disabled {
   opacity: 1;
 }
 
+.responsiveTable td::before {
+  content: "";
+}
+
 @media (max-width: 1180px) {
   .creationParamBar {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -3286,14 +3297,55 @@ button:disabled {
 }
 
 @media (max-width: 760px) {
+  body.nav-open {
+    overflow: hidden;
+  }
+
   .sidebar {
-    position: static;
-    width: auto;
+    z-index: 120;
+    width: min(82vw, 296px);
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    overflow-y: auto;
+  }
+
+  body.nav-open .sidebar {
+    transform: translateX(0);
+  }
+
+  .mobileNavToggle {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 130;
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: white;
+    color: var(--ink);
+    box-shadow: var(--shadow);
+    font-size: 20px;
+    font-weight: 900;
+  }
+
+  .mobileNavBackdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 110;
+    display: none;
+    background: rgba(17, 24, 39, 0.42);
+  }
+
+  body.nav-open .mobileNavBackdrop {
+    display: block;
   }
 
   main {
     margin-left: 0;
-    padding: 18px;
+    padding: 70px 14px 18px;
   }
 
   .metrics,
@@ -3302,19 +3354,34 @@ button:disabled {
   }
 
   header {
-    align-items: flex-start;
+    align-items: stretch;
+    display: grid;
     gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  header h1 {
+    font-size: 28px;
+    line-height: 1.12;
   }
 
   .headerActions {
-    flex-wrap: wrap;
-    justify-content: flex-end;
+    justify-content: space-between;
+    width: 100%;
   }
 
   .accountMenu {
-    right: auto;
-    left: 0;
-    width: min(240px, calc(100vw - 36px));
+    right: 14px;
+    left: 14px !important;
+    width: auto;
+  }
+
+  .accountButton {
+    max-width: calc(100vw - 92px);
+  }
+
+  .accountLabel {
+    max-width: 44vw;
   }
 
   .profileGrid {
@@ -3402,6 +3469,95 @@ button:disabled {
 
   .captureModeGrid {
     grid-template-columns: 1fr;
+  }
+
+  .panel {
+    padding: 16px;
+  }
+
+  .sectionHeader,
+  .compactSectionHeader {
+    display: grid;
+    gap: 12px;
+  }
+
+  .actions,
+  .itemActions,
+  .tableActions,
+  .drawerActions,
+  .referenceMaterialActions {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  button,
+  .buttonLike,
+  input,
+  select,
+  textarea {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .iconBtn,
+  #refreshBtn,
+  #closeTaskDetailBtn,
+  #closeTaskPreviewBtn,
+  #closeAnalysisDetailBtn,
+  #closeAssetDetailBtn {
+    width: 42px;
+  }
+
+  .taskTableWrap,
+  .settingsTableWrap,
+  .humanTableWrap {
+    overflow: visible;
+  }
+
+  .responsiveTable {
+    min-width: 0;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .responsiveTable thead {
+    display: none;
+  }
+
+  .responsiveTable,
+  .responsiveTable tbody,
+  .responsiveTable tr,
+  .responsiveTable td {
+    display: block;
+    width: 100%;
+  }
+
+  .responsiveTable tr {
+    margin-bottom: 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 10px;
+    background: white;
+  }
+
+  .responsiveTable td {
+    display: grid;
+    grid-template-columns: minmax(96px, 0.38fr) minmax(0, 1fr);
+    gap: 10px;
+    border-bottom: 1px solid #eef2f6;
+    padding: 9px 0;
+  }
+
+  .responsiveTable td:last-child {
+    border-bottom: 0;
+  }
+
+  .responsiveTable td::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 900;
   }
 
   .referenceMaterialMedia {
