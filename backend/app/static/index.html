@@ -9,7 +9,7 @@
         window.location.replace("/login.html");
       }
     </script>
-    <link rel="stylesheet" href="/styles.css?v=20260628-preview-subtitle-flow" />
+    <link rel="stylesheet" href="/styles.css?v=20260628-capture-platforms" />
   </head>
   <body class="auth-pending">
     <aside class="sidebar">
@@ -24,9 +24,9 @@
         <button class="navItem active" data-page="overview">总览</button>
         <button class="navItem" data-page="humans">数字人素材</button>
         <button class="navItem" data-page="creation">内容创作</button>
-        <button class="navItem" data-page="analysis">参考拆解</button>
+        <button class="navItem" data-page="analysis">链接解析</button>
         <button class="navItem" data-page="tasks">视频任务</button>
-        <button class="navItem" data-page="trending">爆款采集</button>
+        <button class="navItem" data-page="trending">主题采集</button>
         <button class="navItem" data-page="publish">发布中心</button>
         <button class="navItem" data-page="settings" data-settings-section="usage">系统设置</button>
         <div class="subNav" aria-label="系统设置二级菜单">
@@ -232,11 +232,29 @@
       </section>
 
       <section id="page-analysis" class="page">
+        <section class="panel captureEntryPanel">
+          <div class="sectionHeader compactSectionHeader">
+            <div>
+              <h2>视频采集入口</h2>
+              <p>先选择采集方式，再按抖音或视频号分别处理。</p>
+            </div>
+          </div>
+          <div class="captureModeGrid">
+            <a class="captureModeCard active" href="#analysis">
+              <strong>给链接参考解析</strong>
+              <span>抖音、视频号链接拆解脚本和剪辑方式</span>
+            </a>
+            <a class="captureModeCard" href="#trending">
+              <strong>按主题自动采集</strong>
+              <span>抖音主题搜索；视频号需自有采集服务</span>
+            </a>
+          </div>
+        </section>
         <section class="panel referenceWorkbench">
           <div class="sectionHeader">
             <div>
-              <h2>参考视频拆解工作台</h2>
-              <p>粘贴视频链接后保存为参考素材，系统会自动下载可识别的视频并拆解脚本、拍摄和剪辑方法。</p>
+              <h2>链接参考解析</h2>
+              <p>粘贴抖音或视频号链接后保存为参考素材，系统会自动下载可识别的视频并拆解脚本、拍摄和剪辑方法。</p>
             </div>
             <span class="status">Reference Lab</span>
           </div>
@@ -282,9 +300,20 @@
             </div>
             <div class="referenceTabPanel" data-reference-panel="import" role="tabpanel">
               <form id="referenceLinkForm" class="referenceLinkForm">
+                <label class="referencePlatformField">平台
+                  <select name="platform" id="referenceLinkPlatformSelect">
+                    <option value="auto">自动识别</option>
+                    <option value="wechat_channels">视频号链接</option>
+                    <option value="douyin">抖音链接</option>
+                    <option value="xiaohongshu">小红书链接</option>
+                    <option value="kuaishou">快手链接</option>
+                    <option value="manual">其他链接</option>
+                  </select>
+                </label>
                 <label class="referenceUrlField">视频链接
                   <input name="source_url" placeholder="粘贴视频号、抖音或可下载的视频链接" />
                 </label>
+                <div id="referencePlatformHint" class="capturePlatformHint"></div>
                 <div class="referenceActions">
                   <button type="submit">保存并深度拆解</button>
                   <button id="saveReferenceOnlyBtn" type="button" class="secondary">只保存到参考列表</button>
@@ -294,16 +323,6 @@
                   <div class="referenceOptionalGrid">
                     <label class="referenceTitleField">素材标题
                       <input name="title" placeholder="例如：视频号口播参考：旺季心法" />
-                    </label>
-                    <label class="referencePlatformField">平台
-                      <select name="platform">
-                        <option value="auto">自动识别</option>
-                        <option value="wechat_channels">视频号</option>
-                        <option value="douyin">抖音</option>
-                        <option value="xiaohongshu">小红书</option>
-                        <option value="kuaishou">快手</option>
-                        <option value="manual">其他</option>
-                      </select>
                     </label>
                     <label class="referenceLanguageField">语言
                       <select name="language">
@@ -419,6 +438,15 @@
             <span><strong id="taskFlowReadyCount">0</strong>准备发布</span>
           </div>
         </section>
+        <section class="panel footerPanel">
+          <div class="sectionHeader compactSectionHeader">
+            <div>
+              <h2>视频任务列表</h2>
+              <p>生成中的任务、已生成视频和审核发布状态统一在这里管理。</p>
+            </div>
+          </div>
+          <div id="taskListTasks" class="taskTableWrap"></div>
+        </section>
         <details class="panel advancedTaskPanel">
           <summary>高级手动操作</summary>
           <div class="advancedTaskGrid">
@@ -513,15 +541,6 @@
           </div>
           <div id="taskScriptList" class="taskTableWrap"></div>
         </section>
-        <section class="panel footerPanel">
-          <div class="sectionHeader compactSectionHeader">
-            <div>
-              <h2>视频任务列表</h2>
-              <p>生成中的任务、已生成视频和审核发布状态统一在这里管理。</p>
-            </div>
-          </div>
-          <div id="taskListTasks" class="taskTableWrap"></div>
-        </section>
         <div id="taskDetailDrawer" class="drawerOverlay hiddenPanel" aria-hidden="true">
           <aside class="detailDrawer taskDetailDrawer" aria-label="视频任务详情">
             <div class="drawerHeader">
@@ -547,17 +566,36 @@
       </section>
 
       <section id="page-trending" class="page">
+        <section class="panel captureEntryPanel">
+          <div class="sectionHeader compactSectionHeader">
+            <div>
+              <h2>视频采集入口</h2>
+              <p>先选择采集方式，再按抖音或视频号分别处理。</p>
+            </div>
+          </div>
+          <div class="captureModeGrid">
+            <a class="captureModeCard" href="#analysis">
+              <strong>给链接参考解析</strong>
+              <span>抖音、视频号链接拆解脚本和剪辑方式</span>
+            </a>
+            <a class="captureModeCard active" href="#trending">
+              <strong>按主题自动采集</strong>
+              <span>抖音主题搜索；视频号需自有采集服务</span>
+            </a>
+          </div>
+        </section>
         <section class="split">
           <form id="trendingSearchForm" class="panel">
-            <h2>爆款视频搜索采集</h2>
+            <h2>主题自动采集</h2>
             <label>平台
-              <select name="platform">
-                <option value="douyin">抖音</option>
-                <option value="wechat_channels">视频号</option>
-                <option value="xiaohongshu">小红书</option>
-                <option value="kuaishou">快手</option>
+              <select name="platform" id="trendingPlatformSelect">
+                <option value="douyin">抖音主题</option>
+                <option value="wechat_channels">视频号主题</option>
+                <option value="xiaohongshu">小红书主题</option>
+                <option value="kuaishou">快手主题</option>
               </select>
             </label>
+            <div id="trendingPlatformHint" class="capturePlatformHint"></div>
             <label>关键词<input name="keyword" value="数字人获客" /></label>
             <label>分类<input name="category" value="企业服务" /></label>
             <label>采集数量<input name="limit" type="number" min="1" max="100" value="20" /></label>
@@ -784,7 +822,7 @@
                   <button type="button" class="secondary" data-action="fill-link-resolver-preset" data-preset="wechat-public">视频号公开测试</button>
                   <button type="button" class="secondary" data-action="fill-link-resolver-preset" data-preset="wechat-justone">Just One 视频号</button>
                   <button type="button" class="secondary" data-action="fill-link-resolver-preset" data-preset="wechat-self-hosted">视频号自有服务</button>
-                  <button type="button" class="secondary" data-action="fill-link-resolver-preset" data-preset="trending-tikhub">TikHub 爆款采集</button>
+                  <button type="button" class="secondary" data-action="fill-link-resolver-preset" data-preset="trending-tikhub">TikHub 抖音主题采集</button>
                 </div>
                 <p>预设会自动填好平台、用途、接口地址和备注；正式使用建议换成你自己的解析服务地址。</p>
               </div>
@@ -801,7 +839,7 @@
               <label>用途
                 <select name="purpose">
                   <option value="link_resolver">链接解析/下载</option>
-                  <option value="trending">爆款采集</option>
+                  <option value="trending">主题采集</option>
                   <option value="publishing">自动发布</option>
                   <option value="analytics">数据回收</option>
                 </select>
@@ -919,6 +957,6 @@
     </div>
 
     <div id="toast"></div>
-    <script src="/app.js?v=20260628-preview-subtitle-flow"></script>
+    <script src="/app.js?v=20260628-capture-platforms"></script>
   </body>
 </html>

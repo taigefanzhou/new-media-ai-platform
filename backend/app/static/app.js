@@ -134,7 +134,7 @@ const linkResolverPresets = {
     notes: "method=post\ntimeout=12\n返回结构：data.feedInfo.h264VideoInfo.videoUrl / data.feedInfo.videoUrl\n说明：请填写你自己的解析接口地址；8099 已收回为服务器内部素材上传端口，不再作为公网解析入口。",
   },
   "trending-tikhub": {
-    display_name: "TikHub 主题爆款采集",
+    display_name: "TikHub 抖音主题采集",
     platform: "douyin",
     purpose: "trending",
     api_base: "https://api.tikhub.io",
@@ -151,10 +151,10 @@ const pages = {
   overview: { title: "运营总览", eyebrow: "Overview" },
   materials: { title: "数字人素材", eyebrow: "Digital Human Assets" },
   creation: { title: "内容创作", eyebrow: "Creation" },
-  analysis: { title: "参考拆解", eyebrow: "Reference Breakdown" },
+  analysis: { title: "链接参考解析", eyebrow: "Reference Breakdown" },
   humans: { title: "数字人素材", eyebrow: "Digital Human Assets" },
   tasks: { title: "视频任务", eyebrow: "Video Tasks" },
-  trending: { title: "爆款采集", eyebrow: "Trending" },
+  trending: { title: "主题自动采集", eyebrow: "Trending" },
   publish: { title: "发布中心", eyebrow: "Publishing" },
   settings: { title: "系统设置", eyebrow: "Settings" },
 };
@@ -2107,6 +2107,7 @@ function renderReferenceMaterials(materials = state.materials) {
   setReferenceTab(state.currentReferenceTab || "history");
   if (!references.length) {
     target.innerHTML = `<div class="item">还没有参考素材。粘贴视频链接后会自动进入这里。</div>`;
+    syncReferencePlatformHint();
     return;
   }
   const pageInfo = pagedItems("referenceMaterials", references);
@@ -2146,6 +2147,7 @@ function renderReferenceMaterials(materials = state.materials) {
       `;
     })
     .join("") + pagerHtml("referenceMaterials", pageInfo);
+  syncReferencePlatformHint();
 }
 
 function analysisMetricsHtml(analysis) {
@@ -2430,7 +2432,7 @@ function renderIntegrations(status) {
     video_generation: "视频生成",
     video_understanding: "视频理解",
     composition: "视频合成",
-    trending_search: "爆款采集",
+    trending_search: "主题采集",
     asr: "语音识别",
   };
   document.querySelector("#integrationStatus").innerHTML = Object.entries(labels)
@@ -2918,10 +2920,58 @@ function platformLabel(value) {
   }[value] || value;
 }
 
+function activePlatformCredential(platform, purpose) {
+  return (state.platformCredentials || []).find((credential) => (
+    credential.platform === platform
+    && credential.purpose === purpose
+    && credential.is_active
+    && credential.api_base
+  ));
+}
+
+function hasRealTrendingProviderFor(platform) {
+  if (activePlatformCredential(platform, "trending")) return true;
+  const status = state.integrations?.trending_search || {};
+  return Boolean(status.real_api) && Number(status.credential_count || 0) === 0;
+}
+
+function setCaptureHint(selector, message, kind = "") {
+  const target = document.querySelector(selector);
+  if (!target) return;
+  target.className = `capturePlatformHint ${kind}`.trim();
+  target.textContent = message;
+}
+
+function syncReferencePlatformHint() {
+  const platform = document.querySelector("#referenceLinkPlatformSelect")?.value || "auto";
+  const messages = {
+    auto: ["自动识别平台；适合不确定来源的真实视频链接。", ""],
+    wechat_channels: ["视频号建议走链接解析：解析成功后可继续拆解脚本、画面和剪辑方式。", "ok"],
+    douyin: ["抖音链接可先解析保存为参考素材，再进入深度拆解。", "ok"],
+    xiaohongshu: ["小红书链接依赖已配置的解析服务；解析失败会只保存参考链接。", "warn"],
+    kuaishou: ["快手链接依赖已配置的解析服务；解析失败会只保存参考链接。", "warn"],
+    manual: ["其他链接需要是可访问的视频地址，或后续上传源文件。", "warn"],
+  }[platform] || ["请选择链接平台。", ""];
+  setCaptureHint("#referencePlatformHint", messages[0], messages[1]);
+}
+
+function syncTrendingPlatformHint() {
+  const platform = document.querySelector("#trendingPlatformSelect")?.value || "douyin";
+  if (hasRealTrendingProviderFor(platform)) {
+    setCaptureHint("#trendingPlatformHint", `${platformLabel(platform)}真实主题采集已配置，可以创建并运行采集。`, "ok");
+    return;
+  }
+  if (platform === "wechat_channels") {
+    setCaptureHint("#trendingPlatformHint", "视频号主题自动采集需要先配置自有采集服务；当前建议先用“链接解析”处理具体视频。", "warn");
+    return;
+  }
+  setCaptureHint("#trendingPlatformHint", `${platformLabel(platform)}真实主题采集未配置；请先在“短视频采集接入”配置自建采集或 TikHub。`, "warn");
+}
+
 function credentialPurposeLabel(value) {
   return {
     link_resolver: "链接解析/下载",
-    trending: "爆款采集",
+    trending: "主题采集",
     publishing: "自动发布",
     analytics: "数据回收",
   }[value] || value;
@@ -2997,6 +3047,7 @@ function renderTrending(searches, videos) {
         })
         .join("") + pagerHtml("trendingVideos", videoPageInfo)
     : `<div class="item">还没有爆款参考</div>`;
+  syncTrendingPlatformHint();
 }
 
 function renderTranscriptions(tasks) {
@@ -4498,17 +4549,32 @@ document.querySelector("#modelConfigForm [name='api_base']").addEventListener("i
   event.currentTarget.dataset.autofilled = "false";
 });
 
+document.querySelector("#referenceLinkPlatformSelect")?.addEventListener("change", syncReferencePlatformHint);
+
+document.querySelector("#trendingPlatformSelect")?.addEventListener("change", syncTrendingPlatformHint);
+
 document.querySelector("#trendingSearchForm").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const search = await api.post("/trending/searches", formData(event.currentTarget));
+  const payload = formData(event.currentTarget);
+  const search = await api.post("/trending/searches", payload);
   state.latestTrendingSearchId = search.id;
-  toast(`采集任务已创建 #${search.id}`);
+  const platform = payload.platform || search.platform;
+  toast(
+    hasRealTrendingProviderFor(platform)
+      ? `采集任务已创建 #${search.id}`
+      : `采集任务已创建 #${search.id}，${platformLabel(platform)}真实采集配置未启用`,
+  );
   await refresh();
 });
 
 document.querySelector("#runTrendingBtn").addEventListener("click", async () => {
   if (!state.latestTrendingSearchId) {
     toast("请先创建采集任务");
+    return;
+  }
+  const latestSearch = state.trendingSearches.find((item) => Number(item.id) === Number(state.latestTrendingSearchId));
+  if (latestSearch && !hasRealTrendingProviderFor(latestSearch.platform)) {
+    toast(`${platformLabel(latestSearch.platform)}真实主题采集未配置，请先在短视频采集接入配置服务`);
     return;
   }
   const search = await api.post(`/trending/searches/${state.latestTrendingSearchId}/run`);

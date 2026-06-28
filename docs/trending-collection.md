@@ -1,6 +1,11 @@
 # Trending Collection Plan
 
-Trending collection is not solved by an LLM alone.
+Trending collection is not solved by an LLM alone. The UI separates two acquisition paths:
+
+- Link reference parsing: paste a Douyin or WeChat Channels URL, resolve/download the video where possible, then analyze script, shooting, and editing patterns.
+- Topic collection: search by platform, keyword, metrics, and sort order through a configured collector.
+
+Douyin topic collection can be connected to TikHub, MediaCrawler, TikTokDownloader, or a company-owned adapter. WeChat Channels is currently safer as link parsing unless a dedicated self-hosted/paid collector is configured.
 
 The production architecture should be:
 

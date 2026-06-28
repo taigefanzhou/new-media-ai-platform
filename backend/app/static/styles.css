@@ -1859,6 +1859,64 @@ button:disabled {
   overflow-x: auto;
 }
 
+.captureEntryPanel {
+  margin-bottom: 14px;
+}
+
+.captureModeGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.captureModeCard {
+  display: grid;
+  gap: 6px;
+  min-height: 86px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  color: var(--ink);
+  text-decoration: none;
+  background: #fbfcfd;
+}
+
+.captureModeCard:hover,
+.captureModeCard.active {
+  border-color: var(--accent);
+  background: #eefaf8;
+}
+
+.captureModeCard strong {
+  font-size: 16px;
+}
+
+.captureModeCard span,
+.capturePlatformHint {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.capturePlatformHint {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fbfcfd;
+}
+
+.capturePlatformHint.ok {
+  border-color: rgba(15, 118, 110, 0.35);
+  background: #eefaf8;
+  color: #0f766e;
+}
+
+.capturePlatformHint.warn {
+  border-color: rgba(180, 83, 9, 0.35);
+  background: #fff7ed;
+  color: #92400e;
+}
+
 .taskFlowPanel {
   margin-bottom: 14px;
 }
@@ -3340,6 +3398,10 @@ button:disabled {
 
   .referenceMaterialCard {
     grid-template-columns: 88px minmax(0, 1fr);
+  }
+
+  .captureModeGrid {
+    grid-template-columns: 1fr;
   }
 
   .referenceMaterialMedia {

@@ -349,7 +349,14 @@ GET {api_base}/api/weixin-channels/get-video-download-url/v1
 
 The app stores unresolved links as reference-only materials instead of pretending that the video file was downloaded. The link resolver test endpoint returns `diagnostics` so operators can tell whether a failure is caused by an unreachable resolver, missing token, timeout, or a resolver response without a video URL.
 
-## Trending Search
+## Topic/Trending Search
+
+The product has two video acquisition entrances:
+
+- Link reference parsing for concrete Douyin/WeChat Channels URLs.
+- Topic search collection for keyword-driven discovery.
+
+Use platform-specific credentials when possible. Douyin can use TikHub or a self-hosted crawler adapter. WeChat Channels topic search should only be enabled after a dedicated collector is configured; otherwise use link parsing for specific video URLs.
 
 Mock mode:
 
