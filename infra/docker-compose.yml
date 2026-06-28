@@ -9,6 +9,16 @@ services:
     volumes:
       - ../backend/data:/app/data
 
+  remotion-renderer:
+    image: ${REMOTION_RENDERER_IMAGE:-new-media-remotion-renderer:dev}
+    build:
+      context: ../services/remotion-renderer
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    volumes:
+      - ../backend/data:/app/data
+
   minio:
     image: minio/minio:RELEASE.2025-01-20T14-49-07Z
     command: server /data --console-address ":9001"

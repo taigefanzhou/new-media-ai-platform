@@ -6,9 +6,22 @@ from sqlmodel import select
 from sqlmodel import Session
 from app.core.config import get_settings
 from app.core.storage import get_storage_root
-from app.models.entities import AIModelConfig, DigitalHuman, Material, Script, TaskStatus, VideoSegment, VideoTask
+from app.models.entities import (
+    AIModelConfig,
+    CopyrightStatus,
+    DigitalHuman,
+    Material,
+    MaterialKind,
+    Script,
+    TaskStatus,
+    VideoSegment,
+    VideoTask,
+)
 from app.services.ai_clients import MediaGenerationClient
 from app.services.export_profiles import resolve_export_profile
+from app.services.model_router import choose_model_config, model_choice_note
+from app.services.professional_render import ProfessionalRenderClient
+from app.services.subtitles import SubtitleEngine
 from app.services.usage import estimate_text_tokens, record_model_usage
 
 
@@ -16,10 +29,10 @@ class VideoPipeline:
     def __init__(self, session: Session) -> None:
         self.session = session
         self.settings = get_settings()
-        self.video_model_config = self._active_model("video")
-        self.tts_model_config = self._active_model("tts")
-        self.digital_human_model_config = self._active_model("digital_human")
-        self.voice_clone_model_config = self._active_model("voice_clone")
+        self.video_model_config = choose_model_config(session, "video", "seedance_scene")
+        self.tts_model_config = choose_model_config(session, "tts", "voice_preview")
+        self.digital_human_model_config = choose_model_config(session, "digital_human", "talking_head_template")
+        self.voice_clone_model_config = choose_model_config(session, "voice_clone", "digital_human")
         self.media = MediaGenerationClient(
             self.video_model_config,
             self.tts_model_config,
@@ -43,6 +56,7 @@ class VideoPipeline:
             return task
 
         try:
+            self._configure_models_for_task(task, script)
             profile = resolve_export_profile(task.export_profile, task.target_platform or script.target_platform)
             task.target_platform = task.target_platform or script.target_platform or profile.platform
             task.export_profile = profile.key
@@ -104,12 +118,7 @@ class VideoPipeline:
                     segment.updated_at = datetime.utcnow()
                     self.session.add(segment)
                 task.completed_segments = len(segments)
-                task.status = TaskStatus.needs_review
-                task.updated_at = datetime.utcnow()
-                self.session.add(task)
-                self.session.commit()
-                self.session.refresh(task)
-                return task
+                return await self._finalize_task(task, script)
             if task.production_mode == "seedance_scene":
                 audio = await self._synthesize_voice(script, voice)
                 clips = []
@@ -117,12 +126,15 @@ class VideoPipeline:
                     clip_path = await self._run_segment(segment, task)
                     clips.append(clip_path)
                 task.output_path = await self.media.compose_scene_video(clips, audio, export_profile=task.export_profile)
-                task.status = TaskStatus.needs_review
-                task.updated_at = datetime.utcnow()
-                self.session.add(task)
-                self.session.commit()
-                self.session.refresh(task)
-                return task
+                return await self._finalize_task(task, script)
+            if task.production_mode == "material_mix":
+                audio = await self._synthesize_voice(script, voice)
+                clips = []
+                for segment in segments:
+                    clip_path = await self._run_segment(segment, task)
+                    clips.append(clip_path)
+                task.output_path = await self.media.compose_scene_video(clips, audio, export_profile=task.export_profile)
+                return await self._finalize_task(task, script)
             if task.production_mode == "dynamic_explainer":
                 audio = await self._synthesize_voice(script, voice)
                 task.output_path = await self.media.compose_dynamic_explainer(
@@ -139,12 +151,7 @@ class VideoPipeline:
                     segment.updated_at = datetime.utcnow()
                     self.session.add(segment)
                 task.completed_segments = len(segments)
-                task.status = TaskStatus.needs_review
-                task.updated_at = datetime.utcnow()
-                self.session.add(task)
-                self.session.commit()
-                self.session.refresh(task)
-                return task
+                return await self._finalize_task(task, script)
             if task.production_mode == "digital_human" and not self.media.can_generate_talking_avatar():
                 raise RuntimeError("真人数字人口播需要先配置真实数字人驱动接口。")
             avatar, _audio = await self._generate_talking_avatar_for_script(
@@ -161,12 +168,7 @@ class VideoPipeline:
                 clip_path = await self._run_segment(segment, task)
                 clips.append(clip_path)
             task.output_path = await self.media.compose_final_video(clips, avatar, export_profile=task.export_profile)
-            task.status = TaskStatus.needs_review
-            task.updated_at = datetime.utcnow()
-            self.session.add(task)
-            self.session.commit()
-            self.session.refresh(task)
-            return task
+            return await self._finalize_task(task, script)
         except Exception as exc:
             task.status = TaskStatus.failed
             task.error_message = task.error_message or str(exc)
@@ -176,6 +178,39 @@ class VideoPipeline:
             self.session.refresh(task)
             return task
 
+    async def _finalize_task(self, task: VideoTask, script: Script) -> VideoTask:
+        await self._apply_professional_render(task, script)
+        if task.subtitle_enabled:
+            task.subtitle_status = "running"
+            self.session.add(task)
+            self.session.commit()
+            self.session.refresh(task)
+            try:
+                SubtitleEngine().render_for_task(task, script)
+            except Exception as exc:
+                task.subtitle_status = "failed"
+                task.audit_notes = f"{task.audit_notes}\n字幕引擎执行失败，已保留无字幕原片：{exc}".strip()
+        else:
+            task.subtitle_status = "disabled"
+        task.status = TaskStatus.needs_review
+        task.updated_at = datetime.utcnow()
+        self.session.add(task)
+        self.session.commit()
+        self.session.refresh(task)
+        return task
+
+    async def _apply_professional_render(self, task: VideoTask, script: Script) -> None:
+        original_output = task.output_path
+        try:
+            rendered = await ProfessionalRenderClient().render_task(task, script, original_output)
+        except Exception as exc:
+            task.audit_notes = f"{task.audit_notes}\n专业包装渲染失败，已保留基础成片：{exc}".strip()
+            return
+        if not rendered:
+            return
+        task.output_path = rendered
+        task.audit_notes = f"{task.audit_notes}\n专业包装：已通过 Remotion 模板生成剪映式包装成片。".strip()
+
     def _reset_segments(self, task: VideoTask, segment_specs: list[dict[str, object]]) -> list[VideoSegment]:
         existing = self.session.exec(select(VideoSegment).where(VideoSegment.video_task_id == task.id)).all()
         for segment in existing:
@@ -184,12 +219,15 @@ class VideoPipeline:
 
         segments: list[VideoSegment] = []
         for index, spec in enumerate(segment_specs):
+            material, match_note = self._match_material_for_segment(spec)
             segment = VideoSegment(
                 video_task_id=task.id or 0,
                 segment_index=index + 1,
                 title=str(spec.get("title") or f"第 {index + 1} 段"),
                 duration_seconds=int(spec.get("duration_seconds") or 10),
                 prompt=str(spec.get("prompt") or ""),
+                material_id=material.id if material else None,
+                material_match_notes=match_note,
                 status=TaskStatus.queued,
             )
             self.session.add(segment)
@@ -205,20 +243,28 @@ class VideoPipeline:
         self.session.add(segment)
         self.session.commit()
         try:
-            clip_path = await self.media.generate_video_segment(
-                segment.prompt,
-                segment.duration_seconds,
-                segment.segment_index - 1,
-                task.segment_count,
-                task.export_profile,
-            )
-            self._record_usage(
-                "video",
-                self.video_model_config,
-                provider=self._usage_provider(self.video_model_config, self.settings.video_generation_provider),
-                model_name=self._usage_model(self.video_model_config, self.settings.seedance_model),
-                prompt_tokens=estimate_text_tokens(segment.prompt),
-            )
+            material = self.session.get(Material, segment.material_id) if segment.material_id else None
+            if task.production_mode == "material_mix" and material and material.file_path:
+                clip_path = await self.media.material_to_scene_clip(
+                    material.file_path,
+                    segment.duration_seconds,
+                    task.export_profile,
+                )
+            else:
+                clip_path = await self.media.generate_video_segment(
+                    segment.prompt,
+                    segment.duration_seconds,
+                    segment.segment_index - 1,
+                    task.segment_count,
+                    task.export_profile,
+                )
+                self._record_usage(
+                    "video",
+                    self.video_model_config,
+                    provider=self._usage_provider(self.video_model_config, self.settings.video_generation_provider),
+                    model_name=self._usage_model(self.video_model_config, self.settings.seedance_model),
+                    prompt_tokens=estimate_text_tokens(segment.prompt),
+                )
             segment.output_path = clip_path
             segment.status = TaskStatus.needs_review
             segment.updated_at = datetime.utcnow()
@@ -251,10 +297,18 @@ class VideoPipeline:
     def _task_plan_notes(self, task: VideoTask, script: Script) -> str:
         base_note = task.audit_notes.strip()
         profile = resolve_export_profile(task.export_profile, task.target_platform)
+        model_notes = [
+            model_choice_note("tts", self.tts_model_config, "voice_preview"),
+        ]
+        if task.production_mode in {"material_mix", "seedance_scene", "digital_human"}:
+            model_notes.append(model_choice_note("video", self.video_model_config, task.production_mode))
+        if task.production_mode in {"talking_head_template", "digital_human"}:
+            model_notes.append(model_choice_note("digital_human", self.digital_human_model_config, task.production_mode))
         plan_note = (
             f"成片方式：{task.production_mode}。长视频分段计划：脚本时长 {script.duration_seconds} 秒，"
             f"共 {task.segment_count} 段，每段约 10 秒，可用于后续分段预览和失败段重跑。"
             f"导出规格：{profile.label}，{profile.width}x{profile.height}，{profile.notes}"
+            f"\n" + "\n".join(model_notes)
         )
         return f"{base_note}\n{plan_note}".strip() if base_note else plan_note
 
@@ -297,6 +351,41 @@ class VideoPipeline:
         if human is None or human.source_video_material_id is None:
             return None
         return self.session.get(Material, human.source_video_material_id)
+
+    def _match_material_for_segment(self, spec: dict[str, object]) -> tuple[Material | None, str]:
+        query = " ".join(
+            str(spec.get(key) or "")
+            for key in ("title", "visual", "prompt", "asset_or_background")
+        ).lower()
+        query_tokens = self._match_tokens(query)
+        if not query_tokens:
+            return None, "没有足够关键词，生成时将由 Seedance 补镜头。"
+        candidates = self.session.exec(
+            select(Material).where(
+                Material.kind.in_([MaterialKind.video, MaterialKind.image, MaterialKind.product, MaterialKind.portrait]),
+                Material.copyright_status.in_([CopyrightStatus.owned, CopyrightStatus.licensed]),
+            )
+        ).all()
+        best: tuple[int, Material] | None = None
+        for material in candidates:
+            text = f"{material.name} {material.tags} {material.kind}".lower()
+            score = len(query_tokens & self._match_tokens(text))
+            if material.kind == MaterialKind.product and any(token in query for token in ("产品", "方案", "系统", "dashboard", "screen")):
+                score += 1
+            if material.kind == MaterialKind.video and any(token in query for token in ("场景", "镜头", "实拍", "hotel", "room", "lobby")):
+                score += 1
+            if score > 0 and (best is None or score > best[0]):
+                best = (score, material)
+        if best is None:
+            return None, "素材库暂无匹配素材，生成时将由 Seedance 补镜头。"
+        material = best[1]
+        return material, f"系统推荐素材 #{material.id}：{material.name}"
+
+    def _match_tokens(self, text: str) -> set[str]:
+        raw = re.findall(r"[a-zA-Z0-9\u4e00-\u9fff]{2,}", text or "")
+        tokens = {item.lower() for item in raw}
+        stop = {"素材", "视频", "画面", "镜头", "生成", "场景", "展示", "一个", "这个", "hotel", "scene", "video"}
+        return {token for token in tokens if token not in stop}
 
     async def _voice_for_human(
         self,
@@ -477,13 +566,19 @@ class VideoPipeline:
             )
             raise
 
-    def _active_model(self, purpose: str) -> AIModelConfig | None:
-        return self.session.exec(
-            select(AIModelConfig).where(
-                AIModelConfig.purpose == purpose,
-                AIModelConfig.is_active == True,
-            )
-        ).first()
+    def _configure_models_for_task(self, task: VideoTask, script: Script) -> None:
+        video_scenario = "seedance_scene" if task.production_mode in {"material_mix", "seedance_scene", "digital_human"} else "preview"
+        digital_scenario = task.production_mode if task.production_mode in {"talking_head_template", "digital_human"} else "preview"
+        self.video_model_config = choose_model_config(self.session, "video", video_scenario)
+        self.tts_model_config = choose_model_config(self.session, "tts", "voice_preview")
+        self.digital_human_model_config = choose_model_config(self.session, "digital_human", digital_scenario)
+        self.voice_clone_model_config = choose_model_config(self.session, "voice_clone", "digital_human")
+        self.media = MediaGenerationClient(
+            self.video_model_config,
+            self.tts_model_config,
+            self.digital_human_model_config,
+            storage_dir=get_storage_root(self.session),
+        )
 
     def _record_usage(
         self,

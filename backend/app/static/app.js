@@ -14,6 +14,15 @@ const api = {
     if (!res.ok) throw new Error(await res.text());
     return res.json();
   },
+  async postBlob(path, body = {}) {
+    const res = await fetch(`/api${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.blob();
+  },
   async patch(path, body = {}) {
     const res = await fetch(`/api${path}`, {
       method: "PATCH",
@@ -54,16 +63,29 @@ const state = {
   exportProfiles: [],
   transcriptions: [],
   videoAnalyses: [],
+  trendingSearches: [],
+  trendingVideos: [],
   modelConfigs: [],
+  integrations: {},
   modelUsage: null,
   modelDiagnostics: null,
   videoStorage: null,
   remoteUpload: null,
+  localSaveDirectoryHandle: null,
+  localSaveDirectoryName: localStorage.getItem("localSaveDirectoryName") || "",
+  autoSaveToLocalFolder: localStorage.getItem("autoSaveToLocalFolder") === "1",
+  localSavedVideoIds: new Set(JSON.parse(localStorage.getItem("localSavedVideoIds") || "[]")),
+  localSavingVideoIds: new Set(),
   users: [],
   currentUser: null,
   currentSettingsSection: "usage",
+  currentReferenceTab: "history",
+  overviewActivityTab: "scripts",
+  taskScriptPage: 1,
+  listPages: {},
   previewTaskId: null,
   activeAnalysisDetailId: null,
+  voicePreviewUrl: "",
 };
 
 const settingsSections = {
@@ -91,13 +113,13 @@ const linkResolverPresets = {
     display_name: "视频号自有解析服务",
     platform: "wechat_channels",
     purpose: "link_resolver",
-    api_base: "http://82.156.2.200:8099/api/fetch_video_profile",
+    api_base: "",
     client_id: "",
     client_secret: "",
     access_token: "",
     refresh_token: "",
     webhook_url: "",
-    notes: "method=post\n返回结构：data.feedInfo.h264VideoInfo.videoUrl / data.feedInfo.videoUrl\n说明：解析服务内部保存元宝 Cookie，后台这里只填写你自己的解析接口地址。",
+    notes: "method=post\n返回结构：data.feedInfo.h264VideoInfo.videoUrl / data.feedInfo.videoUrl\n说明：请填写你自己的解析接口地址；8099 已收回为服务器内部素材上传端口，不再作为公网解析入口。",
   },
 };
 
@@ -117,6 +139,7 @@ const providerOptions = {
   script: [
     { value: "volcengine-ark", label: "火山方舟 / Doubao Seed 2.0 Pro", model: "doubao-seed-2-0-pro-260215", base: "https://ark.cn-beijing.volces.com/api/v3" },
     { value: "volcengine-ark-lite", label: "火山方舟 / Doubao Seed 2.0 Lite", model: "doubao-seed-2-0-lite-260215", base: "https://ark.cn-beijing.volces.com/api/v3" },
+    { value: "volcengine-ark-mini", label: "火山方舟 / Doubao Seed 2.0 Mini", model: "doubao-seed-2-0-mini-260428", base: "https://ark.cn-beijing.volces.com/api/v3" },
     { value: "aliyun-bailian", label: "阿里云百炼 / Qwen3.7 Plus", model: "qwen3.7-plus", base: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
     { value: "aliyun-bailian-max", label: "阿里云百炼 / Qwen3.7 Max", model: "qwen3.7-max", base: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
     { value: "aliyun-bailian-latest", label: "阿里云百炼 / Qwen Plus Latest", model: "qwen-plus-latest", base: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
@@ -142,6 +165,8 @@ const providerOptions = {
   ],
   video: [
     { value: "seedance", label: "火山方舟 / Seedance 2.0", model: "doubao-seedance-2-0-260128", base: "https://ark.cn-beijing.volces.com/api/v3" },
+    { value: "seedance-fast", label: "火山方舟 / Seedance 2.0 Fast", model: "doubao-seedance-2-0-fast-260128", base: "https://ark.cn-beijing.volces.com/api/v3" },
+    { value: "seedance-mini", label: "火山方舟 / Seedance 2.0 Mini", model: "doubao-seedance-2-0-mini-260615", base: "https://ark.cn-beijing.volces.com/api/v3" },
     { value: "comfyui", label: "ComfyUI", model: "wan2.1-workflow", base: "http://localhost:8188" },
     { value: "wan", label: "Wan2.1", model: "wan2.1-t2v-1.3b" },
     { value: "hunyuan-video", label: "HunyuanVideo", model: "hunyuan-video" },
@@ -187,6 +212,172 @@ const providerOptions = {
 
 function authHeaders() {
   return api.token ? { Authorization: `Bearer ${api.token}` } : {};
+}
+
+function authenticatedMediaUrl(path) {
+  if (!api.token) return path;
+  const separator = path.includes("?") ? "&" : "?";
+  return `${path}${separator}access_token=${encodeURIComponent(api.token)}`;
+}
+
+const localSaveDbName = "new-media-ai-platform-local-save";
+const localSaveStoreName = "handles";
+const localSaveHandleKey = "video-output-directory";
+
+function openLocalSaveDb() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(localSaveDbName, 1);
+    request.onupgradeneeded = () => {
+      request.result.createObjectStore(localSaveStoreName);
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function saveLocalDirectoryHandle(handle) {
+  const db = await openLocalSaveDb();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(localSaveStoreName, "readwrite");
+    tx.objectStore(localSaveStoreName).put(handle, localSaveHandleKey);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+  db.close();
+}
+
+async function loadLocalDirectoryHandle() {
+  if (!window.indexedDB) return null;
+  const db = await openLocalSaveDb();
+  const handle = await new Promise((resolve, reject) => {
+    const tx = db.transaction(localSaveStoreName, "readonly");
+    const request = tx.objectStore(localSaveStoreName).get(localSaveHandleKey);
+    request.onsuccess = () => resolve(request.result || null);
+    request.onerror = () => reject(request.error);
+  });
+  db.close();
+  return handle;
+}
+
+async function verifyLocalDirectoryPermission(handle) {
+  if (!handle) return false;
+  const options = { mode: "readwrite" };
+  if ((await handle.queryPermission(options)) === "granted") return true;
+  return (await handle.requestPermission(options)) === "granted";
+}
+
+function persistLocalSaveState() {
+  localStorage.setItem("localSaveDirectoryName", state.localSaveDirectoryName || "");
+  localStorage.setItem("autoSaveToLocalFolder", state.autoSaveToLocalFolder ? "1" : "0");
+  localStorage.setItem("localSavedVideoIds", JSON.stringify([...state.localSavedVideoIds]));
+}
+
+function renderLocalSaveDirectoryState() {
+  const nameTarget = document.querySelector("#currentLocalSaveDirectory");
+  const statusTarget = document.querySelector("#localSaveStatus");
+  const autoSaveInput = document.querySelector("#autoSaveToLocalFolder");
+  const hasHandle = Boolean(state.localSaveDirectoryHandle);
+  if (nameTarget) {
+    nameTarget.textContent = hasHandle ? state.localSaveDirectoryName || "已选择文件夹" : "未选择文件夹";
+  }
+  if (statusTarget) {
+    statusTarget.textContent = hasHandle
+      ? `已选择：${state.localSaveDirectoryName || "电脑文件夹"}。页面保持打开时，可在成片生成后自动写入这里。`
+      : "未选择电脑文件夹，生成的成片会先保留在服务器。";
+    statusTarget.classList.toggle("ready", hasHandle);
+  }
+  if (autoSaveInput) autoSaveInput.checked = state.autoSaveToLocalFolder;
+}
+
+async function initLocalSaveDirectory() {
+  renderLocalSaveDirectoryState();
+  try {
+    const handle = await loadLocalDirectoryHandle();
+    if (!handle) return;
+    state.localSaveDirectoryHandle = handle;
+    state.localSaveDirectoryName = handle.name || state.localSaveDirectoryName;
+    renderLocalSaveDirectoryState();
+  } catch {
+    state.localSaveDirectoryHandle = null;
+    renderLocalSaveDirectoryState();
+  }
+}
+
+async function chooseLocalSaveDirectory() {
+  if (!window.showDirectoryPicker) {
+    toast("当前浏览器不支持直接选择电脑文件夹，请使用最新版 Chrome 或 Edge");
+    return null;
+  }
+  const handle = await window.showDirectoryPicker({ mode: "readwrite" });
+  const granted = await verifyLocalDirectoryPermission(handle);
+  if (!granted) {
+    toast("没有获得这个文件夹的写入权限");
+    return null;
+  }
+  state.localSaveDirectoryHandle = handle;
+  state.localSaveDirectoryName = handle.name || "电脑文件夹";
+  await saveLocalDirectoryHandle(handle);
+  persistLocalSaveState();
+  renderLocalSaveDirectoryState();
+  return handle;
+}
+
+function localVideoFilename(video) {
+  const title = (video.script_title || `视频任务-${video.task_id}`)
+    .replace(/[\\/:*?"<>|]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 42);
+  return `${video.task_id}-${title || "AI成片"}.mp4`;
+}
+
+async function saveVideoToLocalFolder(video, silent = false) {
+  if (!video || !video.task_id) return false;
+  if (!state.localSaveDirectoryHandle) {
+    const handle = await chooseLocalSaveDirectory();
+    if (!handle) return false;
+  }
+  const granted = await verifyLocalDirectoryPermission(state.localSaveDirectoryHandle);
+  if (!granted) {
+    state.localSaveDirectoryHandle = null;
+    renderLocalSaveDirectoryState();
+    if (!silent) toast("电脑文件夹权限已失效，请重新选择");
+    return false;
+  }
+  const source = video.storage_kind === "external" && video.output_path
+    ? video.output_path
+    : `/api/video-tasks/${video.task_id}/output`;
+  const response = await fetch(source, {
+    headers: source.startsWith("/api") ? authHeaders() : {},
+  });
+  if (!response.ok) throw new Error("成片文件读取失败");
+  const blob = await response.blob();
+  const fileHandle = await state.localSaveDirectoryHandle.getFileHandle(localVideoFilename(video), { create: true });
+  const writable = await fileHandle.createWritable();
+  await writable.write(blob);
+  await writable.close();
+  state.localSavedVideoIds.add(Number(video.task_id));
+  persistLocalSaveState();
+  if (!silent) toast(`已保存到电脑文件夹：${state.localSaveDirectoryName || ""}`);
+  renderVideoStorage(state.videoStorage);
+  return true;
+}
+
+async function autoSaveVideosToLocal(videos) {
+  if (!state.autoSaveToLocalFolder || !state.localSaveDirectoryHandle) return;
+  for (const video of videos || []) {
+    if (!video?.task_id || video.storage_kind === "placeholder" || !video.exists && video.storage_kind !== "external") continue;
+    const taskId = Number(video.task_id);
+    if (state.localSavedVideoIds.has(taskId) || state.localSavingVideoIds.has(taskId)) continue;
+    state.localSavingVideoIds.add(taskId);
+    try {
+      await saveVideoToLocalFolder(video, true);
+    } catch {
+      toast(`视频任务 #${taskId} 自动保存到电脑失败`);
+    } finally {
+      state.localSavingVideoIds.delete(taskId);
+    }
+  }
 }
 
 function formData(form) {
@@ -245,11 +436,106 @@ function formatDateTime(value) {
   return Number.isNaN(date.getTime()) ? "-" : date.toLocaleString("zh-CN", { hour12: false });
 }
 
+const listPageSize = 6;
+
+function pagedItems(key, items, pageSize = listPageSize) {
+  const list = Array.isArray(items) ? items : [];
+  const totalPages = Math.max(1, Math.ceil(list.length / pageSize));
+  const currentPage = Math.min(Math.max(1, Number(state.listPages[key] || 1)), totalPages);
+  state.listPages[key] = currentPage;
+  const start = (currentPage - 1) * pageSize;
+  return {
+    items: list.slice(start, start + pageSize),
+    page: currentPage,
+    totalPages,
+    total: list.length,
+  };
+}
+
+function pagerHtml(key, pageInfo) {
+  if (!pageInfo || pageInfo.total <= listPageSize) return "";
+  return `
+    <div class="tablePager">
+      <span>第 ${pageInfo.page} / ${pageInfo.totalPages} 页，共 ${pageInfo.total} 条</span>
+      <div>
+        <button type="button" class="secondary" data-action="list-page-prev" data-list-key="${key}" ${pageInfo.page <= 1 ? "disabled" : ""}>上一页</button>
+        <button type="button" class="secondary" data-action="list-page-next" data-list-key="${key}" ${pageInfo.page >= pageInfo.totalPages ? "disabled" : ""}>下一页</button>
+      </div>
+    </div>
+  `;
+}
+
+function rerenderPagedList(key) {
+  const renderers = {
+    taskTable: () => renderTaskTable(state.videoTasks),
+    taskScripts: () => renderTaskScriptTable(state.scripts),
+    scriptCandidates: () => renderScriptCandidates(state.scripts),
+    publishRecords: () => renderPublishRecords(state.publishRecords),
+    platformAccounts: () => renderPlatformAccounts(state.platformAccounts),
+    materials: () => renderMaterials(state.materials),
+    referenceMaterials: () => renderReferenceMaterials(state.materials),
+    digitalHumans: () => renderDigitalHumans(state.digitalHumans),
+    models: () => renderModels(state.modelConfigs),
+    modelUsage: () => renderModelUsage(state.modelUsage),
+    modelUsageHistory: () => renderModelUsage(state.modelUsage),
+    videoStorage: () => renderVideoStorage(state.videoStorage),
+    users: () => renderSystemUsers(state.users),
+    platformCredentials: () => renderPlatformCredentials(state.platformCredentials),
+    trendingSearches: () => renderTrending(state.trendingSearches || [], state.trendingVideos || []),
+    trendingVideos: () => renderTrending(state.trendingSearches || [], state.trendingVideos || []),
+    transcriptions: () => renderTranscriptions(state.transcriptions),
+    videoAnalyses: () => renderVideoAnalyses(state.videoAnalyses),
+    overviewScripts: () => renderOverviewActivity(),
+    overviewTasks: () => renderOverviewActivity(),
+  };
+  renderers[key]?.();
+}
+
+function roleLabel(role) {
+  return {
+    admin: "管理员",
+    operator: "运营人员",
+    reviewer: "审核人员",
+  }[role] || role || "-";
+}
+
+function accountInitials(username) {
+  const value = String(username || "").trim();
+  return value ? Array.from(value).slice(0, 2).join("").toUpperCase() : "--";
+}
+
+function loginUrl() {
+  const next = encodeURIComponent(`${window.location.pathname}${window.location.hash}`);
+  return `/login.html?next=${next}`;
+}
+
+function redirectToLogin() {
+  window.location.replace(loginUrl());
+}
+
 function toast(message) {
   const el = document.querySelector("#toast");
   el.textContent = message;
   el.classList.add("show");
   setTimeout(() => el.classList.remove("show"), 2600);
+}
+
+function apiErrorMessage(error, fallback = "操作失败，请稍后重试") {
+  const message = error?.message || "";
+  if (!message) return fallback;
+  try {
+    const parsed = JSON.parse(message);
+    if (typeof parsed.detail === "string") return parsed.detail;
+    if (Array.isArray(parsed.detail) && parsed.detail.length) {
+      return parsed.detail
+        .map((item) => item.msg || item.message || "")
+        .filter(Boolean)
+        .join("；") || fallback;
+    }
+  } catch {
+    return message;
+  }
+  return message;
 }
 
 function parseRoute(hash) {
@@ -291,6 +577,12 @@ function switchPage(page, section = null, updateHash = true) {
   document.querySelector("#pageEyebrow").textContent = pages[page].eyebrow;
   if (updateHash) {
     window.location.hash = page;
+  }
+  if (page === "analysis") {
+    setReferenceTab(state.currentReferenceTab || "history");
+    if (api.token && updateHash) {
+      refresh().catch((err) => toast(err.message));
+    }
   }
 }
 
@@ -422,6 +714,95 @@ function renderMetrics(counts) {
     .join("");
 }
 
+function renderOverviewActivity() {
+  const target = document.querySelector("#overviewActivityContent");
+  if (!target) return;
+  document.querySelectorAll("[data-overview-tab]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.overviewTab === state.overviewActivityTab);
+  });
+  if (state.overviewActivityTab === "tasks") {
+    const pageInfo = pagedItems("overviewTasks", state.videoTasks || []);
+    const tasks = pageInfo.items;
+    if (!tasks.length) {
+      target.innerHTML = `<div class="item">还没有视频任务</div>`;
+      return;
+    }
+    target.innerHTML = `
+      <table class="settingsTable compactTable overviewActivityTable">
+        <thead>
+          <tr>
+            <th>任务</th>
+            <th>脚本</th>
+            <th>状态</th>
+            <th>方式/进度</th>
+            <th>更新时间</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${tasks
+            .map((task) => `
+              <tr>
+                <td><strong>#${task.id}</strong></td>
+                <td class="overviewTitleCell">${escapeHtml(scriptName(task.script_id))}</td>
+                <td><span class="status taskStatus ${taskStatusClass(task.status)}">${taskStatusLabel(task.status)}</span></td>
+                <td>
+                  <strong>${productionModeLabel(task.production_mode)}</strong>
+                  <div class="recordMeta">${taskProgress(task)}% · ${escapeHtml(taskSegmentMeta(task))}</div>
+                </td>
+                <td>${formatDateTime(task.updated_at || task.created_at)}</td>
+                <td><button type="button" class="secondary compactButton" data-action="overview-view-task" data-id="${task.id}">详情</button></td>
+              </tr>
+            `)
+            .join("")}
+        </tbody>
+      </table>
+      ${pagerHtml("overviewTasks", pageInfo)}
+    `;
+    return;
+  }
+
+  const pageInfo = pagedItems("overviewScripts", state.scripts || []);
+  const scripts = pageInfo.items;
+  if (!scripts.length) {
+    target.innerHTML = `<div class="item">还没有脚本</div>`;
+    return;
+  }
+  target.innerHTML = `
+    <table class="settingsTable compactTable overviewActivityTable">
+      <thead>
+        <tr>
+          <th>脚本</th>
+          <th>平台/时长</th>
+          <th>视频任务</th>
+          <th>创建时间</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${scripts
+          .map((script) => `
+            <tr>
+              <td class="overviewTitleCell">
+                <strong title="${escapeHtml(script.hook || "未命名脚本")}">#${script.id} ${escapeHtml(script.hook || "未命名脚本")}</strong>
+                <span>${escapeHtml((script.hashtags || "").split(/\s+/).filter(Boolean).slice(0, 3).join(" ") || "未设置标签")}</span>
+              </td>
+              <td>
+                <strong>${platformLabel(script.target_platform || "douyin")}</strong>
+                <div class="recordMeta">${Number(script.duration_seconds || 30)} 秒</div>
+              </td>
+              <td><strong>${scriptTaskCount(script.id)}</strong> 个</td>
+              <td>${formatDateTime(script.created_at)}</td>
+              <td><button type="button" class="secondary compactButton" data-action="overview-view-script" data-id="${script.id}">详情</button></td>
+            </tr>
+          `)
+          .join("")}
+      </tbody>
+    </table>
+    ${pagerHtml("overviewScripts", pageInfo)}
+  `;
+}
+
 function hideScriptDetail(clearContent = false) {
   const panel = document.querySelector("#scriptDetailPanel");
   if (panel) panel.classList.add("hiddenPanel");
@@ -438,13 +819,15 @@ function hideScriptDetail(clearContent = false) {
 function renderScripts(scripts) {
   state.scripts = scripts;
   renderScriptSelects(scripts);
-  const overviewTarget = document.querySelector("#scriptPreview");
+  renderTaskScriptTable(scripts);
+  renderTaskWorkflowStats();
   const creationTarget = document.querySelector("#scriptPreviewCreation");
   const resultStatus = document.querySelector("#scriptResultStatus");
+  renderOverviewActivity();
   if (!scripts.length) {
     renderScriptCandidates([]);
     hideScriptDetail(true);
-    [overviewTarget, creationTarget].filter(Boolean).forEach((target) => {
+    [creationTarget].filter(Boolean).forEach((target) => {
       target.className = "preview empty";
       target.textContent = "还没有脚本";
     });
@@ -459,26 +842,6 @@ function renderScripts(scripts) {
   const taskScriptSelect = document.querySelector("[name='script_id']");
   if (taskScriptSelect) taskScriptSelect.value = script.id;
   renderScriptCandidates(scripts);
-  const content = [
-    `脚本 ID: ${script.id}`,
-    `开头: ${script.hook}`,
-    "",
-    "口播:",
-    script.voiceover,
-    "",
-    "分镜:",
-    script.storyboard,
-    "",
-    "标题:",
-    script.title_options,
-    "",
-    `标签: ${script.hashtags}`,
-    `合规: ${script.compliance_notes}`,
-  ].join("\n");
-  if (overviewTarget) {
-    overviewTarget.className = "preview";
-    overviewTarget.textContent = content;
-  }
   const detailPanel = document.querySelector("#scriptDetailPanel");
   const keepDetailOpen = detailPanel && !detailPanel.classList.contains("hiddenPanel");
   if (keepDetailOpen) {
@@ -494,6 +857,7 @@ function productionModeLabel(mode) {
   return {
     dynamic_explainer: "图文草稿",
     digital_human: "真人口播",
+    material_mix: "素材库混剪",
     seedance_scene: "Seedance 实景",
     talking_head_template: "口播模板",
   }[mode] || "口播模板";
@@ -659,6 +1023,18 @@ function renderScriptDetail(script, isFresh = false) {
   }
 }
 
+function openScriptDetail(script, options = {}) {
+  if (!script) return;
+  state.latestScriptId = script.id;
+  state.highlightedScriptId = script.id;
+  renderScriptCandidates(state.scripts);
+  renderTitleSuggestions(script);
+  renderScriptDetail(script, Boolean(options.isFresh));
+  if (options.scroll !== false) {
+    document.querySelector("#scriptDetailPanel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+
 function renderScriptLoading(message = "AI 正在生成标题、口播稿、分镜和视频提示词...", keepTitles = false) {
   const detailPanel = document.querySelector("#scriptDetailPanel");
   const titleTarget = document.querySelector("#titleSuggestionList");
@@ -694,7 +1070,7 @@ function applyGeneratedScript(script, options = {}) {
   renderScriptCandidates(state.scripts);
   renderTitleSuggestions(script);
   if (options.openDetail) {
-    renderScriptDetail(script, true);
+    openScriptDetail(script, { isFresh: true });
   } else {
     hideScriptDetail();
     const resultStatus = document.querySelector("#scriptResultStatus");
@@ -712,19 +1088,19 @@ function renderScriptCandidates(scripts) {
     target.innerHTML = `<div class="item">输入视频内容后，可生成多版候选脚本。</div>`;
     return;
   }
+  const pageInfo = pagedItems("scriptCandidates", scripts);
   target.innerHTML = `
     <div class="candidateHeader">
       <strong>候选方案</strong>
       <span>点详情审核脚本，或直接生成视频任务。</span>
     </div>
     <div class="candidateRows">
-      ${scripts
-        .slice(0, 6)
+      ${pageInfo.items
         .map(
           (script, index) => `
             <div class="candidateRow ${script.id === state.latestScriptId ? "selectedCandidate" : ""}">
               <div class="candidateMain">
-                <span>方案 ${index + 1} · #${script.id} · ${script.duration_seconds || 30}s</span>
+                <span>方案 ${(pageInfo.page - 1) * listPageSize + index + 1} · #${script.id} · ${script.duration_seconds || 30}s</span>
                 <strong>${escapeHtml(script.hook || "未命名方案")}</strong>
                 <em>${escapeHtml((script.voiceover || "").slice(0, 78))}</em>
               </div>
@@ -737,6 +1113,7 @@ function renderScriptCandidates(scripts) {
         )
         .join("")}
     </div>
+    ${pagerHtml("scriptCandidates", pageInfo)}
   `;
 }
 
@@ -869,6 +1246,28 @@ function taskStatusClass(status) {
   }[status] || "";
 }
 
+function subtitleStyleLabel(style) {
+  return {
+    auto: "AI 自动",
+    business: "商务清晰",
+    viral: "爆款大字",
+    digital_human: "数字人口播",
+    tutorial: "教程说明",
+    minimal: "极简底栏",
+  }[style] || style || "AI 自动";
+}
+
+function subtitleStatusLabel(status) {
+  return {
+    pending: "待生成字幕",
+    running: "字幕生成中",
+    completed: "已生成字幕",
+    failed: "字幕失败",
+    skipped: "未烧录字幕",
+    disabled: "未启用字幕",
+  }[status] || status || "待生成字幕";
+}
+
 function taskProgress(task) {
   if (task.status === "running" && Number(task.segment_count || 0) > 1) {
     const completed = Number(task.completed_segments || 0);
@@ -911,13 +1310,14 @@ function scriptName(id) {
 }
 
 function taskVideoSrc(task) {
-  if (!task.output_path || task.output_path.startsWith("mock://")) return "";
-  if (task.output_path.startsWith("http")) return task.output_path;
-  return `/api/video-tasks/${task.id}/output`;
+  const outputPath = task.captioned_output_path || task.output_path;
+  if (!outputPath || outputPath.startsWith("mock://")) return "";
+  if (outputPath.startsWith("http")) return outputPath;
+  return authenticatedMediaUrl(`/api/video-tasks/${task.id}/output`);
 }
 
 function taskActionState(task) {
-  const hasOutput = Boolean(task.output_path);
+  const hasOutput = Boolean(task.captioned_output_path || task.output_path);
   const isRunning = task.status === "running";
   return {
     canSelectForRun: !hasOutput && ["draft", "queued", "failed"].includes(task.status),
@@ -942,13 +1342,12 @@ function actionErrorMessage(action) {
   }[action] || "操作失败，请刷新后再试";
 }
 
-function taskActionButtons(task) {
+function taskActionButtons(task, options = {}) {
   const actions = taskActionState(task);
   const button = (action, label, className = "secondary", disabled = false) => (
     `<button type="button" class="${className}" data-action="${action}" data-id="${task.id}" ${disabled ? "disabled aria-disabled=\"true\"" : ""}>${label}</button>`
   );
-  const buttons = [];
-  if (actions.canPreview) buttons.push(button("preview-video-task", "预览"));
+  const buttons = options.includeDetail === false ? [] : [button("view-video-task", "详情")];
   if (task.status === "running") {
     buttons.push(button("run-video-task", "生成中", "", true));
   } else if (actions.canRun) {
@@ -959,6 +1358,286 @@ function taskActionButtons(task) {
   if (actions.canDeleteOutput) buttons.push(button("delete-task-output", "删除成片"));
   if (actions.canDeleteTask) buttons.push(button("delete-video-task", "删除任务", "danger"));
   return buttons.join("");
+}
+
+function updateText(selector, value) {
+  const target = document.querySelector(selector);
+  if (target) target.textContent = String(value);
+}
+
+function renderTaskWorkflowStats() {
+  const tasks = state.videoTasks || [];
+  updateText("#taskFlowScriptCount", (state.scripts || []).length);
+  updateText("#taskFlowRunningCount", tasks.filter((task) => ["queued", "running"].includes(task.status)).length);
+  updateText("#taskFlowReviewCount", tasks.filter((task) => task.status === "needs_review").length);
+  updateText("#taskFlowReadyCount", tasks.filter((task) => task.status === "approved").length);
+}
+
+function scriptTaskCount(scriptId) {
+  return (state.videoTasks || []).filter((task) => Number(task.script_id) === Number(scriptId)).length;
+}
+
+function renderTaskScriptTable(scripts = state.scripts) {
+  const target = document.querySelector("#taskScriptList");
+  if (!target) return;
+  if (!scripts.length) {
+    target.innerHTML = `<div class="item">还没有已生成脚本</div>`;
+    return;
+  }
+  state.listPages.taskScripts = state.taskScriptPage || state.listPages.taskScripts || 1;
+  const pageInfo = pagedItems("taskScripts", scripts);
+  state.taskScriptPage = pageInfo.page;
+  const pageScripts = pageInfo.items;
+  target.innerHTML = `
+    <table class="taskTable compactTable scriptTaskTable">
+      <thead>
+        <tr>
+          <th>脚本</th>
+          <th>平台/时长</th>
+          <th>视频任务</th>
+          <th>创建时间</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${pageScripts.map((script) => `
+          <tr>
+            <td class="scriptTitleCell">
+              <strong title="${escapeHtml(script.hook || "未命名脚本")}">#${script.id} ${escapeHtml(script.hook || "未命名脚本")}</strong>
+              <span>${escapeHtml((script.hashtags || "").split(/\s+/).filter(Boolean).slice(0, 3).join(" ") || "未设置标签")}</span>
+            </td>
+            <td>
+              <strong>${platformLabel(script.target_platform || "douyin")}</strong>
+              <div class="recordMeta">${Number(script.duration_seconds || 30)} 秒</div>
+            </td>
+            <td><strong>${scriptTaskCount(script.id)}</strong> 个</td>
+            <td>${formatDateTime(script.created_at)}</td>
+            <td>
+              <div class="tableActions">
+                <button type="button" class="secondary" data-action="view-task-script" data-id="${script.id}">详情</button>
+                <button type="button" data-action="create-task-from-script" data-id="${script.id}">生成视频</button>
+              </div>
+            </td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+    ${pagerHtml("taskScripts", pageInfo)}
+  `;
+}
+
+function openTaskScriptDetailDrawer(scriptId) {
+  const drawer = document.querySelector("#taskDetailDrawer");
+  const title = document.querySelector("#taskDetailTitle");
+  const eyebrow = document.querySelector("#taskDetailEyebrow");
+  const content = document.querySelector("#taskDetailContent");
+  if (!drawer || !title || !eyebrow || !content) return;
+  const script = state.scripts.find((item) => Number(item.id) === Number(scriptId));
+  if (!script) {
+    toast("没有找到这条脚本");
+    return;
+  }
+  title.textContent = `脚本 #${script.id}`;
+  eyebrow.textContent = "Script Detail";
+  content.innerHTML = `
+    <div class="drawerSummary">
+      <div class="assetMetaLine">
+        <span class="status">${platformLabel(script.target_platform || "douyin")}</span>
+        <span class="status">${Number(script.duration_seconds || 30)} 秒</span>
+        <span class="status">${scriptTaskCount(script.id)} 个视频任务</span>
+      </div>
+      <div class="assetDetailGrid">
+        <div><span>开头钩子</span><strong>${escapeHtml(script.hook || "-")}</strong></div>
+        <div><span>创建时间</span><strong>${formatDateTime(script.created_at)}</strong></div>
+        <div><span>标签</span><strong>${escapeHtml(script.hashtags || "-")}</strong></div>
+        <div><span>合规提醒</span><strong>${escapeHtml(script.compliance_notes || "-")}</strong></div>
+      </div>
+    </div>
+    <div class="analysisGrid drawerAnalysisGrid">
+      <div><h3>口播稿</h3><pre>${escapeHtml(script.voiceover || "暂无")}</pre></div>
+      <div><h3>分镜/画面</h3><pre>${escapeHtml(script.storyboard || "暂无")}</pre></div>
+      <div><h3>视频提示词</h3><pre>${escapeHtml(script.seedance_prompt || "暂无")}</pre></div>
+      <div><h3>标题建议</h3><pre>${escapeHtml(script.title_options || "暂无")}</pre></div>
+    </div>
+    <div class="drawerActions">
+      <button type="button" data-action="create-task-from-script" data-id="${script.id}">生成视频</button>
+      <button type="button" class="secondary" data-action="edit-script-from-task-drawer" data-id="${script.id}">去编辑脚本</button>
+    </div>
+  `;
+  drawer.classList.remove("hiddenPanel");
+  drawer.setAttribute("aria-hidden", "false");
+}
+
+async function createTaskFromTaskScript(scriptId, button) {
+  const script = state.scripts.find((item) => Number(item.id) === Number(scriptId));
+  if (!script) {
+    toast("没有找到这条脚本");
+    return;
+  }
+  const originalText = button?.textContent || "";
+  if (button) {
+    button.disabled = true;
+    button.textContent = "进入队列...";
+  }
+  const form = document.querySelector("#taskForm");
+  let productionMode = form?.querySelector("[name='production_mode']")?.value || "dynamic_explainer";
+  const humanValue = form?.querySelector("[name='digital_human_id']")?.value || "";
+  const exportProfile = form?.querySelector("[name='export_profile']")?.value || defaultExportProfileForPlatform(script.target_platform || "douyin");
+  if (["digital_human", "talking_head_template"].includes(productionMode) && !humanValue) {
+    productionMode = "dynamic_explainer";
+  }
+  try {
+    const payload = {
+      production_mode: productionMode,
+      target_platform: script.target_platform || "douyin",
+      export_profile: exportProfile,
+      subtitle_enabled: true,
+      subtitle_style: form?.querySelector("[name='subtitle_style']")?.value || "auto",
+    };
+    if (humanValue) payload.digital_human_id = Number(humanValue);
+    const endpoint = productionMode === "material_mix" ? "video-task" : "auto-video-task";
+    const task = await api.post(`/scripts/${script.id}/${endpoint}`, payload);
+    state.latestTaskId = task.id;
+    toast(productionMode === "material_mix" ? `已创建素材方案任务 #${task.id}` : `已进入自动生成队列 #${task.id}`);
+    closeTaskDetailDrawer();
+    await refresh();
+    if (productionMode === "material_mix") {
+      await openTaskDetailDrawer(task.id);
+    }
+  } catch (error) {
+    toast(apiErrorMessage(error, "创建视频任务失败"));
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  }
+}
+
+async function openTaskDetailDrawer(taskId) {
+  const drawer = document.querySelector("#taskDetailDrawer");
+  const title = document.querySelector("#taskDetailTitle");
+  const eyebrow = document.querySelector("#taskDetailEyebrow");
+  const content = document.querySelector("#taskDetailContent");
+  if (!drawer || !title || !eyebrow || !content) return;
+  const task = state.videoTasks.find((item) => Number(item.id) === Number(taskId));
+  if (!task) {
+    toast("没有找到这个视频任务");
+    return;
+  }
+  const script = state.scripts.find((item) => Number(item.id) === Number(task.script_id));
+  const videoSrc = taskVideoSrc(task);
+  title.textContent = `视频任务 #${task.id}`;
+  eyebrow.textContent = "Video Task";
+  content.innerHTML = `
+    <div class="drawerSummary">
+      <div class="assetMetaLine">
+        <span class="status taskStatus ${taskStatusClass(task.status)}">${taskStatusLabel(task.status)}</span>
+        <span class="status">${productionModeLabel(task.production_mode)}</span>
+        <span class="status">${escapeHtml(exportProfileMeta(task))}</span>
+        <span class="status">${subtitleStyleLabel(task.subtitle_style)}</span>
+        <span class="status taskStatus ${task.subtitle_status === "failed" ? "taskStatusFailed" : task.subtitle_status === "completed" ? "taskStatusApproved" : "taskStatusQueued"}">${subtitleStatusLabel(task.subtitle_status)}</span>
+      </div>
+      <div class="assetDetailGrid">
+        <div><span>脚本</span><strong>#${task.script_id} ${escapeHtml(script?.hook || "")}</strong></div>
+        <div><span>数字人</span><strong>${escapeHtml(humanName(task.digital_human_id))}</strong></div>
+        <div><span>目标平台</span><strong>${escapeHtml(taskTargetPlatformLabel(task))}</strong></div>
+        <div><span>字幕成片</span><strong>${task.captioned_output_path ? "已生成" : subtitleStatusLabel(task.subtitle_status)}</strong></div>
+        <div><span>更新时间</span><strong>${formatDateTime(task.updated_at)}</strong></div>
+      </div>
+      ${task.error_message ? `<div class="errorText">${escapeHtml(task.error_message)}</div>` : ""}
+    </div>
+    <section class="taskDrawerVideoPanel">
+      <h3>成片视频</h3>
+      ${videoSrc ? `<video class="taskOutputPreviewVideo drawerVideo" src="${videoSrc}" controls preload="metadata"></video>` : `<div class="item">这个任务还没有生成可预览的视频。</div>`}
+    </section>
+    ${script ? `
+      <div class="analysisGrid drawerAnalysisGrid">
+        <div><h3>口播稿</h3><pre>${escapeHtml(script.voiceover || "暂无")}</pre></div>
+        <div><h3>分镜/画面</h3><pre>${escapeHtml(script.storyboard || "暂无")}</pre></div>
+      </div>
+    ` : ""}
+    <div id="taskSegmentDetailList" class="taskSegmentDetailList"></div>
+    <div class="drawerActions">
+      ${taskActionButtons(task, { includeDetail: false })}
+    </div>
+  `;
+  drawer.classList.remove("hiddenPanel");
+  drawer.setAttribute("aria-hidden", "false");
+  try {
+    const segments = await api.get(`/video-tasks/${task.id}/segments`);
+    renderTaskSegmentsInDrawer(segments);
+  } catch {
+    renderTaskSegmentsInDrawer([]);
+  }
+}
+
+function renderTaskSegmentsInDrawer(segments) {
+  const target = document.querySelector("#taskSegmentDetailList");
+  if (!target) return;
+  if (!segments?.length) {
+    target.innerHTML = "";
+    return;
+  }
+  target.innerHTML = `
+    <details class="analysisTimelineDetails" open>
+      <summary>分段生成明细</summary>
+      <table class="compactTable analysisTimelineTable">
+        <thead>
+          <tr>
+            <th>段落</th>
+            <th>标题</th>
+            <th>时长</th>
+            <th>素材方案</th>
+            <th>状态</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${segments.map((segment) => `
+            <tr>
+              <td>#${Number(segment.segment_index || 0) + 1}</td>
+              <td>${escapeHtml(segment.title || "-")}</td>
+              <td>${Number(segment.duration_seconds || 0)} 秒</td>
+              <td>${renderSegmentMaterialControl(segment)}</td>
+              <td><span class="status taskStatus ${taskStatusClass(segment.status)}">${taskStatusLabel(segment.status)}</span></td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </details>
+  `;
+}
+
+function eligibleSceneMaterials() {
+  return state.materials.filter((material) => (
+    ["image", "product", "portrait", "video"].includes(material.kind)
+    && ["owned", "licensed"].includes(material.copyright_status)
+  ));
+}
+
+function renderSegmentMaterialControl(segment) {
+  const materials = eligibleSceneMaterials();
+  const selectedId = String(segment.material_id || "");
+  const options = [
+    `<option value="">用 Seedance 补镜头</option>`,
+    ...materials.map((material) => (
+      `<option value="${material.id}" ${String(material.id) === selectedId ? "selected" : ""}>#${material.id} ${escapeHtml(material.name)} · ${materialKindLabel(material.kind)}</option>`
+    )),
+  ].join("");
+  return `
+    <div class="segmentMaterialControl">
+      <select data-segment-material-select="${segment.id}">${options}</select>
+      <button type="button" class="secondary compactButton" data-action="assign-segment-material" data-id="${segment.id}" data-task-id="${segment.video_task_id}">保存</button>
+      <div class="recordMeta">${escapeHtml(segment.material_match_notes || "未绑定素材，生成时会用 AI 补镜头。")}</div>
+    </div>
+  `;
+}
+
+function closeTaskDetailDrawer() {
+  const drawer = document.querySelector("#taskDetailDrawer");
+  if (!drawer) return;
+  drawer.classList.add("hiddenPanel");
+  drawer.setAttribute("aria-hidden", "true");
 }
 
 function renderTaskOutputPreview(task) {
@@ -1008,6 +1687,7 @@ function renderTaskTable(tasks) {
     target.innerHTML = `<div class="item">还没有视频任务</div>`;
     return;
   }
+  const pageInfo = pagedItems("taskTable", tasks);
   target.innerHTML = `
     <table class="taskTable compactTable">
       <thead>
@@ -1018,12 +1698,13 @@ function renderTaskTable(tasks) {
           <th>数字人</th>
           <th>方式</th>
           <th>规格</th>
+          <th>字幕</th>
           <th>进度</th>
           <th>操作</th>
         </tr>
       </thead>
       <tbody>
-        ${tasks
+        ${pageInfo.items
           .map((task) => {
             const progress = taskProgress(task);
             const videoSrc = taskVideoSrc(task);
@@ -1043,6 +1724,10 @@ function renderTaskTable(tasks) {
                   <div class="recordMeta">${escapeHtml(exportProfileMeta(task))}</div>
                 </td>
                 <td>
+                  <strong>${escapeHtml(subtitleStyleLabel(task.subtitle_style))}</strong>
+                  <div class="recordMeta">${escapeHtml(subtitleStatusLabel(task.subtitle_status))}</div>
+                </td>
+                <td>
                   <div class="progressBar"><span style="width:${progress}%"></span></div>
                   <div class="recordMeta">${progress}% · ${taskStatusLabel(task.status)}</div>
                   <div class="recordMeta">${taskSegmentMeta(task)}</div>
@@ -1059,6 +1744,7 @@ function renderTaskTable(tasks) {
           .join("")}
       </tbody>
     </table>
+    ${pagerHtml("taskTable", pageInfo)}
   `;
 }
 
@@ -1067,7 +1753,9 @@ function renderTasks(tasks) {
   if (tasks.length) {
     state.latestTaskId = tasks[0].id;
   }
-  renderTaskCompact(tasks);
+  renderTaskWorkflowStats();
+  renderTaskScriptTable(state.scripts);
+  renderOverviewActivity();
   renderTaskTable(tasks);
   if (state.previewTaskId) {
     const task = tasks.find((item) => item.id === state.previewTaskId);
@@ -1083,7 +1771,8 @@ function renderPublishRecords(records) {
     target.innerHTML = `<div class="item">还没有发布记录</div>`;
     return;
   }
-  target.innerHTML = records
+  const pageInfo = pagedItems("publishRecords", records);
+  target.innerHTML = pageInfo.items
     .map((record) => {
       const accountOptions = state.platformAccounts
         .map((account) => {
@@ -1125,7 +1814,7 @@ function renderPublishRecords(records) {
         </div>
       `;
     })
-    .join("");
+    .join("") + pagerHtml("publishRecords", pageInfo);
 }
 
 function renderPublishStatusBoard(records) {
@@ -1163,7 +1852,8 @@ function renderPlatformAccounts(accounts) {
     target.innerHTML = `<div class="item">还没有平台账号</div>`;
     return;
   }
-  target.innerHTML = accounts
+  const pageInfo = pagedItems("platformAccounts", accounts);
+  target.innerHTML = pageInfo.items
     .map(
       (account) => `
         <div class="item">
@@ -1178,7 +1868,7 @@ function renderPlatformAccounts(accounts) {
         </div>
       `,
     )
-    .join("");
+    .join("") + pagerHtml("platformAccounts", pageInfo);
 }
 
 function materialKindLabel(kind) {
@@ -1205,7 +1895,7 @@ function isReferenceMaterial(material) {
 }
 
 function renderMaterialPreview(material, className = "materialThumb") {
-  const src = `/api/materials/${material.id}/preview`;
+  const src = authenticatedMediaUrl(`/api/materials/${material.id}/preview`);
   if (isImageMaterial(material)) {
     return `<img class="${className}" src="${src}" alt="${escapeHtml(material.name)}" />`;
   }
@@ -1218,6 +1908,24 @@ function renderMaterialPreview(material, className = "materialThumb") {
   return `<div class="${className} materialFile">文件</div>`;
 }
 
+function assetStateLabel(hasValue, readyLabel, pendingLabel) {
+  return `<span class="assetState ${hasValue ? "ready" : "pending"}">${hasValue ? readyLabel : pendingLabel}</span>`;
+}
+
+function materialSummaryPreview(material) {
+  const src = authenticatedMediaUrl(`/api/materials/${material.id}/preview`);
+  if (isImageMaterial(material)) {
+    return `<img class="assetMiniThumb" src="${src}" alt="${escapeHtml(material.name)}" />`;
+  }
+  if (isVideoMaterial(material)) {
+    return `<div class="assetMiniThumb mediaIcon">视频</div>`;
+  }
+  if (material.kind === "reference" && material.source_url) {
+    return `<div class="assetMiniThumb mediaIcon">链接</div>`;
+  }
+  return `<div class="assetMiniThumb mediaIcon">文件</div>`;
+}
+
 function renderMaterials(materials) {
   const target = document.querySelector("#materialList");
   if (!target) return;
@@ -1226,23 +1934,46 @@ function renderMaterials(materials) {
     target.innerHTML = `<div class="item">还没有上传素材</div>`;
     return;
   }
-  target.innerHTML = materials
-    .map((material) => `
-      <div class="materialCard">
-        ${renderMaterialPreview(material)}
-        <div class="materialBody">
-          <strong>#${material.id} ${escapeHtml(material.name)}</strong>
-          <span class="status">${materialKindLabel(material.kind)}</span>
-          <div class="recordMeta">${escapeHtml(material.copyright_status)} · ${escapeHtml(material.tags || "未打标签")}</div>
-          <div class="recordMeta">${material.source_url ? "云端地址已就绪" : "云端地址未上传"}</div>
-          <div class="itemActions accountActions">
-            ${material.source_url ? `<button type="button" class="secondary" data-action="copy-material-url" data-url="${escapeHtml(material.source_url)}">复制云端地址</button>` : `<button type="button" class="secondary" data-action="remote-upload-material" data-id="${material.id}">补传服务器</button>`}
-            <button type="button" class="danger" data-action="delete-material" data-id="${material.id}">删除素材</button>
-          </div>
-        </div>
-      </div>
-    `)
-    .join("");
+  const pageInfo = pagedItems("materials", materials);
+  target.innerHTML = `
+    <table class="settingsTable compactTable assetListTable">
+      <thead>
+        <tr>
+          <th>素材</th>
+          <th>类型</th>
+          <th>状态</th>
+          <th>版权 / 标签</th>
+          <th>创建时间</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${pageInfo.items.map((material) => `
+          <tr>
+            <td>
+              <strong>#${material.id} ${escapeHtml(material.name)}</strong>
+              <div class="recordMeta">${escapeHtml(material.source_url || "未上传云端地址")}</div>
+            </td>
+            <td>${materialKindLabel(material.kind)}</td>
+            <td>${assetStateLabel(Boolean(material.source_url), "云端已就绪", "待补传")}</td>
+            <td>
+              <div>${escapeHtml(material.copyright_status)}</div>
+              <div class="recordMeta">${escapeHtml(material.tags || "未打标签")}</div>
+            </td>
+            <td>${formatDateTime(material.created_at)}</td>
+            <td>
+              <div class="tableActions">
+                <button type="button" class="secondary" data-action="view-material-detail" data-id="${material.id}">详情</button>
+                ${material.source_url ? `<button type="button" class="secondary" data-action="copy-material-url" data-url="${escapeHtml(material.source_url)}">复制地址</button>` : `<button type="button" class="secondary" data-action="remote-upload-material" data-id="${material.id}">补传</button>`}
+                <button type="button" class="danger" data-action="delete-material" data-id="${material.id}">删除</button>
+              </div>
+            </td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+    ${pagerHtml("materials", pageInfo)}
+  `;
 }
 
 function renderMaterialSelects(materials) {
@@ -1314,15 +2045,37 @@ function latestTranscriptionForMaterial(materialId) {
   return state.transcriptions.find((task) => Number(task.material_id) === Number(materialId));
 }
 
+function setReferenceTab(tabName) {
+  const nextTab = ["history", "current", "import"].includes(tabName) ? tabName : "history";
+  state.currentReferenceTab = nextTab;
+  document.querySelectorAll("[data-reference-tab]").forEach((button) => {
+    const active = button.dataset.referenceTab === nextTab;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", String(active));
+  });
+  document.querySelectorAll("[data-reference-panel]").forEach((panel) => {
+    panel.classList.toggle("active", panel.dataset.referencePanel === nextTab);
+  });
+}
+
+function updateReferenceHistoryCount(materials = state.materials) {
+  const target = document.querySelector("#referenceHistoryCount");
+  if (!target) return;
+  target.textContent = String(materials.filter(isReferenceMaterial).length);
+}
+
 function renderReferenceMaterials(materials = state.materials) {
   const target = document.querySelector("#referenceMaterialList");
   if (!target) return;
   const references = materials.filter(isReferenceMaterial);
+  updateReferenceHistoryCount(materials);
+  setReferenceTab(state.currentReferenceTab || "history");
   if (!references.length) {
     target.innerHTML = `<div class="item">还没有参考素材。粘贴视频链接后会自动进入这里。</div>`;
     return;
   }
-  target.innerHTML = references
+  const pageInfo = pagedItems("referenceMaterials", references);
+  target.innerHTML = pageInfo.items
     .map((material) => {
       const analysis = latestAnalysisForMaterial(material.id);
       const transcript = latestTranscriptionForMaterial(material.id);
@@ -1357,7 +2110,7 @@ function renderReferenceMaterials(materials = state.materials) {
         </div>
       `;
     })
-    .join("");
+    .join("") + pagerHtml("referenceMaterials", pageInfo);
 }
 
 function analysisMetricsHtml(analysis) {
@@ -1404,7 +2157,7 @@ function renderAnalysisDetailDrawer(analysisId) {
         ${material?.source_url ? `<a class="buttonLike ghostButton" href="${escapeHtml(material.source_url)}" target="_blank" rel="noreferrer">打开原链接</a>` : ""}
       </div>
     </div>
-    ${analysis.dense_contact_sheet_path ? `<img class="videoAnalysisSheet drawerSheet" src="/api/video-analyses/${analysis.id}/dense-contact-sheet" alt="深度拆解抽帧图" />` : ""}
+    ${analysis.dense_contact_sheet_path ? `<img class="videoAnalysisSheet drawerSheet" src="${authenticatedMediaUrl(`/api/video-analyses/${analysis.id}/dense-contact-sheet`)}" alt="深度拆解抽帧图" />` : ""}
     <div class="analysisGrid drawerAnalysisGrid">
       <div><h3>脚本策划</h3><pre>${escapeHtml(analysis.script_analysis || "运行后生成")}</pre></div>
       <div><h3>拍摄方式</h3><pre>${escapeHtml(analysis.shooting_analysis || "运行后生成")}</pre></div>
@@ -1456,6 +2209,104 @@ function closeAnalysisDetailDrawer() {
   state.activeAnalysisDetailId = null;
 }
 
+function findMaterial(id) {
+  return state.materials.find((item) => Number(item.id) === Number(id));
+}
+
+function openAssetDetailDrawer(kind, id) {
+  const drawer = document.querySelector("#assetDetailDrawer");
+  const title = document.querySelector("#assetDetailTitle");
+  const eyebrow = document.querySelector("#assetDetailEyebrow");
+  const content = document.querySelector("#assetDetailContent");
+  if (!drawer || !title || !eyebrow || !content) return;
+
+  if (kind === "human") {
+    const human = state.digitalHumans.find((item) => Number(item.id) === Number(id));
+    if (!human) return;
+    const portrait = findMaterial(human.portrait_material_id);
+    const sourceVideo = findMaterial(human.source_video_material_id);
+    title.textContent = human.name;
+    eyebrow.textContent = "Digital Human";
+    content.innerHTML = `
+      <div class="assetDrawerSummary">
+        <div>
+          <strong>${escapeHtml(human.role || "未设置角色")}</strong>
+          <div class="assetMetaLine">
+            <span class="status">${escapeHtml(human.style)}</span>
+            ${assetStateLabel(Boolean(human.default_voice), "声音已复刻", "声音未复刻")}
+            ${assetStateLabel(Boolean(sourceVideo), "已绑定视频源", "未绑定视频源")}
+          </div>
+        </div>
+        <div class="assetDetailGrid">
+          <div><span>头像素材</span><strong>#${human.portrait_material_id || "-"}</strong></div>
+          <div><span>口播源视频</span><strong>#${human.source_video_material_id || "-"}</strong></div>
+          <div><span>授权范围</span><strong>${escapeHtml(human.authorization_scope || "-")}</strong></div>
+          <div><span>创建时间</span><strong>${formatDateTime(human.created_at)}</strong></div>
+        </div>
+        <div class="assetVoiceBlock">
+          <span>声音 ID</span>
+          <code>${escapeHtml(human.default_voice || "未复刻")}</code>
+        </div>
+      </div>
+      <div class="assetDrawerMediaGrid">
+        <section>
+          <h3>头像</h3>
+          ${portrait ? renderMaterialPreview(portrait, "assetDrawerMedia") : `<div class="assetDrawerEmpty">未绑定头像</div>`}
+        </section>
+        <section>
+          <h3>口播源视频</h3>
+          ${sourceVideo ? renderMaterialPreview(sourceVideo, "assetDrawerMedia") : `<div class="assetDrawerEmpty">未绑定口播源视频</div>`}
+        </section>
+      </div>
+      <div class="drawerActions">
+        ${portrait?.source_url ? `<button type="button" class="secondary" data-action="copy-material-url" data-url="${escapeHtml(portrait.source_url)}">复制头像地址</button>` : ""}
+        ${sourceVideo?.source_url ? `<button type="button" class="secondary" data-action="copy-material-url" data-url="${escapeHtml(sourceVideo.source_url)}">复制视频地址</button>` : ""}
+        <button type="button" class="danger" data-action="delete-human" data-id="${human.id}">删除数字人</button>
+      </div>
+    `;
+  }
+
+  if (kind === "material") {
+    const material = findMaterial(id);
+    if (!material) return;
+    title.textContent = `#${material.id} ${material.name}`;
+    eyebrow.textContent = "Material";
+    content.innerHTML = `
+      <div class="assetDrawerSummary">
+        <div class="assetMetaLine">
+          <span class="status">${materialKindLabel(material.kind)}</span>
+          ${assetStateLabel(Boolean(material.source_url), "云端已就绪", "待补传")}
+        </div>
+        <div class="assetDetailGrid">
+          <div><span>版权状态</span><strong>${escapeHtml(material.copyright_status)}</strong></div>
+          <div><span>标签</span><strong>${escapeHtml(material.tags || "未打标签")}</strong></div>
+          <div><span>创建时间</span><strong>${formatDateTime(material.created_at)}</strong></div>
+          <div><span>素材类型</span><strong>${materialKindLabel(material.kind)}</strong></div>
+        </div>
+        <div class="assetVoiceBlock">
+          <span>云端地址</span>
+          <code>${escapeHtml(material.source_url || "未上传")}</code>
+        </div>
+      </div>
+      ${renderMaterialPreview(material, "assetDrawerMedia full")}
+      <div class="drawerActions">
+        ${material.source_url ? `<button type="button" class="secondary" data-action="copy-material-url" data-url="${escapeHtml(material.source_url)}">复制云端地址</button>` : `<button type="button" class="secondary" data-action="remote-upload-material" data-id="${material.id}">补传服务器</button>`}
+        <button type="button" class="danger" data-action="delete-material" data-id="${material.id}">删除素材</button>
+      </div>
+    `;
+  }
+
+  drawer.classList.remove("hiddenPanel");
+  drawer.setAttribute("aria-hidden", "false");
+}
+
+function closeAssetDetailDrawer() {
+  const drawer = document.querySelector("#assetDetailDrawer");
+  if (!drawer) return;
+  drawer.classList.add("hiddenPanel");
+  drawer.setAttribute("aria-hidden", "true");
+}
+
 function renderHumanSelects(humans) {
   const select = document.querySelector("#taskHumanSelect");
   const batchSelect = document.querySelector("#batchHumanSelect");
@@ -1479,33 +2330,47 @@ function renderDigitalHumans(humans) {
     target.innerHTML = `<div class="item">还没有数字人形象</div>`;
     return;
   }
-  target.innerHTML = humans
-    .map((human) => {
-      const preview = human.portrait_material_id
-        ? `<img src="/api/materials/${human.portrait_material_id}/preview" alt="${escapeHtml(human.name)}" />`
-        : `<div class="portraitPlaceholder">无头像</div>`;
-      const sourceVideo = human.source_video_material_id
-        ? `<video class="humanSourceVideo" src="/api/materials/${human.source_video_material_id}/preview" controls preload="metadata"></video>`
-        : `<div class="recordMeta">未绑定口播视频源</div>`;
-      return `
-        <div class="humanCard">
-          <div class="portraitPreview">${preview}</div>
-          <div>
-            <strong>${escapeHtml(human.name)}</strong>
-            <div>${escapeHtml(human.role || "未设置角色")}</div>
-            <span class="status">${escapeHtml(human.style)}</span>
-            <div class="recordMeta">头像素材 ID：${human.portrait_material_id || "-"}</div>
-            <div class="recordMeta">口播源视频 ID：${human.source_video_material_id || "-"}</div>
-            <div class="recordMeta">声音 ID：${escapeHtml(human.default_voice || "未复刻")}</div>
-            ${sourceVideo}
-            <div class="itemActions accountActions">
-              <button type="button" class="danger" data-action="delete-human" data-id="${human.id}">删除数字人</button>
-            </div>
-          </div>
-        </div>
-      `;
-    })
-    .join("");
+  const pageInfo = pagedItems("digitalHumans", humans);
+  target.innerHTML = `
+    <table class="settingsTable compactTable assetListTable humanListTable">
+      <thead>
+        <tr>
+          <th>数字人</th>
+          <th>角色</th>
+          <th>风格</th>
+          <th>声音</th>
+          <th>素材绑定</th>
+          <th>创建时间</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${pageInfo.items.map((human) => `
+          <tr>
+            <td>
+              <strong>#${human.id} ${escapeHtml(human.name)}</strong>
+              <div class="recordMeta">详情里可预览头像和口播源视频</div>
+            </td>
+            <td>${escapeHtml(human.role || "未设置角色")}</td>
+            <td><span class="status">${escapeHtml(human.style)}</span></td>
+            <td>${assetStateLabel(Boolean(human.default_voice), "声音已复刻", "声音未复刻")}</td>
+            <td>
+              <div>头像 #${human.portrait_material_id || "-"}</div>
+              <div class="recordMeta">口播源 #${human.source_video_material_id || "-"}</div>
+            </td>
+            <td>${formatDateTime(human.created_at)}</td>
+            <td>
+              <div class="tableActions">
+                <button type="button" class="secondary" data-action="view-human-detail" data-id="${human.id}">详情</button>
+                <button type="button" class="danger" data-action="delete-human" data-id="${human.id}">删除</button>
+              </div>
+            </td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+    ${pagerHtml("digitalHumans", pageInfo)}
+  `;
 }
 
 function renderVoiceCloneStatus(status) {
@@ -1514,13 +2379,14 @@ function renderVoiceCloneStatus(status) {
   const configured = Boolean(status.configured);
   target.innerHTML = `
     <div class="voiceCloneCard ${configured ? "ready" : "pending"}">
-      <strong>${configured ? "声音复刻已接入" : "声音复刻未接入"}</strong>
-      <span>${escapeHtml(status.provider || "未配置")} · ${configured ? "上传源视频后可生成本人 voice_id" : "当前只能使用默认语音，需在系统设置里配置声音复刻接口"}</span>
+      <strong>${configured ? "声音复刻已接入" : "声音复刻未配置"}</strong>
+      <span>${escapeHtml(status.provider || "未配置")} · ${configured ? "上传源视频后可生成本人 voice_id" : "不影响创建数字人素材；后续真实复刻声音时再到系统设置配置接口"}</span>
     </div>
   `;
 }
 
 function renderIntegrations(status) {
+  state.integrations = status || {};
   const labels = {
     script_model: "脚本模型",
     tts: "语音合成",
@@ -1540,6 +2406,7 @@ function renderIntegrations(status) {
     })
     .join("");
   renderVoiceCloneStatus(status.voice_clone || {});
+  syncCreationProductionModeWithHuman();
 }
 
 function modelDiagnosticLabel(level) {
@@ -1620,7 +2487,8 @@ function renderModels(models) {
     target.innerHTML = `<div class="item">还没有模型配置</div>`;
     return;
   }
-  target.innerHTML = models
+  const pageInfo = pagedItems("models", models);
+  target.innerHTML = pageInfo.items
     .map(
       (model) => `
         <div class="item">
@@ -1638,7 +2506,7 @@ function renderModels(models) {
         </div>
       `,
     )
-    .join("");
+    .join("") + pagerHtml("models", pageInfo);
 }
 
 function renderModelUsage(report) {
@@ -1702,6 +2570,8 @@ function renderModelUsage(report) {
       <td>${formatDateTime(item.last_used_at)}</td>
     </tr>
   `;
+  const currentPageInfo = pagedItems("modelUsage", items);
+  const historyPageInfo = pagedItems("modelUsageHistory", historyItems);
   const historicalBlock = historyItems.length
     ? `
       <details class="usageHistoryDetails">
@@ -1721,7 +2591,7 @@ function renderModelUsage(report) {
               </tr>
             </thead>
             <tbody>
-              ${historyItems
+              ${historyPageInfo.items
                 .map(
                   (item) => `
                     <tr>
@@ -1743,6 +2613,7 @@ function renderModelUsage(report) {
                 .join("")}
             </tbody>
           </table>
+          ${pagerHtml("modelUsageHistory", historyPageInfo)}
         </div>
       </details>
     `
@@ -1766,9 +2637,10 @@ function renderModelUsage(report) {
           </tr>
         </thead>
         <tbody>
-          ${items.map(modelRow).join("")}
+          ${currentPageInfo.items.map(modelRow).join("")}
         </tbody>
       </table>
+      ${pagerHtml("modelUsage", currentPageInfo)}
     </div>
     ${historicalBlock}
   `;
@@ -1777,15 +2649,17 @@ function renderModelUsage(report) {
 function renderVideoStorage(report) {
   const summaryTarget = document.querySelector("#videoStorageSummary");
   const pathsTarget = document.querySelector("#videoStoragePaths");
-  const form = document.querySelector("#videoStorageForm");
-  const presetTarget = document.querySelector("#storagePresetList");
   const listTarget = document.querySelector("#videoStorageList");
   if (!summaryTarget || !pathsTarget || !listTarget) return;
+  renderLocalSaveDirectoryState();
   const totals = report?.totals || {};
+  const videos = report?.videos || [];
+  const savedCurrentCount = videos.filter((video) => state.localSavedVideoIds.has(Number(video.task_id))).length;
   const cards = [
     ["成片记录", totals.video_count],
     ["本地存在", totals.existing_count],
     ["本地缺失", totals.missing_count],
+    ["电脑已保存", savedCurrentCount],
     ["占用空间", formatBytes(totals.size_bytes)],
   ];
   summaryTarget.innerHTML = cards
@@ -1799,49 +2673,28 @@ function renderVideoStorage(report) {
     )
     .join("");
 
-  if (form) {
-    const input = form.querySelector("[name='storage_root']");
-    if (input) input.value = report.storage_root || "";
-  }
-
-  if (presetTarget) {
-    const presets = report?.suggested_roots || [];
-    presetTarget.innerHTML = presets
-      .map(
-        (item) => `
-          <button type="button" data-action="use-storage-preset" data-path="${escapeHtml(item.path || "")}">
-            ${escapeHtml(item.label || "目录")}
-          </button>
-        `,
-      )
-      .join("");
-  }
-
-  const pathRows = [
-    ["存储根目录", report.storage_root],
-    ["最终成片目录", report.final_video_dir],
-    ["分段视频目录", report.segment_video_dir],
-    ["数字人口播目录", report.digital_human_dir],
-    ["音频目录", report.voice_dir],
-    ["成片保存规则", report.final_video_pattern],
+  const storageGroups = report?.storage_groups || [
+    { label: "成片库", description: "最终审核和发布使用的视频。" },
+    { label: "分段视频库", description: "AI 生成的分镜片段和中间视频。" },
+    { label: "数字人口播库", description: "数字人口播视频和驱动结果。" },
+    { label: "音频库", description: "配音、声音复刻和口播音频。" },
   ];
-  pathsTarget.innerHTML = pathRows
+  pathsTarget.innerHTML = storageGroups
     .map(
-      ([label, value]) => `
+      (item) => `
         <div class="storagePathRow">
-          <span>${label}</span>
-          <code title="${escapeHtml(value || "")}">${escapeHtml(value || "-")}</code>
-          <button type="button" class="secondary" data-action="copy-storage-path" data-path="${escapeHtml(value || "")}">复制</button>
+          <span>${escapeHtml(item.label || "保存分组")}</span>
+          <p>${escapeHtml(item.description || "")}</p>
         </div>
       `,
     )
     .join("");
 
-  const videos = report?.videos || [];
   if (!videos.length) {
     listTarget.innerHTML = `<div class="item">还没有生成成片。视频任务生成完成后，这里会显示实际文件路径。</div>`;
     return;
   }
+  const pageInfo = pagedItems("videoStorage", videos);
   listTarget.innerHTML = `
     <table class="settingsTable storageTable compactTable">
       <thead>
@@ -1851,13 +2704,14 @@ function renderVideoStorage(report) {
           <th>状态</th>
           <th>规格</th>
           <th>文件</th>
+          <th>保存位置</th>
           <th>大小</th>
-          <th>保存路径</th>
+          <th>电脑文件夹</th>
           <th>更新时间</th>
         </tr>
       </thead>
       <tbody>
-        ${videos
+        ${pageInfo.items
           .map(
             (video) => {
               const fileState = video.exists
@@ -1867,6 +2721,9 @@ function renderVideoStorage(report) {
                   : video.storage_kind === "placeholder"
                     ? { label: "占位", className: "storageFilePlaceholder" }
                     : { label: "缺失", className: "storageFileMissing" };
+              const canSaveLocal = video.storage_kind === "external" || video.exists;
+              const localSaved = state.localSavedVideoIds.has(Number(video.task_id));
+              const localSaving = state.localSavingVideoIds.has(Number(video.task_id));
               return `
               <tr>
                 <td>#${video.task_id}</td>
@@ -1874,12 +2731,14 @@ function renderVideoStorage(report) {
                 <td><span class="status taskStatus ${taskStatusClass(video.status)}">${taskStatusLabel(video.status)}</span></td>
                 <td>${escapeHtml(exportProfileLabel(video.export_profile))}<div class="recordMeta">${video.export_width || "-"}x${video.export_height || "-"}</div></td>
                 <td><span class="storageFileState ${fileState.className}">${fileState.label}</span></td>
+                <td>${escapeHtml(video.storage_label || "成片库")}</td>
                 <td>${formatBytes(video.size_bytes)}</td>
                 <td>
-                  <div class="storagePathCell">
-                    <code class="pathCode" title="${escapeHtml(video.output_path)}">${escapeHtml(video.output_path)}</code>
-                    <button type="button" class="secondary" data-action="copy-storage-path" data-path="${escapeHtml(video.output_path || "")}">复制</button>
-                  </div>
+                  ${
+                    canSaveLocal
+                      ? `<button type="button" class="secondary localSaveButton ${localSaved ? "saved" : ""}" data-action="save-video-local" data-id="${video.task_id}" ${localSaving ? "disabled" : ""}>${localSaving ? "保存中..." : localSaved ? "已保存" : "保存到电脑"}</button>`
+                      : `<span class="recordMeta">暂无成片</span>`
+                  }
                 </td>
                 <td>${formatDateTime(video.updated_at || video.created_at)}</td>
               </tr>
@@ -1889,7 +2748,9 @@ function renderVideoStorage(report) {
           .join("")}
       </tbody>
     </table>
+    ${pagerHtml("videoStorage", pageInfo)}
   `;
+  void autoSaveVideosToLocal(videos);
 }
 
 function renderRemoteUpload(settings) {
@@ -1924,6 +2785,7 @@ function renderSystemUsers(users) {
     target.innerHTML = `<div class="item">还没有可维护账号，或当前账号没有管理员权限。</div>`;
     return;
   }
+  const pageInfo = pagedItems("users", users);
   target.innerHTML = `
     <table class="settingsTable userTable">
       <thead>
@@ -1936,7 +2798,7 @@ function renderSystemUsers(users) {
         </tr>
       </thead>
       <tbody>
-        ${users
+        ${pageInfo.items
           .map(
             (user) => `
               <tr data-id="${user.id}">
@@ -1970,6 +2832,7 @@ function renderSystemUsers(users) {
           .join("")}
       </tbody>
     </table>
+    ${pagerHtml("users", pageInfo)}
   `;
 }
 
@@ -1980,7 +2843,8 @@ function renderPlatformCredentials(credentials) {
     target.innerHTML = `<div class="item">还没有平台接入配置</div>`;
     return;
   }
-  target.innerHTML = credentials
+  const pageInfo = pagedItems("platformCredentials", credentials);
+  target.innerHTML = pageInfo.items
     .map(
       (credential) => `
         <div class="item">
@@ -2001,7 +2865,7 @@ function renderPlatformCredentials(credentials) {
         </div>
       `,
     )
-    .join("");
+    .join("") + pagerHtml("platformCredentials", pageInfo);
 }
 
 function providerLabel(purpose, value) {
@@ -2045,11 +2909,15 @@ function purposeLabel(value) {
 function renderTrending(searches, videos) {
   const searchTarget = document.querySelector("#trendingSearchList");
   const videoTarget = document.querySelector("#trendingVideoList");
+  state.trendingSearches = searches || [];
+  state.trendingVideos = videos || [];
   if (searches.length) {
     state.latestTrendingSearchId = searches[0].id;
   }
+  const searchPageInfo = pagedItems("trendingSearches", searches);
+  const videoPageInfo = pagedItems("trendingVideos", videos);
   searchTarget.innerHTML = searches.length
-    ? searches
+    ? searchPageInfo.items
         .map(
           (item) => `
             <div class="item">
@@ -2060,11 +2928,11 @@ function renderTrending(searches, videos) {
             </div>
           `,
         )
-        .join("")
+        .join("") + pagerHtml("trendingSearches", searchPageInfo)
     : `<div class="item">还没有采集任务</div>`;
 
   videoTarget.innerHTML = videos.length
-    ? videos
+    ? videoPageInfo.items
         .map(
           (item) => `
             <div class="item">
@@ -2076,7 +2944,7 @@ function renderTrending(searches, videos) {
             </div>
           `,
         )
-        .join("")
+        .join("") + pagerHtml("trendingVideos", videoPageInfo)
     : `<div class="item">还没有爆款参考</div>`;
 }
 
@@ -2089,7 +2957,8 @@ function renderTranscriptions(tasks) {
     return;
   }
   state.latestTranscriptionId = state.transcriptions[0].id;
-  target.innerHTML = state.transcriptions
+  const pageInfo = pagedItems("transcriptions", state.transcriptions);
+  target.innerHTML = pageInfo.items
     .map(
       (task) => `
         <div class="item">
@@ -2105,7 +2974,7 @@ function renderTranscriptions(tasks) {
         </div>
       `,
     )
-    .join("");
+    .join("") + pagerHtml("transcriptions", pageInfo);
 }
 
 function parseAnalysisTimeline(analysis) {
@@ -2127,7 +2996,8 @@ function renderVideoAnalyses(analyses) {
     return;
   }
   state.latestVideoAnalysisId = state.videoAnalyses[0].id;
-  target.innerHTML = state.videoAnalyses
+  const pageInfo = pagedItems("videoAnalyses", state.videoAnalyses);
+  target.innerHTML = pageInfo.items
     .map((analysis) => {
       const timeline = parseAnalysisTimeline(analysis);
       const canGenerate = analysis.status === "needs_review" || analysis.status === "approved";
@@ -2146,7 +3016,7 @@ function renderVideoAnalyses(analyses) {
             <span>${analysis.model_enhanced ? "模型增强" : "本地基础"} · ${Number(analysis.quality_score || 0).toFixed(0)} 分</span>
           </div>
           ${analysis.quality_summary ? `<div class="analysisQuality">${escapeHtml(analysis.quality_summary)}</div>` : ""}
-          ${analysis.dense_contact_sheet_path ? `<img class="videoAnalysisSheet" src="/api/video-analyses/${analysis.id}/dense-contact-sheet" alt="深度拆解抽帧图" />` : ""}
+          ${analysis.dense_contact_sheet_path ? `<img class="videoAnalysisSheet" src="${authenticatedMediaUrl(`/api/video-analyses/${analysis.id}/dense-contact-sheet`)}" alt="深度拆解抽帧图" />` : ""}
           ${analysis.error_message ? `<div class="errorText">${escapeHtml(analysis.error_message)}</div>` : ""}
           <div class="analysisGrid">
             <div><h3>脚本方案</h3><pre>${escapeHtml(analysis.script_analysis || "运行后生成")}</pre></div>
@@ -2187,22 +3057,128 @@ function renderVideoAnalyses(analyses) {
         </div>
       `;
     })
-    .join("");
+    .join("") + pagerHtml("videoAnalyses", pageInfo);
+}
+
+function renderAccountMenu(user) {
+  const avatar = document.querySelector(".accountAvatar");
+  const summary = document.querySelector("#accountMenuSummary");
+  if (avatar) avatar.textContent = accountInitials(user?.username);
+  if (!summary) return;
+  if (!user) {
+    summary.innerHTML = `
+      <strong>未登录</strong>
+      <span>请先登录后使用系统</span>
+    `;
+    return;
+  }
+  summary.innerHTML = `
+    <strong>${escapeHtml(user.username)}</strong>
+    <span>${roleLabel(user.role)} · ${user.is_active ? "已启用" : "已停用"}</span>
+  `;
 }
 
 function setLoginState(user) {
   state.currentUser = user;
   const label = document.querySelector("#loginState");
+  document.body.classList.remove("auth-pending", "is-guest", "is-authenticated");
   if (user) {
-    label.textContent = `${user.username} · ${user.role}`;
-    document.querySelector("#loginPanel").classList.add("compactLogin");
+    label.textContent = `${user.username} · ${roleLabel(user.role)}`;
+    document.body.classList.add("is-authenticated");
   } else {
     label.textContent = "未登录";
-    document.querySelector("#loginPanel").classList.remove("compactLogin");
+    document.body.classList.add("is-guest");
+    document.querySelector("#accountMenu")?.classList.add("hiddenPanel");
+    closeAccountModal();
+  }
+  renderAccountMenu(user);
+}
+
+function renderAccountProfile() {
+  const user = state.currentUser;
+  const target = document.querySelector("#accountProfileContent");
+  if (!target || !user) return;
+  target.innerHTML = `
+    <div class="profileGrid">
+      <div class="profileField"><span>账号</span><strong>${escapeHtml(user.username)}</strong></div>
+      <div class="profileField"><span>角色</span><strong>${roleLabel(user.role)}</strong></div>
+      <div class="profileField"><span>账号 ID</span><strong>#${user.id || "-"}</strong></div>
+      <div class="profileField"><span>状态</span><strong>${user.is_active ? "已启用" : "已停用"}</strong></div>
+      <div class="profileField"><span>创建时间</span><strong>${formatDateTime(user.created_at)}</strong></div>
+      <div class="profileField"><span>当前会话</span><strong>已登录</strong></div>
+    </div>
+  `;
+}
+
+function openAccountModal(mode = "profile") {
+  if (!state.currentUser) return;
+  renderAccountProfile();
+  const modal = document.querySelector("#accountModal");
+  const title = document.querySelector("#accountModalTitle");
+  const passwordForm = document.querySelector("#changePasswordForm");
+  if (!modal || !title || !passwordForm) return;
+  title.textContent = mode === "password" ? "修改密码" : "账号资料";
+  passwordForm.reset();
+  passwordForm.classList.toggle("hiddenPanel", mode === "profile");
+  modal.classList.remove("hiddenPanel");
+  modal.setAttribute("aria-hidden", "false");
+  if (mode === "password") {
+    passwordForm.querySelector("[name='current_password']")?.focus();
+  }
+}
+
+function closeAccountModal() {
+  const modal = document.querySelector("#accountModal");
+  if (!modal) return;
+  modal.classList.add("hiddenPanel");
+  modal.setAttribute("aria-hidden", "true");
+}
+
+function openHumanHelpModal() {
+  const modal = document.querySelector("#humanHelpModal");
+  if (!modal) return;
+  modal.classList.remove("hiddenPanel");
+  modal.setAttribute("aria-hidden", "false");
+}
+
+function closeHumanHelpModal() {
+  const modal = document.querySelector("#humanHelpModal");
+  if (!modal) return;
+  modal.classList.add("hiddenPanel");
+  modal.setAttribute("aria-hidden", "true");
+}
+
+function hideAccountMenu() {
+  document.querySelector("#accountMenu")?.classList.add("hiddenPanel");
+  document.querySelector("#accountMenuButton")?.setAttribute("aria-expanded", "false");
+}
+
+function positionAccountMenu() {
+  const menu = document.querySelector("#accountMenu");
+  const button = document.querySelector("#accountMenuButton");
+  if (!menu || !button) return;
+  const rect = button.getBoundingClientRect();
+  const menuWidth = menu.offsetWidth || 260;
+  const left = Math.max(12, Math.min(rect.left, window.innerWidth - menuWidth - 12));
+  menu.style.top = `${rect.bottom + 8}px`;
+  menu.style.left = `${left}px`;
+}
+
+async function logout() {
+  try {
+    await api.post("/auth/logout");
+  } catch {
+    // Local sign-out should still complete even if the session was already invalid.
+  } finally {
+    localStorage.removeItem("authToken");
+    api.token = null;
+    window.location.hash = "";
+    window.location.replace("/login.html");
   }
 }
 
 async function refresh() {
+  if (!api.token) return;
   const [dashboard, integrations, materials, exportProfiles] = await Promise.all([
     api.get("/dashboard"),
     api.get("/integrations/status"),
@@ -2214,6 +3190,7 @@ async function refresh() {
   renderMetrics(dashboard.counts);
   renderIntegrations(integrations);
   renderMaterials(materials);
+  renderReferenceMaterials(materials);
   renderScripts(dashboard.recent_scripts);
   renderTasks(dashboard.recent_tasks);
   if (api.token) {
@@ -2283,7 +3260,158 @@ async function refresh() {
 
 document.querySelector("#refreshBtn").addEventListener("click", () => refresh().then(() => toast("已刷新")));
 
+document.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-action='list-page-prev'], button[data-action='list-page-next']");
+  if (!button || button.disabled) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const key = button.dataset.listKey;
+  if (!key) return;
+  const direction = button.dataset.action === "list-page-next" ? 1 : -1;
+  state.listPages[key] = Math.max(1, Number(state.listPages[key] || 1) + direction);
+  if (key === "taskScripts") state.taskScriptPage = state.listPages[key];
+  rerenderPagedList(key);
+}, true);
+
+document.querySelectorAll("[data-overview-tab]").forEach((button) => {
+  button.addEventListener("click", () => {
+    state.overviewActivityTab = button.dataset.overviewTab || "scripts";
+    renderOverviewActivity();
+  });
+});
+
+document.querySelector("#overviewActivityContent").addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-action]");
+  if (!button || button.disabled) return;
+  const id = Number(button.dataset.id);
+  if (button.dataset.action === "overview-view-script") {
+    openTaskScriptDetailDrawer(id);
+    return;
+  }
+  if (button.dataset.action === "overview-view-task") {
+    await openTaskDetailDrawer(id);
+  }
+});
+
+document.querySelectorAll("[data-reference-tab]").forEach((button) => {
+  button.addEventListener("click", () => setReferenceTab(button.dataset.referenceTab));
+});
+
+document.querySelector("#accountMenuButton").addEventListener("click", (event) => {
+  event.stopPropagation();
+  const menu = document.querySelector("#accountMenu");
+  const button = document.querySelector("#accountMenuButton");
+  if (!menu || !button) return;
+  const willOpen = menu.classList.contains("hiddenPanel");
+  menu.classList.toggle("hiddenPanel", !willOpen);
+  button.setAttribute("aria-expanded", String(willOpen));
+  if (willOpen) positionAccountMenu();
+});
+
+document.querySelector("#accountMenu").addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-account-action]");
+  if (!button) return;
+  hideAccountMenu();
+  if (button.dataset.accountAction === "profile") {
+    openAccountModal("profile");
+    return;
+  }
+  if (button.dataset.accountAction === "password") {
+    openAccountModal("password");
+    return;
+  }
+  if (button.dataset.accountAction === "logout") {
+    await logout();
+  }
+});
+
+document.addEventListener("click", (event) => {
+  if (!event.target.closest("#accountMenuWrap") && !event.target.closest("#accountMenu")) {
+    hideAccountMenu();
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    hideAccountMenu();
+    closeAccountModal();
+    closeHumanHelpModal();
+    closeAssetDetailDrawer();
+  }
+});
+
+window.addEventListener("resize", () => {
+  if (!document.querySelector("#accountMenu")?.classList.contains("hiddenPanel")) {
+    positionAccountMenu();
+  }
+});
+
+document.querySelector("#accountModalClose").addEventListener("click", closeAccountModal);
+
+document.querySelector("#accountModal").addEventListener("click", (event) => {
+  if (event.target.id === "accountModal") closeAccountModal();
+});
+
+document.querySelector("#humanHelpBtn").addEventListener("click", openHumanHelpModal);
+
+document.querySelector("#humanHelpModalClose").addEventListener("click", closeHumanHelpModal);
+
+document.querySelector("#humanHelpModal").addEventListener("click", (event) => {
+  if (event.target.id === "humanHelpModal") closeHumanHelpModal();
+});
+
+document.querySelector("#changePasswordForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const payload = formData(form);
+  if (payload.new_password !== payload.confirm_password) {
+    toast("两次输入的新密码不一致");
+    return;
+  }
+  const button = form.querySelector("button[type='submit']");
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "保存中...";
+  try {
+    await api.post("/auth/change-password", {
+      current_password: payload.current_password,
+      new_password: payload.new_password,
+    });
+    form.reset();
+    closeAccountModal();
+    toast("密码已更新");
+  } catch (err) {
+    toast(err.message || "密码修改失败");
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
+});
+
 document.querySelector("#settings-tab-storage").addEventListener("click", async (event) => {
+  const localSaveButton = event.target.closest("button[data-action='save-video-local']");
+  if (localSaveButton) {
+    const taskId = Number(localSaveButton.dataset.id);
+    const video = state.videoStorage?.videos?.find((item) => Number(item.task_id) === taskId);
+    if (!video) return;
+    const originalText = localSaveButton.textContent;
+    localSaveButton.disabled = true;
+    localSaveButton.textContent = "保存中...";
+    state.localSavingVideoIds.add(taskId);
+    renderVideoStorage(state.videoStorage);
+    try {
+      await saveVideoToLocalFolder(video);
+    } catch (error) {
+      toast(error.message || "保存到电脑失败");
+    } finally {
+      state.localSavingVideoIds.delete(taskId);
+      localSaveButton.disabled = false;
+      localSaveButton.textContent = originalText;
+      renderVideoStorage(state.videoStorage);
+    }
+    return;
+  }
+
   const button = event.target.closest("button[data-action='copy-storage-path']");
   if (!button) return;
   const path = button.dataset.path || "";
@@ -2296,50 +3424,44 @@ document.querySelector("#settings-tab-storage").addEventListener("click", async 
   }
 });
 
-document.querySelector("#storagePresetList").addEventListener("click", (event) => {
-  const button = event.target.closest("button[data-action='use-storage-preset']");
-  if (!button) return;
-  const input = document.querySelector("#videoStorageRootInput");
-  if (input) {
-    input.value = button.dataset.path || "";
-    input.focus();
-  }
-});
-
-document.querySelector("#chooseStorageFolderBtn").addEventListener("click", async () => {
-  const button = document.querySelector("#chooseStorageFolderBtn");
+document.querySelector("#chooseLocalSaveFolderBtn").addEventListener("click", async () => {
+  const button = document.querySelector("#chooseLocalSaveFolderBtn");
   const originalText = button.textContent;
   button.disabled = true;
   button.textContent = "选择中...";
   try {
-    const result = await api.post("/settings/video-storage/choose-folder");
-    const input = document.querySelector("#videoStorageRootInput");
-    if (input) input.value = result.storage_root || "";
-    toast("已选择文件夹，点击保存位置后生效");
+    const handle = await chooseLocalSaveDirectory();
+    if (handle) {
+      toast(`已选择电脑文件夹：${handle.name}`);
+      if (state.autoSaveToLocalFolder && state.videoStorage?.videos) {
+        void autoSaveVideosToLocal(state.videoStorage.videos);
+      }
+    }
   } catch (error) {
-    toast("无法打开系统选择窗口，请手动输入文件夹路径");
+    if (error?.name !== "AbortError") {
+      toast(error.message || "选择电脑文件夹失败");
+    }
   } finally {
     button.disabled = false;
     button.textContent = originalText;
   }
 });
 
-document.querySelector("#videoStorageForm").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const button = event.currentTarget.querySelector("button[type='submit']");
-  const originalText = button.textContent;
-  button.disabled = true;
-  button.textContent = "保存中...";
-  try {
-    const report = await api.patch("/settings/video-storage", formData(event.currentTarget));
-    state.videoStorage = report;
-    renderVideoStorage(report);
-    toast("视频保存位置已更新");
-  } catch (error) {
-    toast("保存失败，请确认这个文件夹可访问、可写入");
-  } finally {
-    button.disabled = false;
-    button.textContent = originalText;
+document.querySelector("#autoSaveToLocalFolder").addEventListener("change", async (event) => {
+  state.autoSaveToLocalFolder = event.currentTarget.checked;
+  persistLocalSaveState();
+  renderLocalSaveDirectoryState();
+  if (state.autoSaveToLocalFolder && !state.localSaveDirectoryHandle) {
+    const handle = await chooseLocalSaveDirectory();
+    if (!handle) {
+      state.autoSaveToLocalFolder = false;
+      persistLocalSaveState();
+      renderLocalSaveDirectoryState();
+      return;
+    }
+  }
+  if (state.autoSaveToLocalFolder && state.videoStorage?.videos) {
+    void autoSaveVideosToLocal(state.videoStorage.videos);
   }
 });
 
@@ -2375,33 +3497,37 @@ document.querySelectorAll(".subNavItem").forEach((item) => {
   item.addEventListener("click", () => switchPage(item.dataset.page, item.dataset.settingsSection));
 });
 
-document.querySelector("#loginForm").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const login = await api.post("/auth/login", formData(event.currentTarget));
-  api.token = login.token;
-  localStorage.setItem("authToken", login.token);
-  setLoginState(login.user);
-  toast("登录成功");
-  await refresh();
-});
-
 document.querySelector("#humanAssetForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
   const payload = new FormData(form);
-  const res = await fetch("/api/digital-humans/create-with-assets", {
-    method: "POST",
-    headers: authHeaders(),
-    body: payload,
+  ["portrait_material_id", "source_video_material_id", "default_voice"].forEach((key) => {
+    if (!payload.get(key)) payload.delete(key);
   });
-  if (!res.ok) throw new Error(await res.text());
-  const human = await res.json();
-  state.latestHumanId = human.id;
-  const taskHumanSelect = document.querySelector("#taskHumanSelect");
-  if (taskHumanSelect) taskHumanSelect.value = human.id;
-  toast(`数字人资产已创建 #${human.id}`);
-  form.reset();
-  await refresh();
+  const button = form.querySelector("button[type='submit']");
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "上传创建中...";
+  try {
+    const res = await fetch("/api/digital-humans/create-with-assets", {
+      method: "POST",
+      headers: authHeaders(),
+      body: payload,
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const human = await res.json();
+    state.latestHumanId = human.id;
+    const taskHumanSelect = document.querySelector("#taskHumanSelect");
+    if (taskHumanSelect) taskHumanSelect.value = human.id;
+    toast(`数字人资产已创建 #${human.id}`);
+    form.reset();
+    await refresh();
+  } catch (error) {
+    toast(apiErrorMessage(error, "数字人创建失败，请检查头像、视频或素材配置"));
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
 });
 
 async function generateScriptCandidates(button) {
@@ -2471,20 +3597,49 @@ function selectedCreationProductionMode() {
   const humanInput = document.querySelector("#creationHumanSelect");
   const hasHuman = Boolean(humanInput?.value);
   const selected = select?.value || "";
-  if (!hasHuman && ["talking_head_template", "digital_human"].includes(selected)) {
-    return "seedance_scene";
+  const recommended = recommendedCreationProductionMode(hasHuman);
+  if (["talking_head_template", "digital_human"].includes(selected) && !hasRealDigitalHuman()) {
+    return recommended;
   }
-  return selected || (hasHuman ? "talking_head_template" : "seedance_scene");
+  if (["talking_head_template", "digital_human"].includes(selected) && !hasHuman) {
+    return recommended;
+  }
+  if (selected === "seedance_scene" && !hasRealVideoGeneration()) {
+    return recommended;
+  }
+  return selected || recommended;
+}
+
+function integrationIsRealReady(key) {
+  const item = state.integrations?.[key] || {};
+  return Boolean(item.configured && item.real_api);
+}
+
+function hasRealVideoGeneration() {
+  return integrationIsRealReady("video_generation");
+}
+
+function hasRealDigitalHuman() {
+  return integrationIsRealReady("digital_human");
+}
+
+function recommendedCreationProductionMode(hasHuman = Boolean(document.querySelector("#creationHumanSelect")?.value)) {
+  if (hasHuman && hasRealDigitalHuman()) return "talking_head_template";
+  if (hasRealVideoGeneration()) return "seedance_scene";
+  return "dynamic_explainer";
 }
 
 function syncCreationProductionModeWithHuman() {
   const select = document.querySelector("#creationProductionModeSelect");
   const humanInput = document.querySelector("#creationHumanSelect");
   if (!select || !humanInput) return;
-  if (humanInput.value) {
-    select.value = "talking_head_template";
-  } else if (["talking_head_template", "digital_human"].includes(select.value)) {
-    select.value = "seedance_scene";
+  const nextMode = recommendedCreationProductionMode(Boolean(humanInput.value));
+  if (
+    !select.value
+    || ["talking_head_template", "digital_human"].includes(select.value)
+    || (select.value === "seedance_scene" && !hasRealVideoGeneration())
+  ) {
+    select.value = nextMode;
   }
   syncProductionModeHint();
 }
@@ -2493,12 +3648,57 @@ function syncProductionModeHint() {
   const select = document.querySelector("#creationProductionModeSelect");
   const hint = document.querySelector("#productionModeHint");
   if (!select || !hint) return;
-  hint.textContent = {
-    dynamic_explainer: "低成本图文草稿，只用于快速预览节奏，不作为正式成片。",
+  const effectiveMode = selectedCreationProductionMode();
+  const suffix = effectiveMode !== select.value
+    ? ` 当前接口状态下会自动改用「${productionModeLabel(effectiveMode)}」。`
+    : "";
+  const message = {
+    dynamic_explainer: "本地图文讲解预览：不依赖外部视频模型，可生成本地 MP4，并自动烧录字幕，适合先跑通审核和保存流程。",
     digital_human: "需要选择已上传头像或口播源视频的数字人，用于后续真人嘴型驱动。",
+    material_mix: "先按分镜匹配素材库素材，可人工修改；缺素材的镜头再用 Seedance 补。",
     seedance_scene: "会把分镜表拆成多个 Seedance 镜头，生成 AI 实景画面后自动拼接。",
     talking_head_template: "需要真实数字人驱动接口，会生成顶部标题、底部身份条、字幕和解释页的口播模板。",
   }[select.value] || "";
+  hint.textContent = `${message}${suffix}`;
+}
+
+function isDigitalHumanProductionMode(mode) {
+  return ["digital_human", "talking_head_template"].includes(mode);
+}
+
+function estimatedDigitalHumanCost(script) {
+  const seconds = Math.max(15, Number(script?.duration_seconds || 60));
+  const amount = seconds * 0.5;
+  const amountText = amount % 1 === 0 ? String(amount) : amount.toFixed(1);
+  return `预计正式数字人费用约 ${amountText} 元（按阿里 480P 0.5 元/秒估算，实际以账单为准）。`;
+}
+
+function renderVoicePreview(url, costText) {
+  const panel = document.querySelector("#voicePreviewPanel");
+  if (!panel) return;
+  panel.classList.remove("hiddenPanel");
+  panel.innerHTML = `
+    <div class="voicePreviewHeader">
+      <strong>口播试听</strong>
+      <span class="status">先试听，再正式生成</span>
+    </div>
+    <audio controls autoplay src="${url}"></audio>
+    <p class="resultHint">声音、语速和稿子确认满意后，再继续生成正式数字人成片。</p>
+    <p class="resultHint">${escapeHtml(costText)}</p>
+  `;
+}
+
+async function confirmVoicePreviewBeforeFormalGeneration(script, payload, button) {
+  const costText = estimatedDigitalHumanCost(script);
+  if (state.voicePreviewUrl) {
+    URL.revokeObjectURL(state.voicePreviewUrl);
+    state.voicePreviewUrl = "";
+  }
+  button.textContent = "生成口播试听...";
+  const audioBlob = await api.postBlob(`/scripts/${script.id}/voice-preview`, payload);
+  state.voicePreviewUrl = URL.createObjectURL(audioBlob);
+  renderVoicePreview(state.voicePreviewUrl, costText);
+  return window.confirm(`已生成口播试听，请先听声音和节奏。\n\n${costText}\n\n确认口播满意，并继续生成正式数字人视频吗？`);
 }
 
 document.querySelector("#creationProductionModeSelect").addEventListener("change", syncProductionModeHint);
@@ -2526,6 +3726,8 @@ async function createVideoFromScript(scriptId, button) {
     production_mode: productionMode,
     target_platform: platformInput?.value || script.target_platform || "douyin",
     export_profile: defaultExportProfileForPlatform(platformInput?.value || script.target_platform || "douyin"),
+    subtitle_enabled: true,
+    subtitle_style: document.querySelector("#creationSubtitleStyleSelect")?.value || "auto",
   };
   if (humanInput.value) {
     payload.digital_human_id = Number(humanInput.value);
@@ -2535,21 +3737,32 @@ async function createVideoFromScript(scriptId, button) {
     return;
   }
   button.disabled = true;
-  button.textContent = "进入生成队列...";
   try {
-    await saveCurrentScriptEdits({ silent: true });
-    const task = await api.post(`/scripts/${script.id}/auto-video-task`, payload);
+    const savedScript = (await saveCurrentScriptEdits({ silent: true })) || script;
+    if (isDigitalHumanProductionMode(productionMode)) {
+      const confirmed = await confirmVoicePreviewBeforeFormalGeneration(savedScript, payload, button);
+      if (!confirmed) {
+        toast("已生成口播试听，确认满意后再生成正式视频");
+        return;
+      }
+    }
+    button.textContent = productionMode === "material_mix" ? "创建素材方案..." : "进入生成队列...";
+    const endpoint = productionMode === "material_mix" ? "video-task" : "auto-video-task";
+    const task = await api.post(`/scripts/${savedScript.id}/${endpoint}`, payload);
     state.latestTaskId = task.id;
     document.querySelector("#taskForm [name='script_id']").value = task.script_id;
     const taskHumanInput = document.querySelector("#taskForm [name='digital_human_id']");
     if (task.digital_human_id && taskHumanInput) {
       taskHumanInput.value = task.digital_human_id;
     }
-    toast(`已进入自动生成队列 #${task.id}`);
+    toast(productionMode === "material_mix" ? `已创建素材方案任务 #${task.id}` : `已进入自动生成队列 #${task.id}`);
     await refresh();
     switchPage("tasks");
+    if (productionMode === "material_mix") {
+      await openTaskDetailDrawer(task.id);
+    }
   } catch (error) {
-    toast("自动生成视频失败，请检查视频模型或素材配置");
+    toast(apiErrorMessage(error, "自动生成视频失败，请检查视频模型或素材配置"));
   } finally {
     button.disabled = false;
     button.textContent = originalText;
@@ -2560,23 +3773,19 @@ document.querySelector("#scriptCandidateList").addEventListener("click", async (
   const button = event.target.closest("button[data-script-id]");
   if (!button) return;
   const scriptId = Number(button.dataset.scriptId);
-  try {
-    await saveCurrentScriptEdits({ silent: true });
-  } catch (error) {
-    toast("当前脚本保存失败，请先检查内容");
-    return;
-  }
   const script = state.scripts.find((item) => item.id === scriptId);
   if (!script) return;
-  state.latestScriptId = script.id;
-  state.highlightedScriptId = script.id;
-  renderScriptCandidates(state.scripts);
   if (button.dataset.action === "auto-video-script") {
+    try {
+      await saveCurrentScriptEdits({ silent: true });
+    } catch (error) {
+      toast(apiErrorMessage(error, "当前脚本保存失败，请先检查内容"));
+      return;
+    }
     await createVideoFromScript(script.id, button);
     return;
   }
-  renderTitleSuggestions(script);
-  renderScriptDetail(script);
+  openScriptDetail(script);
 });
 
 document.querySelector("#scriptPreviewCreation").addEventListener("input", (event) => {
@@ -2599,6 +3808,8 @@ document.querySelector("#taskForm").addEventListener("submit", async (event) => 
   payload.script_id = Number(payload.script_id || state.latestScriptId);
   payload.digital_human_id = payload.digital_human_id ? Number(payload.digital_human_id) : null;
   if (!payload.export_profile) delete payload.export_profile;
+  payload.subtitle_enabled = true;
+  payload.subtitle_style = payload.subtitle_style || "auto";
   const task = await api.post("/video-tasks", payload);
   state.latestTaskId = task.id;
   toast(`视频任务已创建 #${task.id}`);
@@ -2620,6 +3831,8 @@ document.querySelector("#batchCreateTasksBtn").addEventListener("click", async (
     digital_human_id: humanValue ? Number(humanValue) : null,
     production_mode: productionMode,
     export_profile: document.querySelector("#batchExportProfileSelect").value || null,
+    subtitle_enabled: true,
+    subtitle_style: document.querySelector("#batchSubtitleStyleSelect").value || "auto",
   };
   if (!payload.export_profile) delete payload.export_profile;
   const tasks = await api.post("/video-tasks/batch-create", payload);
@@ -2737,6 +3950,11 @@ document.querySelector("#batchRunSelectedTasksBtn").addEventListener("click", as
 });
 
 document.querySelector("#materialList").addEventListener("click", async (event) => {
+  const detailButton = event.target.closest("button[data-action='view-material-detail']");
+  if (detailButton) {
+    openAssetDetailDrawer("material", detailButton.dataset.id);
+    return;
+  }
   const uploadButton = event.target.closest("button[data-action='remote-upload-material']");
   if (uploadButton) {
     uploadButton.disabled = true;
@@ -2773,6 +3991,11 @@ document.querySelector("#materialList").addEventListener("click", async (event) 
 });
 
 document.querySelector("#humanList").addEventListener("click", async (event) => {
+  const detailButton = event.target.closest("button[data-action='view-human-detail']");
+  if (detailButton) {
+    openAssetDetailDrawer("human", detailButton.dataset.id);
+    return;
+  }
   const button = event.target.closest("button[data-action='delete-human']");
   if (!button) return;
   if (!window.confirm("确认删除这个数字人吗？相关视频任务会改为不露脸。")) return;
@@ -2781,29 +4004,159 @@ document.querySelector("#humanList").addEventListener("click", async (event) => 
   await refresh();
 });
 
-document.querySelectorAll("#taskListTasks, #taskList").forEach((list) => list.addEventListener("click", async (event) => {
+document.querySelector("#closeAssetDetailBtn").addEventListener("click", closeAssetDetailDrawer);
+
+document.querySelector("#assetDetailDrawer").addEventListener("click", async (event) => {
+  if (event.target.id === "assetDetailDrawer") {
+    closeAssetDetailDrawer();
+    return;
+  }
+  const copyButton = event.target.closest("button[data-action='copy-material-url']");
+  if (copyButton) {
+    try {
+      await navigator.clipboard.writeText(copyButton.dataset.url || "");
+      toast("云端地址已复制");
+    } catch {
+      toast(copyButton.dataset.url || "");
+    }
+    return;
+  }
+  const uploadButton = event.target.closest("button[data-action='remote-upload-material']");
+  if (uploadButton) {
+    uploadButton.disabled = true;
+    const originalText = uploadButton.textContent;
+    uploadButton.textContent = "上传中...";
+    try {
+      await api.post(`/materials/${uploadButton.dataset.id}/remote-upload`);
+      toast("素材已上传到服务器");
+      closeAssetDetailDrawer();
+      await refresh();
+    } catch (error) {
+      toast(apiErrorMessage(error, "补传失败，请先配置素材服务器上传接口"));
+    } finally {
+      uploadButton.disabled = false;
+      uploadButton.textContent = originalText;
+    }
+    return;
+  }
+  const deleteHumanButton = event.target.closest("button[data-action='delete-human']");
+  if (deleteHumanButton) {
+    if (!window.confirm("确认删除这个数字人吗？相关视频任务会改为不露脸。")) return;
+    await api.delete(`/digital-humans/${deleteHumanButton.dataset.id}`);
+    closeAssetDetailDrawer();
+    toast("数字人已删除");
+    await refresh();
+    return;
+  }
+  const deleteMaterialButton = event.target.closest("button[data-action='delete-material']");
+  if (deleteMaterialButton) {
+    if (!window.confirm("确认删除这个素材吗？相关数字人会自动解除绑定。")) return;
+    await api.delete(`/materials/${deleteMaterialButton.dataset.id}`);
+    closeAssetDetailDrawer();
+    toast("素材已删除");
+    await refresh();
+  }
+});
+
+document.querySelector("#taskScriptList").addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-action]");
+  if (!button || button.disabled) return;
+  if (button.dataset.action === "script-page-prev") {
+    state.taskScriptPage = Math.max(1, Number(state.taskScriptPage || 1) - 1);
+    renderTaskScriptTable(state.scripts);
+    return;
+  }
+  if (button.dataset.action === "script-page-next") {
+    state.taskScriptPage = Number(state.taskScriptPage || 1) + 1;
+    renderTaskScriptTable(state.scripts);
+    return;
+  }
+  const scriptId = Number(button.dataset.id);
+  const script = state.scripts.find((item) => Number(item.id) === scriptId);
+  if (!script) return;
+  if (button.dataset.action === "view-task-script") {
+    openTaskScriptDetailDrawer(script.id);
+    return;
+  }
+  if (button.dataset.action === "create-task-from-script") {
+    await createTaskFromTaskScript(script.id, button);
+  }
+});
+
+document.querySelectorAll("#taskListTasks, #taskList, #taskDetailDrawer").forEach((list) => list.addEventListener("click", async (event) => {
+  if (event.target.id === "taskDetailDrawer") {
+    closeTaskDetailDrawer();
+    return;
+  }
   const button = event.target.closest("button[data-action]");
   if (!button) return;
   if (button.disabled) return;
   const id = button.dataset.id;
-  if (button.dataset.action === "preview-video-task") {
-    const task = state.videoTasks.find((item) => item.id === Number(id));
-    state.previewTaskId = task ? task.id : null;
-    renderTaskOutputPreview(task);
+  if (button.dataset.action === "view-video-task" || button.dataset.action === "preview-video-task") {
+    await openTaskDetailDrawer(id);
+    return;
+  }
+  if (button.dataset.action === "view-task-script") {
+    openTaskScriptDetailDrawer(id);
+    return;
+  }
+  if (button.dataset.action === "create-task-from-script") {
+    await createTaskFromTaskScript(id, button);
+    return;
+  }
+  if (button.dataset.action === "edit-script-from-task-drawer") {
+    const script = state.scripts.find((item) => Number(item.id) === Number(id));
+    if (script) {
+      closeTaskDetailDrawer();
+      switchPage("creation");
+      openScriptDetail(script);
+    }
+    return;
+  }
+  if (button.dataset.action === "assign-segment-material") {
+    const taskId = Number(button.dataset.taskId || 0);
+    const segmentId = Number(button.dataset.id || 0);
+    const select = document.querySelector(`[data-segment-material-select="${segmentId}"]`);
+    const materialId = Number(select?.value || 0);
+    const originalText = button.textContent;
+    button.disabled = true;
+    button.textContent = "保存中";
+    try {
+      await api.patch(`/video-tasks/${taskId}/segments/${segmentId}/material`, {
+        material_id: materialId || null,
+      });
+      toast(materialId ? "分镜素材已更新" : "已改为 Seedance 补镜头");
+      await refresh();
+      await openTaskDetailDrawer(taskId);
+    } catch (error) {
+      toast(apiErrorMessage(error, "素材方案保存失败"));
+    } finally {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
     return;
   }
   try {
     if (button.dataset.action === "run-video-task") {
+      const taskRecord = state.videoTasks.find((item) => Number(item.id) === Number(id));
+      if (taskRecord && isDigitalHumanProductionMode(taskRecord.production_mode)) {
+        const scriptRecord = state.scripts.find((item) => Number(item.id) === Number(taskRecord.script_id));
+        const costText = estimatedDigitalHumanCost(scriptRecord || { duration_seconds: 60 });
+        const confirmed = window.confirm(`这是正式数字人生成，会产生较高费用。\n\n${costText}\n\n确认现在运行任务 #${id} 吗？`);
+        if (!confirmed) return;
+      }
       const statusCell = button.closest("tr")?.querySelector(".status");
       button.textContent = "生成中";
       button.disabled = true;
       if (statusCell) statusCell.textContent = "生成中";
       const task = await api.post(`/video-tasks/${id}/run`);
       toast(`任务已运行：${taskStatusLabel(task.status)}`);
+      closeTaskDetailDrawer();
     }
     if (button.dataset.action === "approve-video-task") {
       const task = await api.post(`/video-tasks/${id}/approve`);
       toast(`任务已审核：${taskStatusLabel(task.status)}`);
+      closeTaskDetailDrawer();
     }
     if (button.dataset.action === "prepare-publish") {
       const accounts = await api.get("/platform-accounts");
@@ -2813,17 +4166,20 @@ document.querySelectorAll("#taskListTasks, #taskList").forEach((list) => list.ad
         platform_account_id: account ? account.id : null,
         account_name: account ? account.account_name : "公司官方号",
       });
+      closeTaskDetailDrawer();
       toast(`发布记录已创建 #${record.id}`);
       switchPage("publish");
     }
     if (button.dataset.action === "delete-task-output") {
       if (!window.confirm("确认删除这个任务的成片文件吗？任务会保留。")) return;
       await api.delete(`/video-tasks/${id}/output`);
+      closeTaskDetailDrawer();
       toast("成片已删除");
     }
     if (button.dataset.action === "delete-video-task") {
       if (!window.confirm("确认删除这个视频任务吗？关联发布记录也会删除。")) return;
       await api.delete(`/video-tasks/${id}`);
+      closeTaskDetailDrawer();
       toast("视频任务已删除");
     }
   } catch (error) {
@@ -2831,6 +4187,8 @@ document.querySelectorAll("#taskListTasks, #taskList").forEach((list) => list.ad
   }
   await refresh();
 }));
+
+document.querySelector("#closeTaskDetailBtn").addEventListener("click", closeTaskDetailDrawer);
 
 document.querySelector("#closeTaskPreviewBtn").addEventListener("click", () => {
   state.previewTaskId = null;
@@ -3200,6 +4558,7 @@ async function saveReferenceLinkAndMaybeAnalyze(form, options = { analyze: false
     }
     form.reset();
     await refresh();
+    setReferenceTab("history");
   } catch (error) {
     toast(error.message || "参考链接保存失败");
   } finally {
@@ -3337,6 +4696,7 @@ document.querySelector("#referenceMaterialList").addEventListener("click", async
       renderAnalysisMaterialPreview();
       renderReferenceMaterials();
     }
+    setReferenceTab("current");
     toast(`已选择参考素材 #${materialId}`);
     return;
   }
@@ -3443,7 +4803,10 @@ document.querySelector("#analysisDetailContent").addEventListener("click", async
 });
 
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") closeAnalysisDetailDrawer();
+  if (event.key === "Escape") {
+    closeAnalysisDetailDrawer();
+    closeAssetDetailDrawer();
+  }
 });
 
 const videoAnalysisList = document.querySelector("#videoAnalysisList");
@@ -3473,22 +4836,31 @@ if (videoAnalysisList) videoAnalysisList.addEventListener("click", async (event)
   }
 });
 
-if (api.token) {
-  api.get("/auth/me")
-    .then(setLoginState)
-    .catch(() => {
-      localStorage.removeItem("authToken");
-      api.token = null;
-      setLoginState(null);
-    })
-    .finally(() => refresh().catch((err) => toast(err.message)));
-} else {
-  setLoginState(null);
-  refresh().catch((err) => toast(err.message));
-}
+initLocalSaveDirectory().finally(() => {
+  if (api.token) {
+    api.get("/auth/me")
+      .then((user) => {
+        setLoginState(user);
+        refresh().catch((err) => toast(err.message));
+      })
+      .catch(() => {
+        localStorage.removeItem("authToken");
+        api.token = null;
+        redirectToLogin();
+      });
+  } else {
+    redirectToLogin();
+  }
+});
 
 const initialRoute = parseRoute(window.location.hash);
 switchPage(initialRoute.page, initialRoute.section, false);
 
 syncProviderOptions();
 syncProductionModeHint();
+
+setInterval(() => {
+  if (!api.token || !state.autoSaveToLocalFolder || !state.localSaveDirectoryHandle) return;
+  if (!["settings", "tasks"].includes(state.currentPage)) return;
+  refresh().catch(() => {});
+}, 15000);

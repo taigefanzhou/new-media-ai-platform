@@ -4,9 +4,14 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>New Media AI Platform</title>
-    <link rel="stylesheet" href="/styles.css" />
+    <script>
+      if (!localStorage.getItem("authToken")) {
+        window.location.replace("/login.html");
+      }
+    </script>
+    <link rel="stylesheet" href="/styles.css?v=20260628-preview-subtitle-flow" />
   </head>
-  <body>
+  <body class="auth-pending">
     <aside class="sidebar">
       <div class="brand">
         <div class="mark">AI</div>
@@ -41,19 +46,22 @@
           <h1 id="pageTitle">运营总览</h1>
         </div>
         <div class="headerActions">
-          <span id="loginState" class="loginState">未登录</span>
+          <div id="accountMenuWrap" class="accountMenuWrap">
+            <button id="accountMenuButton" class="accountButton" type="button" aria-expanded="false">
+              <span class="accountAvatar">--</span>
+              <span id="loginState" class="accountLabel">未登录</span>
+              <span class="accountChevron">⌄</span>
+            </button>
+            <div id="accountMenu" class="accountMenu hiddenPanel">
+              <div id="accountMenuSummary" class="accountMenuSummary"></div>
+              <button type="button" class="secondary" data-account-action="profile">账号资料</button>
+              <button type="button" class="secondary" data-account-action="password">修改密码</button>
+              <button type="button" class="dangerButton" data-account-action="logout">退出登录</button>
+            </div>
+          </div>
           <button id="refreshBtn" class="iconBtn" title="刷新">↻</button>
         </div>
       </header>
-
-      <section id="loginPanel" class="panel loginPanel">
-        <h2>账号登录</h2>
-        <form id="loginForm" class="inlineForm">
-          <label>账号<input name="username" value="admin" /></label>
-          <label>密码<input name="password" type="password" value="admin123456" /></label>
-          <button type="submit">登录</button>
-        </form>
-      </section>
 
       <section id="page-overview" class="page activePage">
         <section id="overview" class="metrics"></section>
@@ -61,15 +69,18 @@
           <h2>集成状态</h2>
           <div id="integrationStatus" class="roadmap"></div>
         </section>
-        <section class="split">
-          <div class="panel wide">
-            <h2>最新脚本</h2>
-            <div id="scriptPreview" class="preview empty">还没有脚本</div>
+        <section class="panel overviewActivityPanel">
+          <div class="sectionHeader compactSectionHeader">
+            <div>
+              <h2>最近动态</h2>
+              <p>脚本和视频任务分开查看，表格只保留关键字段。</p>
+            </div>
+            <div class="tabSwitch overviewTabs">
+              <button type="button" class="active" data-overview-tab="scripts">最新脚本</button>
+              <button type="button" data-overview-tab="tasks">视频任务</button>
+            </div>
           </div>
-          <div class="panel">
-            <h2>最近视频任务</h2>
-            <div id="taskList" class="list"></div>
-          </div>
+          <div id="overviewActivityContent" class="settingsTableWrap"></div>
         </section>
       </section>
 
@@ -186,14 +197,26 @@
             </div>
             <div id="titleSuggestionList" class="titleGrid"></div>
             <div id="scriptPreviewCreation" class="scriptResult empty">还没有脚本</div>
+            <div id="voicePreviewPanel" class="voicePreviewPanel hiddenPanel"></div>
             <div class="creationFooterActions">
               <div class="productionModeBar">
                 <label>成片方式
                   <select id="creationProductionModeSelect">
                     <option value="talking_head_template">数字人口播模板（目标成片）</option>
+                    <option value="material_mix">素材库混剪方案（先排素材）</option>
                     <option value="seedance_scene">Seedance AI 实景/B-roll</option>
                     <option value="digital_human">真人数字人口播（头像/源视频）</option>
                     <option value="dynamic_explainer">图文草稿预览（不建议成片）</option>
+                  </select>
+                </label>
+                <label>字幕风格
+                  <select id="creationSubtitleStyleSelect">
+                    <option value="auto">AI 自动选择</option>
+                    <option value="business">商务清晰</option>
+                    <option value="viral">爆款大字</option>
+                    <option value="digital_human">数字人口播</option>
+                    <option value="tutorial">教程说明</option>
+                    <option value="minimal">极简底栏</option>
                   </select>
                 </label>
                 <span id="productionModeHint">会生成参考视频那种口播模板：顶部标题、底部身份条、字幕和解释页。</span>
@@ -217,72 +240,83 @@
             </div>
             <span class="status">Reference Lab</span>
           </div>
-          <form id="referenceLinkForm" class="referenceLinkForm">
-            <label class="referenceUrlField">视频链接
-              <input name="source_url" placeholder="粘贴视频号、抖音或可下载的视频链接" />
-            </label>
-            <div class="referenceActions">
-              <button type="submit">保存并深度拆解</button>
-              <button id="saveReferenceOnlyBtn" type="button" class="secondary">只保存到参考列表</button>
+          <div class="referenceTabs" role="tablist" aria-label="参考拆解工作区">
+            <button type="button" class="referenceTab" data-reference-tab="history" role="tab">历史列表 <span id="referenceHistoryCount">0</span></button>
+            <button type="button" class="referenceTab" data-reference-tab="current" role="tab">当前素材</button>
+            <button type="button" class="referenceTab" data-reference-tab="import" role="tab">导入参考</button>
+          </div>
+          <div class="referenceTabPanels">
+            <div class="referenceTabPanel" data-reference-panel="history" role="tabpanel">
+              <div class="referenceListPanel">
+                <div class="sectionHeader compactHeader">
+                  <div>
+                    <h3>参考素材列表</h3>
+                    <p>能预览的视频可直接深度拆解；只有链接的素材需要先下载或上传源文件。</p>
+                  </div>
+                </div>
+                <div id="referenceMaterialList" class="referenceMaterialList"></div>
+              </div>
             </div>
-            <details class="referenceOptionalSettings">
-              <summary>可选设置</summary>
-              <div class="referenceOptionalGrid">
-                <label class="referenceTitleField">素材标题
-                  <input name="title" placeholder="例如：视频号口播参考：旺季心法" />
-                </label>
-                <label class="referencePlatformField">平台
-                  <select name="platform">
-                    <option value="auto">自动识别</option>
-                    <option value="wechat_channels">视频号</option>
-                    <option value="douyin">抖音</option>
-                    <option value="xiaohongshu">小红书</option>
-                    <option value="kuaishou">快手</option>
-                    <option value="manual">其他</option>
+            <div class="referenceTabPanel" data-reference-panel="current" role="tabpanel">
+              <form id="transcriptionForm" class="referenceExistingForm">
+                <h3>当前参考素材</h3>
+                <label>选择素材后继续利用
+                  <select name="material_id" id="analysisMaterialSelect">
+                    <option value="">先上传或选择参考素材</option>
                   </select>
                 </label>
-                <label class="referenceLanguageField">语言
+                <div id="analysisMaterialPreview" class="analysisMaterialPreview"></div>
+                <label>口播语言
                   <select name="language">
                     <option value="zh-CN">中文</option>
                     <option value="en-US">英文</option>
                   </select>
                 </label>
-                <label class="referenceTagsField">标签
-                  <input name="tags" placeholder="口播参考,酒店营销,剪辑模板" />
-                </label>
-              </div>
-            </details>
-          </form>
-          <div class="referenceContentGrid">
-            <form id="transcriptionForm" class="referenceExistingForm">
-              <h3>当前参考素材</h3>
-              <label>选择素材后继续利用
-                <select name="material_id" id="analysisMaterialSelect">
-                  <option value="">先上传或选择参考素材</option>
-                </select>
-              </label>
-              <div id="analysisMaterialPreview" class="analysisMaterialPreview"></div>
-              <label>口播语言
-                <select name="language">
-                  <option value="zh-CN">中文</option>
-                  <option value="en-US">英文</option>
-                </select>
-              </label>
-              <div class="actions">
-                <button id="createVideoAnalysisBtn" type="button">一键深度拆解</button>
-                <button type="submit" class="secondary">转写口播文本</button>
-                <button id="openSelectedAnalysisDetailBtn" type="button" class="secondary">查看拆解详情</button>
-                <button id="goAssetPageBtn" type="button" class="secondary">上传本地素材</button>
-              </div>
-            </form>
-            <div class="referenceListPanel">
-              <div class="sectionHeader compactHeader">
-                <div>
-                  <h3>参考素材列表</h3>
-                  <p>能预览的视频可直接深度拆解；只有链接的素材需要先下载或上传源文件。</p>
+                <div class="actions">
+                  <button id="createVideoAnalysisBtn" type="button">一键深度拆解</button>
+                  <button type="submit" class="secondary">转写口播文本</button>
+                  <button id="openSelectedAnalysisDetailBtn" type="button" class="secondary">查看拆解详情</button>
+                  <button id="goAssetPageBtn" type="button" class="secondary">上传本地素材</button>
                 </div>
-              </div>
-              <div id="referenceMaterialList" class="referenceMaterialList"></div>
+              </form>
+            </div>
+            <div class="referenceTabPanel" data-reference-panel="import" role="tabpanel">
+              <form id="referenceLinkForm" class="referenceLinkForm">
+                <label class="referenceUrlField">视频链接
+                  <input name="source_url" placeholder="粘贴视频号、抖音或可下载的视频链接" />
+                </label>
+                <div class="referenceActions">
+                  <button type="submit">保存并深度拆解</button>
+                  <button id="saveReferenceOnlyBtn" type="button" class="secondary">只保存到参考列表</button>
+                </div>
+                <details class="referenceOptionalSettings">
+                  <summary>可选设置</summary>
+                  <div class="referenceOptionalGrid">
+                    <label class="referenceTitleField">素材标题
+                      <input name="title" placeholder="例如：视频号口播参考：旺季心法" />
+                    </label>
+                    <label class="referencePlatformField">平台
+                      <select name="platform">
+                        <option value="auto">自动识别</option>
+                        <option value="wechat_channels">视频号</option>
+                        <option value="douyin">抖音</option>
+                        <option value="xiaohongshu">小红书</option>
+                        <option value="kuaishou">快手</option>
+                        <option value="manual">其他</option>
+                      </select>
+                    </label>
+                    <label class="referenceLanguageField">语言
+                      <select name="language">
+                        <option value="zh-CN">中文</option>
+                        <option value="en-US">英文</option>
+                      </select>
+                    </label>
+                    <label class="referenceTagsField">标签
+                      <input name="tags" placeholder="口播参考,酒店营销,剪辑模板" />
+                    </label>
+                  </div>
+                </details>
+              </form>
             </div>
           </div>
         </section>
@@ -301,25 +335,44 @@
         </aside>
       </div>
 
+      <div id="assetDetailDrawer" class="drawerOverlay hiddenPanel" aria-hidden="true">
+        <aside class="detailDrawer assetDetailDrawer" aria-label="数字人资产详情">
+          <div class="drawerHeader">
+            <div>
+              <p class="eyebrow" id="assetDetailEyebrow">Asset Detail</p>
+              <h2 id="assetDetailTitle">资产详情</h2>
+            </div>
+            <button id="closeAssetDetailBtn" type="button" class="iconBtn" title="关闭">×</button>
+          </div>
+          <div id="assetDetailContent" class="assetDetailContent"></div>
+        </aside>
+      </div>
+
       <section id="page-humans" class="page">
-        <section class="split">
-          <form id="humanAssetForm" class="panel">
-            <h2>创建数字人资产</h2>
-            <label>名称<input name="name" value="公司讲解员A" /></label>
-            <label>角色<input name="role" value="品牌顾问" /></label>
-            <label>上传头像<input name="portrait_file" type="file" accept="image/*" /></label>
-            <label>或选择已有头像
+        <section class="humanAssetLayout">
+          <form id="humanAssetForm" class="panel humanAssetFormPanel">
+            <div class="sectionHeader compactSectionHeader">
+              <div>
+                <h2>创建数字人资产</h2>
+                <p>上传头像和口播源视频，生成可用于后续成片的数字人资产。</p>
+              </div>
+              <button id="humanHelpBtn" class="secondary compactButton" type="button">采集说明</button>
+            </div>
+            <label class="humanField humanFieldHalf">名称<input name="name" value="公司讲解员A" /></label>
+            <label class="humanField humanFieldHalf">角色<input name="role" value="品牌顾问" /></label>
+            <label class="humanField humanFieldHalf">上传头像<input name="portrait_file" type="file" accept="image/*" /></label>
+            <label class="humanField humanFieldHalf">或选择已有头像
               <select name="portrait_material_id" id="portraitMaterialSelect">
                 <option value="">不选择已有头像</option>
               </select>
             </label>
-            <label>上传口播源视频<input name="source_video_file" type="file" accept="video/*" /></label>
-            <label>或选择已有口播源视频
+            <label class="humanField humanFieldHalf">上传口播源视频<input name="source_video_file" type="file" accept="video/*" /></label>
+            <label class="humanField humanFieldHalf">或选择已有口播源视频
               <select name="source_video_material_id" id="sourceVideoMaterialSelect">
                 <option value="">不选择已有源视频</option>
               </select>
             </label>
-            <label>风格
+            <label class="humanField humanFieldHalf">风格
               <select name="style">
                 <option value="realistic">实拍真实感</option>
                 <option value="ai_recommended">AI 推荐</option>
@@ -328,25 +381,26 @@
                 <option value="cartoon">卡通</option>
               </select>
             </label>
-            <button type="submit">创建并生成数字人</button>
+            <button class="humanSubmitButton" type="submit">创建并生成数字人</button>
           </form>
-          <div class="panel">
-            <h2>声音与形象采集</h2>
-            <div class="list">
-              <div class="item">头像用于形象预览和照片驱动数字人。</div>
-              <div class="item">口播视频源用于采集本人声音、动作和口型参考。</div>
-              <div class="item">配置声音复刻 API 后，系统会先生成 voice_id，再用本人音色合成新脚本。</div>
+        </section>
+        <section class="panel footerPanel humanPreviewPanel">
+          <div class="sectionHeader compactSectionHeader">
+            <div>
+              <h2>已创建数字人资产</h2>
+              <p>用表格管理数字人，预览和素材信息在详情里查看。</p>
             </div>
-            <div id="voiceCloneStatus" class="voiceCloneStatus"></div>
           </div>
+          <div id="humanList" class="humanTableWrap"></div>
         </section>
-        <section class="panel footerPanel">
-          <h2>数字人形象预览</h2>
-          <div id="humanList" class="humanGrid"></div>
-        </section>
-        <section class="panel footerPanel">
-          <h2>素材预览</h2>
-          <div id="materialList" class="materialGrid"></div>
+        <section class="panel footerPanel materialPreviewPanel">
+          <div class="sectionHeader compactSectionHeader">
+            <div>
+              <h2>素材管理</h2>
+              <p>头像、口播源视频和其它素材统一用表格查看，详情里可预览文件。</p>
+            </div>
+          </div>
+          <div id="materialList" class="humanTableWrap"></div>
         </section>
       </section>
 
@@ -359,10 +413,10 @@
             </div>
           </div>
           <div class="workflowSteps">
-            <span>脚本已审核</span>
-            <span>自动生成中</span>
-            <span>待审核成片</span>
-            <span>准备发布</span>
+            <span><strong id="taskFlowScriptCount">0</strong>已生成脚本</span>
+            <span><strong id="taskFlowRunningCount">0</strong>自动生成中</span>
+            <span><strong id="taskFlowReviewCount">0</strong>待审核成片</span>
+            <span><strong id="taskFlowReadyCount">0</strong>准备发布</span>
           </div>
         </section>
         <details class="panel advancedTaskPanel">
@@ -383,6 +437,7 @@
               <label>成片方式
                 <select name="production_mode">
                   <option value="talking_head_template">数字人口播模板</option>
+                  <option value="material_mix">素材库混剪方案</option>
                   <option value="seedance_scene">Seedance AI 实景/B-roll</option>
                   <option value="digital_human">真人数字人口播</option>
                   <option value="dynamic_explainer">图文草稿预览</option>
@@ -391,6 +446,16 @@
               <label>导出规格
                 <select name="export_profile" id="taskExportProfileSelect">
                   <option value="">按脚本平台自动匹配</option>
+                </select>
+              </label>
+              <label>字幕风格
+                <select name="subtitle_style">
+                  <option value="auto">AI 自动选择</option>
+                  <option value="business">商务清晰</option>
+                  <option value="viral">爆款大字</option>
+                  <option value="digital_human">数字人口播</option>
+                  <option value="tutorial">教程说明</option>
+                  <option value="minimal">极简底栏</option>
                 </select>
               </label>
               <div class="actions">
@@ -411,6 +476,7 @@
               <label>成片方式
                 <select id="batchProductionModeSelect">
                   <option value="talking_head_template">数字人口播模板</option>
+                  <option value="material_mix">素材库混剪方案</option>
                   <option value="seedance_scene">Seedance AI 实景/B-roll</option>
                   <option value="digital_human">真人数字人口播</option>
                   <option value="dynamic_explainer">图文草稿预览</option>
@@ -421,6 +487,16 @@
                   <option value="">按脚本平台自动匹配</option>
                 </select>
               </label>
+              <label>字幕风格
+                <select id="batchSubtitleStyleSelect">
+                  <option value="auto">AI 自动选择</option>
+                  <option value="business">商务清晰</option>
+                  <option value="viral">爆款大字</option>
+                  <option value="digital_human">数字人口播</option>
+                  <option value="tutorial">教程说明</option>
+                  <option value="minimal">极简底栏</option>
+                </select>
+              </label>
               <div class="actions">
                 <button id="batchCreateTasksBtn" type="button">批量创建任务</button>
                 <button id="batchRunSelectedTasksBtn" type="button" class="secondary">运行选中任务</button>
@@ -429,10 +505,36 @@
           </div>
         </details>
         <section class="panel footerPanel">
-          <h2>视频任务列表</h2>
+          <div class="sectionHeader compactSectionHeader">
+            <div>
+              <h2>已生成脚本</h2>
+              <p>这里显示所有已生成脚本，可直接查看详情或进入视频生成。</p>
+            </div>
+          </div>
+          <div id="taskScriptList" class="taskTableWrap"></div>
+        </section>
+        <section class="panel footerPanel">
+          <div class="sectionHeader compactSectionHeader">
+            <div>
+              <h2>视频任务列表</h2>
+              <p>生成中的任务、已生成视频和审核发布状态统一在这里管理。</p>
+            </div>
+          </div>
           <div id="taskListTasks" class="taskTableWrap"></div>
         </section>
-        <section id="taskPreviewPanel" class="panel footerPanel taskPreviewPanel hiddenPanel">
+        <div id="taskDetailDrawer" class="drawerOverlay hiddenPanel" aria-hidden="true">
+          <aside class="detailDrawer taskDetailDrawer" aria-label="视频任务详情">
+            <div class="drawerHeader">
+              <div>
+                <p class="eyebrow" id="taskDetailEyebrow">Task Detail</p>
+                <h2 id="taskDetailTitle">任务详情</h2>
+              </div>
+              <button id="closeTaskDetailBtn" type="button" class="iconBtn" title="关闭">×</button>
+            </div>
+            <div id="taskDetailContent" class="taskDetailContent"></div>
+          </aside>
+        </div>
+        <section id="taskPreviewPanel" class="panel footerPanel taskPreviewPanel hiddenPanel" aria-hidden="true">
           <div class="sectionHeader compactSectionHeader">
             <div>
               <h2>成片预览</h2>
@@ -600,19 +702,21 @@
             <div class="sectionHeader compactSectionHeader">
               <div>
                 <h2>视频存储位置</h2>
-                <p>选择系统生成的成片、分段视频、数字人口播和音频文件保存在电脑哪个文件夹。</p>
+                <p>选择成片保存到这台电脑的哪个文件夹。系统会保留服务器文件用于预览和发布，同时可写入你选择的本机文件夹。</p>
               </div>
             </div>
-            <form id="videoStorageForm" class="storageConfigForm storageRootForm">
-              <label class="storageRootField">电脑保存位置
-                <input id="videoStorageRootInput" name="storage_root" placeholder="/Users/Admin/Movies/AI视频输出" />
-              </label>
-              <div class="storageActions">
-                <button id="chooseStorageFolderBtn" type="button" class="secondary">选择文件夹</button>
-                <button type="submit">保存位置</button>
+            <div id="videoStorageForm" class="storageConfigForm storageRootForm">
+              <div class="storageChoiceHeader">
+                <span>电脑保存位置</span>
+                <strong id="currentLocalSaveDirectory">未选择文件夹</strong>
               </div>
-            </form>
-            <div id="storagePresetList" class="storagePresetList"></div>
+              <button id="chooseLocalSaveFolderBtn" type="button" class="secondary">选择电脑文件夹</button>
+              <label class="checkLine storageAutoSaveSwitch">
+                <input id="autoSaveToLocalFolder" type="checkbox" />
+                生成后自动保存到这个文件夹
+              </label>
+            </div>
+            <div id="localSaveStatus" class="storageLocalStatus">未选择电脑文件夹</div>
             <div id="videoStoragePaths" class="storagePathGrid"></div>
           </section>
           <section class="panel storagePanel">
@@ -764,7 +868,44 @@
       </section>
     </main>
 
+    <div id="accountModal" class="modalOverlay hiddenPanel" aria-hidden="true">
+      <section class="modalPanel" role="dialog" aria-modal="true" aria-labelledby="accountModalTitle">
+        <div class="modalHeader">
+          <div>
+            <p class="eyebrow">Account</p>
+            <h2 id="accountModalTitle">账号资料</h2>
+          </div>
+          <button id="accountModalClose" class="iconBtn" type="button" title="关闭">×</button>
+        </div>
+        <div id="accountProfileContent" class="accountProfileContent"></div>
+        <form id="changePasswordForm" class="accountPasswordForm">
+          <h3>账号安全</h3>
+          <label>当前密码<input name="current_password" type="password" autocomplete="current-password" required /></label>
+          <label>新密码<input name="new_password" type="password" autocomplete="new-password" minlength="6" required /></label>
+          <label>确认新密码<input name="confirm_password" type="password" autocomplete="new-password" minlength="6" required /></label>
+          <button type="submit">保存新密码</button>
+        </form>
+      </section>
+    </div>
+
+    <div id="humanHelpModal" class="modalOverlay hiddenPanel" aria-hidden="true">
+      <section class="modalPanel compactModalPanel" role="dialog" aria-modal="true" aria-labelledby="humanHelpModalTitle">
+        <div class="modalHeader">
+          <div>
+            <p class="eyebrow">Guide</p>
+            <h2 id="humanHelpModalTitle">声音与形象采集</h2>
+          </div>
+          <button id="humanHelpModalClose" class="iconBtn" type="button" title="关闭">×</button>
+        </div>
+        <div class="helpList">
+          <div class="item">头像用于形象预览和照片驱动数字人。</div>
+          <div class="item">口播视频源用于采集本人声音、动作和口型参考。</div>
+          <div class="item">配置声音复刻 API 后，系统会先生成 voice_id，再用本人音色合成新脚本。</div>
+        </div>
+      </section>
+    </div>
+
     <div id="toast"></div>
-    <script src="/app.js"></script>
+    <script src="/app.js?v=20260628-preview-subtitle-flow"></script>
   </body>
 </html>

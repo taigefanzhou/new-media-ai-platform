@@ -2,6 +2,13 @@
 
 The MVP is designed to run without paid services. Every generation step has a `mock` mode and a real-service mode.
 
+This file describes how each API/model integration should be connected: providers, environment variables, request payloads, and expected responses.
+
+For the current online runtime state, read `docs/system-status-handoff.md` first. Whenever an integration is added, removed, switched from mock to real API, or changed in production, update both files:
+
+- `docs/integrations.md`: how the integration works.
+- `docs/system-status-handoff.md`: whether it is actually configured, verified, and live.
+
 ## Status
 
 Open the admin console and check the integration strip:
@@ -166,6 +173,116 @@ FFMPEG_BINARY="ffmpeg"
 ```
 
 This mode concatenates local MP4 paths returned by upstream services. Remote URLs should be downloaded by the provider adapter before enabling production use.
+
+## Subtitle Engine
+
+The platform has a built-in subtitle post-processing engine in `backend/app/services/subtitles.py`.
+
+It is not a third-party SaaS integration. It uses the generated script text, task duration/profile metadata, ASS/SRT files, and FFmpeg to create a captioned MP4:
+
+```text
+local video -> script voiceover timing -> captions.srt -> captions.ass -> FFmpeg burn-in -> captioned-video.mp4
+```
+
+Current task fields:
+
+```text
+subtitle_enabled
+subtitle_style
+subtitle_status
+subtitle_srt_path
+subtitle_ass_path
+captioned_output_path
+```
+
+Supported styles:
+
+```text
+auto
+business
+viral
+digital_human
+tutorial
+minimal
+```
+
+Runtime behavior:
+
+- New video tasks enable subtitles by default.
+- `auto` chooses a style from production mode and script duration.
+- The creation page chooses a runnable generation route from `/api/integrations/status`: real digital human first, then real video generation, otherwise local `dynamic_explainer` preview.
+- Preview, storage summary, and publish validation prefer `captioned_output_path` when it exists.
+- The engine requires a local video file and FFmpeg. It skips `mock://` outputs and remote URLs instead of pretending success.
+- Current timing is automatically distributed from the script voiceover text and final video duration.
+- When real ASR or word-level timestamps are available, the same ASS/SRT stage can be fed with ASR-derived cue timing for more accurate karaoke/highlight captions.
+
+## Remotion Professional Renderer
+
+The project includes a Remotion-based renderer in `services/remotion-renderer`.
+
+Purpose:
+
+```text
+base video -> Remotion professional template -> packaged MP4 -> subtitle engine / review / storage
+```
+
+Configuration:
+
+```bash
+COMPOSITION_PROVIDER="remotion"
+REMOTION_RENDER_API_BASE="http://remotion-renderer:3100"
+REMOTION_RENDER_TEMPLATE="business_talking"
+```
+
+Service endpoints:
+
+```text
+GET  /health
+POST /render
+```
+
+`POST /render` accepts:
+
+```json
+{
+  "source_video_path": "/app/data/final/.../base.mp4",
+  "output_path": "/app/data/composition/remotion/task-1/professional-video.mp4",
+  "width": 1080,
+  "height": 1920,
+  "duration_seconds": 60,
+  "title": "视频标题",
+  "hook": "开头钩子",
+  "voiceover": "口播稿",
+  "brand_name": "TECHARK",
+  "scenes": []
+}
+```
+
+Current template:
+
+- `business_talking`
+- Base video layer.
+- Animated background.
+- Top title and brand bar.
+- Scene card / selling-point card.
+- Bottom caption zone.
+- Progress bar.
+
+Current online deployment:
+
+- Production is running `COMPOSITION_PROVIDER=remotion`.
+- Renderer container: `server-remotion-renderer-1`.
+- Renderer image: `new-media-remotion-renderer:20260628-professional`.
+- `/api/integrations/status` should show `composition.provider=remotion` and `composition.real_api=true`.
+- Verified online render output: `/opt/new-media-ai-platform/backend/data/remotion-test/output.mp4`.
+
+Production deployment note:
+
+- Do not build this image directly on the production host unless there is an explicit maintenance window.
+- Production currently blocks Docker build through `/opt/factory-manager/shared/state/.production-no-docker-build`.
+- Build the renderer image in CI/build machine, push it, then deploy with `docker compose pull && docker compose up -d --no-build`.
+- The temporary tar-based path used for this release is: build linux/amd64 image outside production, upload tar, `docker load`, then `docker compose up -d --no-build`.
+- Runtime installation of Chromium works for development but is too slow and heavy for production startup.
 
 ## Trending Search
 

@@ -2,6 +2,14 @@
 
 This is a practical MVP scaffold for a company short-video production platform.
 
+## 接手必读
+
+当前线上环境、已有数据、真实 API 接入情况和排查顺序，先看：
+
+- `docs/system-status-handoff.md`
+
+这份文档记录的是当前线上实例的真实状态。现在已经真实接入并验证的模型能力是阿里云百炼 CosyVoice 声音复刻；脚本生成、TTS、数字人驱动、视频生成、视频合成、ASR、爆款采集等能力目前仍是 stub、mock 或未完整配置，不能按“已真实成片”理解。
+
 It covers:
 
 - Material library
@@ -152,4 +160,5 @@ curl http://localhost:8000/api/dashboard
 curl http://localhost:8000/api/integrations/status
 ```
 
-More integration details are in `docs/integrations.md`.
+Current production handoff details are in `docs/system-status-handoff.md`.
+Integration adapter details are in `docs/integrations.md`.

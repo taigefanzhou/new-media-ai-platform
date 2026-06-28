@@ -77,13 +77,29 @@ class ScriptGenerator:
         duration_seconds: int,
         target_platform: str,
         output_language: str = "zh-CN",
+        variation_instruction: str = "",
     ) -> GeneratedScript:
+        topic = self._clean_topic(topic)
         if self.model_config and self.model_config.api_base and self.model_config.api_key:
-            return await self._openai_compatible(topic, brand_voice, duration_seconds, target_platform, output_language)
+            return await self._openai_compatible(
+                topic,
+                brand_voice,
+                duration_seconds,
+                target_platform,
+                output_language,
+                variation_instruction,
+            )
         if self.settings.llm_provider == "stub":
             return self._stub(topic, brand_voice, duration_seconds, target_platform, output_language)
         if self.settings.llm_provider == "openai-compatible":
-            return await self._openai_compatible(topic, brand_voice, duration_seconds, target_platform, output_language)
+            return await self._openai_compatible(
+                topic,
+                brand_voice,
+                duration_seconds,
+                target_platform,
+                output_language,
+                variation_instruction,
+            )
         return self._stub(topic, brand_voice, duration_seconds, target_platform, output_language)
 
     async def _openai_compatible(
@@ -93,6 +109,7 @@ class ScriptGenerator:
         duration_seconds: int,
         target_platform: str,
         output_language: str = "zh-CN",
+        variation_instruction: str = "",
     ) -> GeneratedScript:
         api_base = self.model_config.api_base if self.model_config else self.settings.llm_api_base
         api_key = self.model_config.api_key if self.model_config else self.settings.llm_api_key
@@ -103,6 +120,7 @@ class ScriptGenerator:
         profile = resolve_export_profile(platform=target_platform)
         prompt = {
             "topic": topic,
+            "variation_instruction": variation_instruction,
             "brand_voice": brand_voice,
             "duration_seconds": duration_seconds,
             "target_platform": target_platform,
@@ -133,6 +151,8 @@ class ScriptGenerator:
                 "ai_prompt 始终使用英文，适合 Seedance 或其他视频模型；必须包含目标画幅、自然皮肤、真实灯光、非塑料感、非机械感等真实口播要求",
                 "seedance_prompt 始终使用英文，必须包含 realistic live-action talking-head style、natural skin texture、natural speech rhythm、no watermark 和 video_generation_ratio",
                 "必须输出严格 JSON",
+                "variation_instruction 只是给模型看的内部差异化要求，绝不能逐字出现在 hook、voiceover、storyboard、storyboard_plan、seedance_prompt、title_options 或字幕文字里",
+                "hook 和 voiceover 只能包含最终用户能听到的自然口播内容，不得包含“批量生成第几条”“请换一个标题角度”“避免与其他脚本重复”等内部工作流文字",
             ],
             "json_schema": {
                 "hook": "开头钩子，一句话",
@@ -172,7 +192,7 @@ class ScriptGenerator:
         headers = {"Authorization": f"Bearer {api_key}"}
         url = api_base.rstrip("/") + "/chat/completions"
 
-        async with httpx.AsyncClient(timeout=180) as client:
+        async with httpx.AsyncClient(timeout=180, trust_env=False) as client:
             response = await client.post(url, headers=headers, json=payload)
             response.raise_for_status()
             data = response.json()
@@ -182,14 +202,14 @@ class ScriptGenerator:
         usage = data.get("usage") or {}
         storyboard_plan = self._normalize_storyboard_plan(parsed.get("storyboard_plan"), parsed.get("storyboard", ""), duration_seconds)
         return GeneratedScript(
-            hook=parsed.get("hook", ""),
-            voiceover=parsed.get("voiceover", ""),
-            storyboard=parsed.get("storyboard", ""),
-            storyboard_plan=storyboard_plan,
-            seedance_prompt=parsed.get("seedance_prompt", ""),
-            title_options=parsed.get("title_options", ""),
-            hashtags=parsed.get("hashtags", ""),
-            compliance_notes=parsed.get("compliance_notes", ""),
+            hook=self._strip_internal_instructions(parsed.get("hook", "")),
+            voiceover=self._strip_internal_instructions(parsed.get("voiceover", "")),
+            storyboard=self._strip_internal_instructions(parsed.get("storyboard", "")),
+            storyboard_plan=self._clean_storyboard_plan(storyboard_plan),
+            seedance_prompt=self._strip_internal_instructions(parsed.get("seedance_prompt", "")),
+            title_options=self._strip_internal_instructions(parsed.get("title_options", "")),
+            hashtags=self._strip_internal_instructions(parsed.get("hashtags", "")),
+            compliance_notes=self._strip_internal_instructions(parsed.get("compliance_notes", "")),
             prompt_tokens=int(usage.get("prompt_tokens") or 0),
             completion_tokens=int(usage.get("completion_tokens") or 0),
             total_tokens=int(usage.get("total_tokens") or 0),
@@ -203,6 +223,7 @@ class ScriptGenerator:
         target_platform: str,
         output_language: str = "zh-CN",
     ) -> GeneratedScript:
+        topic = self._clean_topic(topic)
         profile = resolve_export_profile(platform=target_platform)
         profile_prompt = (
             f"target generation ratio {profile.generation_ratio}, final export {profile.width}x{profile.height} "
@@ -255,6 +276,7 @@ class ScriptGenerator:
         )
 
     def _stub_voiceover_zh(self, topic: str, duration_seconds: int) -> str:
+        topic = self._clean_topic(topic)
         sections = [
             f"今天我们完整讲清楚：{topic}。先说结论，真正影响客户判断的不是功能堆得多，而是这个方案能不能解决真实运营问题。",
             "第一段先看场景。很多企业做视频、做获客、做智能化项目时，最容易犯的错，是一开始就讨论工具和价格，却没有把客户旅程、交付边界和后续运营想清楚。",
@@ -275,6 +297,7 @@ class ScriptGenerator:
         return text[: target_chars + 80]
 
     def _stub_voiceover_en(self, topic: str, duration_seconds: int) -> str:
+        topic = self._clean_topic(topic)
         sections = [
             f"Today, let us explain {topic} as a practical business decision, not just a feature list.",
             "First, look at the real operating scenario. A strong solution should reduce friction for users and make daily work easier for the team.",
@@ -315,6 +338,7 @@ class ScriptGenerator:
         output_language: str,
         target_platform: str | None = None,
     ) -> list[dict[str, object]]:
+        topic = self._clean_topic(topic)
         profile = resolve_export_profile(platform=target_platform)
         segment_count = max(4, min(24, math.ceil(max(duration_seconds, 30) / 18)))
         segment_length = math.ceil(duration_seconds / segment_count)
@@ -394,6 +418,42 @@ class ScriptGenerator:
             )
         return normalized or self._plan_from_storyboard_lines(storyboard, duration_seconds)
 
+    @staticmethod
+    def _clean_topic(topic: str) -> str:
+        lines = []
+        for line in str(topic or "").splitlines():
+            cleaned = line.strip()
+            if not cleaned:
+                continue
+            if re.match(r"^批量生成第\s*\d+\s*条[:：]", cleaned):
+                continue
+            lines.append(cleaned)
+        return "\n".join(lines).strip() or str(topic or "").strip()
+
+    @staticmethod
+    def _strip_internal_instructions(value: object) -> str:
+        text = str(value or "")
+        patterns = [
+            r"\s*批量生成第\s*\d+\s*条[:：][^。\n]*[。.]?",
+            r"\s*请换一个标题角度、开头钩子和分镜结构，?避免与其他脚本重复[。.]?",
+            r"\s*避免与其他脚本重复[。.]?",
+        ]
+        for pattern in patterns:
+            text = re.sub(pattern, "", text)
+        text = re.sub(r"\n{3,}", "\n\n", text)
+        text = re.sub(r"。。+", "。", text)
+        text = re.sub(r"：\s*。", "：", text)
+        return text.strip()
+
+    def _clean_storyboard_plan(self, plan: list[dict[str, object]]) -> list[dict[str, object]]:
+        cleaned = []
+        for item in plan:
+            next_item = {}
+            for key, value in item.items():
+                next_item[key] = self._strip_internal_instructions(value) if isinstance(value, str) else value
+            cleaned.append(next_item)
+        return cleaned
+
     def _plan_from_storyboard_lines(self, storyboard: str, duration_seconds: int) -> list[dict[str, object]]:
         lines = [line.strip() for line in storyboard.splitlines() if line.strip()]
         if not lines:
@@ -447,6 +507,8 @@ class MediaGenerationClient:
             or self._config_note_value(self.tts_model_config, "default_voice")
             or self.settings.tts_voice
         )
+        if default_voice == "default":
+            default_voice = "longanyang"
         if self._is_dashscope_tts(provider, api_base):
             if not api_base:
                 raise RuntimeError("百炼 CosyVoice 接口地址未配置，请使用 https://dashscope.aliyuncs.com/api/v1")
@@ -514,7 +576,7 @@ class MediaGenerationClient:
             files = {
                 "source_video": (Path(source_video_path).name, source_file, "video/mp4"),
             }
-            async with httpx.AsyncClient(timeout=900) as client:
+            async with httpx.AsyncClient(timeout=900, trust_env=False) as client:
                 response = await client.post(api_base.rstrip("/") + "/clone", data=data, files=files, headers=headers)
                 response.raise_for_status()
                 result = response.json()
@@ -638,22 +700,29 @@ class MediaGenerationClient:
         total: int,
         export_profile: str | None = None,
     ) -> str:
-        if self.video_model_config and self.video_model_config.provider == "seedance":
+        provider = self.video_model_config.provider if self.video_model_config else self.settings.video_generation_provider
+        api_base = self.video_model_config.api_base if self.video_model_config and self.video_model_config.api_base else ""
+        api_key = self.video_model_config.api_key if self.video_model_config and self.video_model_config.api_key else self.settings.seedance_api_key
+        if "seedance" in provider:
+            if not api_key:
+                raise RuntimeError("Seedance API Key 未配置，无法生成真实视频。")
             return await self._generate_seedance_clip_via_ark(
                 self._segment_prompt(prompt, index, total),
                 duration_seconds,
                 export_profile,
             )
 
-        provider = self.settings.video_generation_provider
-        if provider == "seedance" and self.settings.seedance_api_base:
+        if "seedance" in provider and self.settings.seedance_api_base:
+            if not self.settings.seedance_api_key:
+                raise RuntimeError("Seedance API Key 未配置，无法生成真实视频。")
             return await self._generate_seedance_clip_via_ark(
                 self._segment_prompt(prompt, index, total),
                 duration_seconds,
                 export_profile,
             )
 
-        if provider == "comfyui" and self.settings.comfyui_api_base:
+        comfyui_base = api_base if provider == "comfyui" else self.settings.comfyui_api_base
+        if provider == "comfyui" and comfyui_base:
             payload = {
                 "prompt": prompt,
                 "duration_seconds": duration_seconds,
@@ -661,10 +730,10 @@ class MediaGenerationClient:
                 "segment_count": total,
                 "workflow": "default-video-generation",
             }
-            result = await self._post_media(self.settings.comfyui_api_base, "/prompt", payload)
+            result = await self._post_media(comfyui_base, "/prompt", payload)
             return self._extract_media_url(result, "comfyui_job")
 
-        return self._mock_asset("seedance", f"clip-{index + 1}.mp4")
+        raise RuntimeError("没有可用的真实视频生成模型，请启用 Seedance 或 ComfyUI 视频模型。")
 
     def segment_plan(
         self,
@@ -830,6 +899,45 @@ class MediaGenerationClient:
             for clip in scene_clips:
                 clip.close()
         return self._export_to_profile(str(output_path), export_profile)
+
+    async def material_to_scene_clip(
+        self,
+        material_path: str,
+        duration_seconds: int = 5,
+        export_profile: str | None = None,
+    ) -> str:
+        path = Path(material_path)
+        if not path.exists() or not path.is_file():
+            raise RuntimeError("素材文件不存在，无法生成分镜片段。")
+        mime_type = mimetypes.guess_type(str(path))[0] or ""
+        if mime_type.startswith("video/"):
+            return str(path)
+
+        from moviepy.editor import ImageClip
+
+        profile = resolve_export_profile(export_profile)
+        output_path = self._asset_path("composition", "material-image-clip.mp4")
+        clip = ImageClip(str(path)).set_duration(max(3, min(12, int(duration_seconds or 5))))
+        scale = max(profile.width / clip.w, profile.height / clip.h)
+        clip = clip.resize(scale)
+        clip = clip.crop(
+            x_center=clip.w / 2,
+            y_center=clip.h / 2,
+            width=profile.width,
+            height=profile.height,
+        )
+        clip.write_videofile(
+            str(output_path),
+            fps=24,
+            codec="libx264",
+            audio=False,
+            preset="medium",
+            bitrate="2200k",
+            threads=2,
+            logger=None,
+        )
+        clip.close()
+        return str(output_path)
 
     async def compose_talking_avatar_sequence(self, avatar_clips: list[str]) -> str:
         from moviepy.editor import VideoFileClip, concatenate_videoclips
@@ -1216,29 +1324,25 @@ class MediaGenerationClient:
         model_name: str,
     ) -> str:
         endpoint = self._dashscope_tts_endpoint(api_base)
+        input_payload = self._dashscope_tts_input(text, voice, model_name)
         payload = {
             "model": model_name or "cosyvoice-v3-flash",
-            "input": {
-                "text": text,
-                "voice": voice or "longanyang",
-            },
-            "parameters": {
-                "format": "wav",
-                "sample_rate": 24000,
-            },
+            "input": input_payload,
         }
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
-        async with httpx.AsyncClient(timeout=240) as client:
-            response = await client.post(endpoint, headers=headers, json=payload)
-            response.raise_for_status()
+        async with httpx.AsyncClient(timeout=240, trust_env=False) as client:
+            response = await self._request_with_retries(client, "POST", endpoint, "百炼 CosyVoice 语音合成", headers=headers, json=payload)
             data = response.json()
 
         audio_url = self._nested_value(data, ("output", "audio", "url"))
         if isinstance(audio_url, str) and audio_url:
-            audio_path = await self._download_media(audio_url, "voice", "voiceover.wav")
+            try:
+                audio_path = await self._download_media(audio_url, "voice", "voiceover.wav")
+            except Exception:
+                audio_path = await self._synthesize_dashscope_cosyvoice_stream(text, voice or "longanyang", api_base, api_key, model_name)
             Path(f"{audio_path}.source_url").write_text(audio_url, encoding="utf-8")
             return audio_path
 
@@ -1250,6 +1354,73 @@ class MediaGenerationClient:
             output_path.write_bytes(base64.b64decode(audio_data))
             return str(output_path)
         raise RuntimeError("百炼 CosyVoice 未返回音频 URL 或音频数据")
+
+    async def _synthesize_dashscope_cosyvoice_stream(
+        self,
+        text: str,
+        voice: str,
+        api_base: str,
+        api_key: str,
+        model_name: str,
+    ) -> str:
+        endpoint = self._dashscope_tts_endpoint(api_base)
+        input_payload = self._dashscope_tts_input(text, voice, model_name)
+        payload = {
+            "model": model_name or "cosyvoice-v3-flash",
+            "input": input_payload,
+        }
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "X-DashScope-SSE": "enable",
+        }
+        chunks: list[bytes] = []
+        async with httpx.AsyncClient(timeout=240, trust_env=False) as client:
+            async with client.stream("POST", endpoint, headers=headers, json=payload) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if not line.startswith("data:"):
+                        continue
+                    event = json.loads(line.removeprefix("data:").strip())
+                    audio_data = self._nested_value(event, ("output", "audio", "data"))
+                    if isinstance(audio_data, str) and audio_data:
+                        chunks.append(base64.b64decode(audio_data))
+        if not chunks:
+            raise RuntimeError("百炼 CosyVoice 流式合成未返回音频数据")
+        output_path = self._asset_path("voice", "voiceover.wav")
+        output_path.write_bytes(b"".join(chunks))
+        return str(output_path)
+
+    def _dashscope_tts_input(self, text: str, voice: str, model_name: str) -> dict[str, object]:
+        enable_ssml = self._config_note_bool(self.tts_model_config, "enable_ssml")
+        input_payload: dict[str, object] = {
+            "text": self._text_to_ssml(text) if enable_ssml else text,
+            "voice": voice or "longanyang",
+            "format": self._config_note_value(self.tts_model_config, "format") or "wav",
+            "sample_rate": self._config_note_int(self.tts_model_config, "sample_rate") or 24000,
+        }
+        instruction = self._config_note_value(self.tts_model_config, "instruction")
+        if instruction:
+            input_payload["instruction"] = instruction
+        if enable_ssml:
+            input_payload["enable_ssml"] = True
+        for key in ("rate", "pitch", "volume"):
+            value = self._config_note_float(self.tts_model_config, key)
+            if value is not None:
+                input_payload[key] = value
+        return input_payload
+
+    def _text_to_ssml(self, text: str) -> str:
+        escaped = (
+            str(text or "")
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+        )
+        escaped = re.sub(r"([。！？!?])", r"\\1<break time=\"450ms\"/>", escaped)
+        escaped = re.sub(r"([；;])", r"\\1<break time=\"320ms\"/>", escaped)
+        escaped = re.sub(r"([，,])", r"\\1<break time=\"180ms\"/>", escaped)
+        return f"<speak>{escaped}</speak>"
 
     async def _clone_dashscope_cosyvoice(
         self,
@@ -1283,7 +1454,7 @@ class MediaGenerationClient:
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
-        async with httpx.AsyncClient(timeout=300) as client:
+        async with httpx.AsyncClient(timeout=300, trust_env=False) as client:
             response = await client.post(self._dashscope_customization_endpoint(api_base), headers=headers, json=payload)
             response.raise_for_status()
             data = response.json()
@@ -1362,7 +1533,7 @@ class MediaGenerationClient:
         payload = {"model": model, "input": input_payload}
         if parameters:
             payload["parameters"] = parameters
-        async with httpx.AsyncClient(timeout=300) as client:
+        async with httpx.AsyncClient(timeout=300, trust_env=False) as client:
             response = await client.post(
                 self._aliyun_video_synthesis_endpoint(api_base),
                 headers=headers,
@@ -1377,7 +1548,7 @@ class MediaGenerationClient:
 
     async def _poll_aliyun_video_synthesis_task(self, api_base: str, api_key: str, task_id: str) -> str:
         headers = {"Authorization": f"Bearer {api_key}"}
-        async with httpx.AsyncClient(timeout=300) as client:
+        async with httpx.AsyncClient(timeout=300, trust_env=False) as client:
             for _ in range(180):
                 await asyncio.sleep(5)
                 response = await client.get(self._aliyun_task_endpoint(api_base, task_id), headers=headers)
@@ -1435,7 +1606,7 @@ class MediaGenerationClient:
                 "fluent": True,
             },
         }
-        async with httpx.AsyncClient(timeout=300) as client:
+        async with httpx.AsyncClient(timeout=300, trust_env=False) as client:
             create_response = await client.post(f"{base}/talks", headers={**headers, "Content-Type": "application/json"}, json=payload)
             create_response.raise_for_status()
             talk_data = create_response.json()
@@ -1509,7 +1680,7 @@ class MediaGenerationClient:
         files: dict[str, object],
         headers: dict[str, str],
     ) -> dict[str, object]:
-        async with httpx.AsyncClient(timeout=900) as client:
+        async with httpx.AsyncClient(timeout=900, trust_env=False) as client:
             response = await client.post(url, data=data, files=files, headers=headers)
             response.raise_for_status()
             if response.headers.get("content-type", "").startswith("video/"):
@@ -1517,6 +1688,32 @@ class MediaGenerationClient:
                 output_path.write_bytes(response.content)
                 return {"path": str(output_path)}
             return response.json()
+
+    async def _request_with_retries(
+        self,
+        client: httpx.AsyncClient,
+        method: str,
+        url: str,
+        stage: str,
+        attempts: int = 3,
+        **kwargs,
+    ) -> httpx.Response:
+        for attempt in range(attempts):
+            try:
+                response = await client.request(method, url, **kwargs)
+                if response.status_code >= 500 and attempt < attempts - 1:
+                    await asyncio.sleep(2 * (attempt + 1))
+                    continue
+                response.raise_for_status()
+                return response
+            except httpx.HTTPStatusError as exc:
+                detail = exc.response.text[:500]
+                raise RuntimeError(f"{stage} HTTP {exc.response.status_code}: {detail}") from exc
+            except httpx.TransportError as exc:
+                if attempt >= attempts - 1:
+                    raise RuntimeError(f"{stage}连接失败：{exc}") from exc
+                await asyncio.sleep(2 * (attempt + 1))
+        raise RuntimeError(f"{stage}请求失败")
 
     async def _post_media(
         self,
@@ -1530,7 +1727,7 @@ class MediaGenerationClient:
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
         url = base_url.rstrip("/") + path
-        async with httpx.AsyncClient(timeout=180) as client:
+        async with httpx.AsyncClient(timeout=180, trust_env=False) as client:
             response = await client.post(url, json=payload, headers=headers)
             response.raise_for_status()
             if binary:
@@ -1550,20 +1747,39 @@ class MediaGenerationClient:
         if not api_base:
             api_base = "https://ark.cn-beijing.volces.com/api/v3"
         if not api_key:
-            return self._mock_asset("seedance", "clip-1.mp4")
+            raise RuntimeError("Seedance API Key 未配置，无法生成真实视频。")
 
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
         payload = {
             "model": model_name,
             "content": [{"type": "text", "text": self._seedance_prompt(prompt, duration_seconds, export_profile)}],
         }
-        async with httpx.AsyncClient(timeout=180) as client:
-            response = await client.post(
+        async with httpx.AsyncClient(timeout=180, trust_env=False) as client:
+            async def seedance_request(method: str, url: str, stage: str, **kwargs) -> httpx.Response:
+                for attempt in range(3):
+                    try:
+                        response = await client.request(method, url, **kwargs)
+                        if response.status_code >= 500 and attempt < 2:
+                            await asyncio.sleep(2 * (attempt + 1))
+                            continue
+                        response.raise_for_status()
+                        return response
+                    except httpx.HTTPStatusError as exc:
+                        detail = exc.response.text[:500]
+                        raise RuntimeError(f"Seedance {stage} HTTP {exc.response.status_code}: {detail}") from exc
+                    except httpx.TransportError as exc:
+                        if attempt >= 2:
+                            raise RuntimeError(f"Seedance {stage} 连接失败：{exc}") from exc
+                        await asyncio.sleep(2 * (attempt + 1))
+                raise RuntimeError(f"Seedance {stage} 请求失败")
+
+            response = await seedance_request(
+                "POST",
                 api_base.rstrip("/") + "/contents/generations/tasks",
+                "创建任务",
                 headers=headers,
                 json=payload,
             )
-            response.raise_for_status()
             task_id = response.json().get("id")
             if not task_id:
                 raise RuntimeError("Seedance task id not returned")
@@ -1572,8 +1788,7 @@ class MediaGenerationClient:
             query_url = api_base.rstrip("/") + f"/contents/generations/tasks/{task_id}"
             for _ in range(120):
                 await asyncio.sleep(5)
-                task_response = await client.get(query_url, headers=headers)
-                task_response.raise_for_status()
+                task_response = await seedance_request("GET", query_url, "查询任务", headers=headers)
                 task_data = task_response.json()
                 status = task_data.get("status")
                 if status == "succeeded":
@@ -1586,17 +1801,15 @@ class MediaGenerationClient:
             video_url = self._seedance_video_url(task_data or {})
             if not video_url:
                 raise RuntimeError("Seedance video url not returned")
-            video_response = await client.get(video_url, timeout=180)
-            video_response.raise_for_status()
+            video_response = await seedance_request("GET", video_url, "下载视频", timeout=180)
 
         output_path = self._asset_path("seedance", f"{task_id}.mp4")
         output_path.write_bytes(video_response.content)
         return str(output_path)
 
     async def _download_media(self, url: str, category: str, filename: str) -> str:
-        async with httpx.AsyncClient(timeout=300) as client:
-            response = await client.get(url)
-            response.raise_for_status()
+        async with httpx.AsyncClient(timeout=300, trust_env=False) as client:
+            response = await self._request_with_retries(client, "GET", url, f"{category} 媒体下载")
         output_path = self._asset_path(category, filename)
         output_path.write_bytes(response.content)
         return str(output_path)
@@ -2001,6 +2214,28 @@ class MediaGenerationClient:
                 return item_value.strip() or None
         return None
 
+    def _config_note_bool(self, model_config, key: str) -> bool:
+        value = self._config_note_value(model_config, key)
+        return str(value or "").strip().lower() in {"1", "true", "yes", "on", "enable", "enabled"}
+
+    def _config_note_int(self, model_config, key: str) -> Optional[int]:
+        value = self._config_note_value(model_config, key)
+        if value is None:
+            return None
+        try:
+            return int(float(value))
+        except ValueError:
+            return None
+
+    def _config_note_float(self, model_config, key: str) -> Optional[float]:
+        value = self._config_note_value(model_config, key)
+        if value is None:
+            return None
+        try:
+            return float(value)
+        except ValueError:
+            return None
+
     def _nested_value(self, data: object, path: tuple[str, ...]) -> object:
         current = data
         for key in path:
@@ -2086,7 +2321,7 @@ class MediaGenerationClient:
             files = {
                 field_name: (path.name, upload_file, mime_type),
             }
-            async with httpx.AsyncClient(timeout=300) as client:
+            async with httpx.AsyncClient(timeout=300, trust_env=False) as client:
                 response = await client.post(url, headers=headers, files=files)
                 response.raise_for_status()
                 data = response.json()

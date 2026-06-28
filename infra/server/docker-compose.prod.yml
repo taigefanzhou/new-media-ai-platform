@@ -6,11 +6,27 @@ services:
         PYTHON_BASE_IMAGE: ${PYTHON_BASE_IMAGE:-docker.m.daocloud.io/library/python:3.11-slim}
         PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
         PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-pypi.tuna.tsinghua.edu.cn}
+        APT_MIRROR: ${APT_MIRROR:-https://repo.huaweicloud.com/debian}
+        APT_SECURITY_MIRROR: ${APT_SECURITY_MIRROR:-https://repo.huaweicloud.com/debian-security}
     env_file:
       - ../../backend/.env
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:${PLATFORM_HOST_PORT:-8000}:8000"
+    volumes:
+      - ../../backend/data:/app/data
+
+  remotion-renderer:
+    image: ${REMOTION_RENDERER_IMAGE:-new-media-remotion-renderer:20260628-professional}
+    build:
+      context: ../../services/remotion-renderer
+      args:
+        NODE_BASE_IMAGE: ${NODE_BASE_IMAGE:-docker.m.daocloud.io/library/node:22-bookworm-slim}
+        APT_MIRROR: ${APT_MIRROR:-https://repo.huaweicloud.com/debian}
+        APT_SECURITY_MIRROR: ${APT_SECURITY_MIRROR:-https://repo.huaweicloud.com/debian-security}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${REMOTION_RENDERER_HOST_PORT:-3100}:3100"
     volumes:
       - ../../backend/data:/app/data
 
@@ -28,3 +44,8 @@ services:
       UPSTREAM_RESOLVER_URL: ${UPSTREAM_RESOLVER_URL:-https://sph.litao.workers.dev/api/fetch_video_profile}
       RESOLVER_ACCESS_TOKEN: ${RESOLVER_ACCESS_TOKEN:-}
       UPSTREAM_ACCESS_TOKEN: ${UPSTREAM_ACCESS_TOKEN:-}
+      UPLOAD_ACCESS_TOKEN: ${UPLOAD_ACCESS_TOKEN:-}
+      UPLOAD_PUBLIC_BASE_URL: ${UPLOAD_PUBLIC_BASE_URL:-http://82.156.2.200:8099/uploads}
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - ../../services/link-resolver-proxy/uploads:/app/uploads

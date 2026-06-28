@@ -110,9 +110,25 @@ def apply_sqlite_migrations() -> None:
             "production_mode": "ALTER TABLE videotask ADD COLUMN production_mode VARCHAR DEFAULT 'talking_head_template'",
             "segment_count": "ALTER TABLE videotask ADD COLUMN segment_count INTEGER DEFAULT 1",
             "completed_segments": "ALTER TABLE videotask ADD COLUMN completed_segments INTEGER DEFAULT 0",
+            "subtitle_enabled": "ALTER TABLE videotask ADD COLUMN subtitle_enabled BOOLEAN DEFAULT 1",
+            "subtitle_style": "ALTER TABLE videotask ADD COLUMN subtitle_style VARCHAR DEFAULT 'auto'",
+            "subtitle_status": "ALTER TABLE videotask ADD COLUMN subtitle_status VARCHAR DEFAULT 'pending'",
+            "subtitle_srt_path": "ALTER TABLE videotask ADD COLUMN subtitle_srt_path VARCHAR",
+            "subtitle_ass_path": "ALTER TABLE videotask ADD COLUMN subtitle_ass_path VARCHAR",
+            "captioned_output_path": "ALTER TABLE videotask ADD COLUMN captioned_output_path VARCHAR",
         }
         for column, statement in video_task_migrations.items():
             if video_task_rows and column not in video_task_columns:
+                connection.execute(text(statement))
+
+        video_segment_rows = connection.execute(text("PRAGMA table_info(videosegment)")).fetchall()
+        video_segment_columns = {row[1] for row in video_segment_rows}
+        video_segment_migrations = {
+            "material_id": "ALTER TABLE videosegment ADD COLUMN material_id INTEGER",
+            "material_match_notes": "ALTER TABLE videosegment ADD COLUMN material_match_notes VARCHAR DEFAULT ''",
+        }
+        for column, statement in video_segment_migrations.items():
+            if video_segment_rows and column not in video_segment_columns:
                 connection.execute(text(statement))
 
 

@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     storage_dir: str = "./data/storage"
     admin_username: str = "admin"
     admin_password: str = "admin123456"
+    auth_session_ttl_hours: int = 12
 
     llm_provider: str = "stub"
     llm_api_base: Optional[str] = None
@@ -38,6 +39,8 @@ class Settings(BaseSettings):
 
     composition_provider: str = "mock"
     ffmpeg_binary: str = "ffmpeg"
+    remotion_render_api_base: Optional[str] = None
+    remotion_render_template: str = "business_talking"
 
     trending_search_provider: str = "mock"
     trending_search_api_base: Optional[str] = None

@@ -24,6 +24,12 @@ body {
   font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+body.auth-pending .sidebar,
+body.auth-pending main > header,
+body.auth-pending main > .page {
+  display: none;
+}
+
 .sidebar {
   position: fixed;
   inset: 0 auto 0 0;
@@ -131,13 +137,90 @@ header {
   gap: 10px;
 }
 
-.loginState {
-  padding: 8px 10px;
+.accountMenuWrap {
+  position: relative;
+}
+
+.accountButton {
+  display: inline-flex;
+  width: auto;
+  min-height: 42px;
+  align-items: center;
+  gap: 8px;
   border: 1px solid var(--line);
   border-radius: 999px;
+  padding: 7px 12px 7px 7px;
   background: white;
-  color: var(--muted);
+  color: var(--ink);
+}
+
+.accountAvatar {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: white;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.accountLabel {
+  max-width: 180px;
+  overflow: hidden;
+  color: #475467;
   font-size: 13px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.accountChevron {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.accountMenu {
+  position: fixed;
+  top: 76px;
+  left: auto;
+  right: 28px;
+  z-index: 80;
+  display: grid;
+  width: 260px;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: white;
+  box-shadow: var(--shadow);
+}
+
+.accountMenu.hiddenPanel {
+  display: none;
+}
+
+.accountMenu button {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.accountMenuSummary {
+  display: grid;
+  gap: 4px;
+  padding: 8px 8px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.accountMenuSummary strong {
+  font-size: 14px;
+}
+
+.accountMenuSummary span {
+  color: var(--muted);
+  font-size: 12px;
   font-weight: 800;
 }
 
@@ -233,13 +316,7 @@ h2 {
 
 .creationParamBar {
   display: grid;
-  grid-template-columns:
-    minmax(118px, 0.7fr)
-    minmax(118px, 0.7fr)
-    minmax(270px, 1.35fr)
-    minmax(190px, 1fr)
-    minmax(84px, 0.42fr)
-    minmax(170px, 0.8fr);
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 10px;
   align-items: start;
   margin-top: 12px;
@@ -251,8 +328,10 @@ h2 {
 }
 
 .creationParamBar > button {
+  width: min(280px, 100%);
   min-height: 44px;
   align-self: end;
+  justify-self: start;
 }
 
 .creationBatchHint {
@@ -448,6 +527,67 @@ h2 {
   font-weight: 900;
 }
 
+.tabSwitch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(92px, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #eef2f7;
+}
+
+.tabSwitch button {
+  min-height: 34px;
+  border-radius: 6px;
+  background: transparent;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.tabSwitch button.active {
+  background: white;
+  color: var(--accent);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.overviewActivityPanel {
+  overflow: hidden;
+}
+
+.overviewActivityTable {
+  min-width: 760px;
+}
+
+.overviewActivityTable th:last-child,
+.overviewActivityTable td:last-child {
+  width: 92px;
+}
+
+.overviewTitleCell {
+  max-width: 440px;
+}
+
+.overviewTitleCell,
+.overviewTitleCell strong,
+.overviewTitleCell span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overviewTitleCell strong,
+.overviewTitleCell span {
+  display: block;
+}
+
+.overviewTitleCell span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 #settings-tab-usage .panel {
   padding: 14px;
 }
@@ -571,10 +711,10 @@ h2 {
 
 .storageConfigForm {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: end;
-  margin-bottom: 10px;
+  grid-template-columns: minmax(240px, 1fr) 180px minmax(220px, 0.55fr);
+  gap: 12px;
+  align-items: stretch;
+  margin-bottom: 12px;
 }
 
 .storageConfigForm > *,
@@ -583,22 +723,55 @@ h2 {
   min-width: 0;
 }
 
-.storageConfigForm label {
-  margin-bottom: 0;
-}
-
 .storageConfigForm button {
   min-height: 42px;
 }
 
-.storageRootField {
-  min-width: 0;
+.storageAutoSaveSwitch {
+  min-height: 42px;
+  align-self: stretch;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 12px;
+  background: #fbfcfd;
 }
 
-.storageActions {
+.storageLocalStatus {
+  margin-bottom: 12px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.storageLocalStatus.ready {
+  color: #047857;
+}
+
+.storageChoiceHeader {
   display: grid;
-  grid-template-columns: 132px 132px;
-  gap: 8px;
+  align-content: center;
+  gap: 4px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: #fbfcfd;
+}
+
+.storageChoiceHeader span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.storageChoiceHeader strong {
+  overflow: hidden;
+  color: #101828;
+  font-size: 15px;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .remoteUploadForm {
@@ -609,6 +782,7 @@ h2 {
 .remoteUploadTopline,
 .remoteUploadActions {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   align-items: center;
   justify-content: space-between;
@@ -702,27 +876,9 @@ h2 {
   font-weight: 950;
 }
 
-.storagePresetList {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.storagePresetList button {
-  width: auto;
-  min-height: 30px;
-  padding: 0 10px;
-  border: 1px solid var(--line);
-  background: #fbfcfd;
-  color: #344054;
-  font-size: 12px;
-  font-weight: 900;
-}
-
 .storagePathRow {
   display: grid;
-  grid-template-columns: 120px minmax(0, 1fr) auto;
+  grid-template-columns: 130px minmax(0, 1fr);
   gap: 8px;
   align-items: center;
   min-height: 34px;
@@ -738,49 +894,33 @@ h2 {
   font-weight: 900;
 }
 
-.storagePathRow code,
-.pathCode {
-  display: block;
-  overflow: hidden;
+.storagePathRow p {
+  margin: 0;
   color: #344054;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.storagePathRow button {
-  width: auto;
-  min-height: 28px;
-  padding-inline: 10px;
-  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.45;
 }
 
 .storageTable {
-  min-width: 980px;
+  min-width: 880px;
 }
 
-.storageTable td:nth-child(6) {
+.storageTable td:nth-child(7) {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-.storageTable td:nth-child(7) {
-  max-width: 360px;
-}
-
-.storagePathCell {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
-  align-items: center;
-}
-
-.storagePathCell button {
+.localSaveButton {
   width: auto;
-  min-height: 28px;
-  padding-inline: 10px;
-  font-size: 12px;
+  min-height: 30px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.localSaveButton.saved {
+  background: #d1fae5;
+  color: #047857;
 }
 
 .storageFileState {
@@ -820,18 +960,38 @@ h2 {
 
 .settingsAccountCreatePanel {
   margin-bottom: 14px;
+  overflow: hidden;
 }
 
 .settingsAccountForm {
   display: grid;
-  grid-template-columns: minmax(220px, 1.1fr) minmax(160px, 1fr) minmax(160px, 1fr) minmax(140px, 0.8fr) auto minmax(120px, 0.6fr);
+  grid-template-columns:
+    minmax(280px, 1.25fr)
+    minmax(180px, 1fr)
+    minmax(180px, 1fr)
+    minmax(160px, 0.8fr)
+    minmax(126px, 0.5fr)
+    minmax(150px, 0.55fr);
   gap: 12px;
   align-items: end;
+}
+
+.settingsAccountForm > * {
+  min-width: 0;
 }
 
 .settingsAccountForm label,
 .settingsAccountForm .checkLine {
   margin-bottom: 0;
+}
+
+.settingsAccountForm .checkLine {
+  min-height: 42px;
+}
+
+.settingsAccountForm button[type="submit"] {
+  min-height: 42px;
+  width: 100%;
 }
 
 .settingsAccountForm h2 {
@@ -975,6 +1135,17 @@ select {
   background: white;
 }
 
+strong,
+span,
+div,
+p,
+td,
+th,
+pre,
+code {
+  overflow-wrap: anywhere;
+}
+
 textarea {
   min-height: 84px;
   resize: vertical;
@@ -982,6 +1153,7 @@ textarea {
 
 button {
   width: 100%;
+  max-width: 100%;
   min-height: 40px;
   border: 0;
   border-radius: 6px;
@@ -1010,6 +1182,11 @@ button:disabled {
   color: #b42318;
 }
 
+.dangerButton {
+  background: #fee4e2;
+  color: #b42318;
+}
+
 .iconBtn {
   width: 42px;
   min-height: 42px;
@@ -1027,7 +1204,7 @@ button:disabled {
 
 .itemActions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(116px, 1fr));
   gap: 8px;
   margin-top: 10px;
 }
@@ -1039,22 +1216,73 @@ button:disabled {
   align-items: end;
 }
 
-.loginPanel {
-  margin-bottom: 18px;
+.loginPage {
+  min-height: 100vh;
+  background:
+    linear-gradient(135deg, rgba(15, 118, 110, 0.08), rgba(37, 99, 235, 0.05)),
+    var(--bg);
 }
 
-.compactLogin {
-  display: none;
+.loginShell {
+  display: grid;
+  min-height: 100vh;
+  margin-left: 0;
+  padding: 24px;
+  place-items: center;
+}
+
+.loginCard {
+  width: min(520px, 100%);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 28px;
+  background: white;
+  box-shadow: var(--shadow);
+}
+
+.loginBrand {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding-bottom: 22px;
+  margin-bottom: 22px;
+  border-bottom: 1px solid var(--line);
+}
+
+.loginBrand span {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.loginTitleBlock {
+  margin-bottom: 22px;
+}
+
+.loginForm {
+  display: grid;
+  gap: 12px;
+}
+
+.loginForm button {
+  margin-top: 4px;
+}
+
+.loginForm .inlineForm {
+  grid-template-columns: 1fr;
 }
 
 .checkLine {
   display: flex;
-  grid-template-columns: auto 1fr;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+  white-space: nowrap;
 }
 
 .checkLine input {
+  flex: 0 0 auto;
   width: auto;
 }
 
@@ -1273,9 +1501,9 @@ button:disabled {
 
 .productionModeBar {
   display: grid;
-  grid-template-columns: minmax(220px, 320px) minmax(0, 1fr);
-  gap: 10px;
-  align-items: end;
+  grid-template-columns: minmax(260px, 360px) minmax(280px, 1fr);
+  gap: 14px;
+  align-items: center;
   width: 100%;
 }
 
@@ -1284,11 +1512,17 @@ button:disabled {
 }
 
 .productionModeBar span {
+  display: block;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: #fbfcfd;
   color: var(--muted);
   font-size: 13px;
   font-weight: 800;
   line-height: 1.45;
-  padding-bottom: 11px;
+  overflow-wrap: anywhere;
 }
 
 .titleOption {
@@ -1322,6 +1556,27 @@ button:disabled {
 .scriptResult {
   display: grid;
   gap: 10px;
+}
+
+.voicePreviewPanel {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  background: #f8fafc;
+}
+
+.voicePreviewHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.voicePreviewPanel audio {
+  width: 100%;
 }
 
 .scriptEditForm {
@@ -1522,15 +1777,30 @@ button:disabled {
 
 .creationActions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(120px, 0.8fr) minmax(220px, 1.25fr) minmax(150px, 0.9fr);
+  gap: 10px;
+  align-items: stretch;
 }
 
 .creationFooterActions {
   display: grid;
-  grid-template-columns: minmax(260px, 0.9fr) minmax(420px, 1.1fr);
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) minmax(500px, 0.9fr);
+  gap: 16px;
   margin-top: 14px;
-  align-items: center;
+  align-items: end;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  background: #ffffff;
+}
+
+.creationFooterActions > * {
+  min-width: 0;
+}
+
+.creationActions button {
+  min-height: 44px;
+  white-space: normal;
 }
 
 .compactButton {
@@ -1556,6 +1826,13 @@ button:disabled {
   color: #344054;
   font-size: 13px;
   font-weight: 800;
+}
+
+.workflowSteps strong {
+  display: block;
+  color: var(--accent);
+  font-size: 18px;
+  line-height: 1.1;
 }
 
 .taskTableWrap {
@@ -1660,6 +1937,66 @@ button:disabled {
   font-size: 13px;
 }
 
+.scriptTaskTable {
+  min-width: 760px;
+}
+
+.scriptTaskTable td:nth-child(1) {
+  max-width: 420px;
+}
+
+.scriptTaskTable th:last-child,
+.scriptTaskTable td:last-child {
+  width: 150px;
+}
+
+.scriptTitleCell {
+  min-width: 0;
+}
+
+.scriptTitleCell strong {
+  display: block;
+  overflow: hidden;
+  max-width: min(420px, 42vw);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scriptTitleCell span {
+  display: block;
+  overflow: hidden;
+  max-width: min(420px, 42vw);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tablePager {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+  padding-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.tablePager div {
+  display: flex;
+  gap: 8px;
+}
+
+.tablePager button {
+  width: auto;
+  min-height: 30px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
 .taskExportPill {
   display: inline-flex;
   margin-bottom: 3px;
@@ -1687,6 +2024,57 @@ button:disabled {
   display: grid;
   gap: 16px;
   min-width: 0;
+}
+
+.referenceTabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #eef2f7;
+}
+
+.referenceTab {
+  min-height: 42px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #475569;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.referenceTab span {
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  height: 22px;
+  margin-left: 6px;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: var(--accent-2);
+  font-size: 12px;
+}
+
+.referenceTab:hover,
+.referenceTab.active {
+  background: white;
+  color: var(--accent);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.referenceTabPanels {
+  min-width: 0;
+}
+
+.referenceTabPanel {
+  display: none;
+}
+
+.referenceTabPanel.active {
+  display: block;
 }
 
 .referenceLinkForm {
@@ -1935,6 +2323,93 @@ button:disabled {
   grid-template-columns: 1fr;
 }
 
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.34);
+}
+
+.modalOverlay.hiddenPanel {
+  display: none;
+}
+
+.modalPanel {
+  width: min(620px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 20px;
+  background: white;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
+}
+
+.modalHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  padding-bottom: 14px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.accountProfileContent {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.profileGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.profileField {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: #fbfcfd;
+}
+
+.profileField span {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.profileField strong {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.compactModalPanel {
+  width: min(520px, 100%);
+}
+
+.helpList {
+  display: grid;
+  gap: 10px;
+}
+
+.accountPasswordForm {
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+
+.accountPasswordForm h3 {
+  margin: 0 0 12px;
+  font-size: 15px;
+}
+
 .analysisResultList {
   display: grid;
   gap: 12px;
@@ -2067,9 +2542,11 @@ button:disabled {
   flex-wrap: wrap;
   gap: 6px;
   min-width: 190px;
+  max-width: 100%;
 }
 
 .tableActions button {
+  flex: 0 0 auto;
   width: auto;
   min-height: 28px;
   padding-inline: 8px;
@@ -2090,14 +2567,18 @@ button:disabled {
 
 .materialGrid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(320px, 1fr));
   gap: 12px;
 }
 
 .materialCard {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
   border: 1px solid var(--line);
   border-radius: 6px;
-  overflow: hidden;
+  padding: 10px;
   background: #fbfcfd;
 }
 
@@ -2117,35 +2598,76 @@ button:disabled {
 }
 
 .materialBody {
-  padding: 10px;
+  min-width: 0;
+  padding: 0;
 }
 
 .materialBody strong {
   display: block;
   margin-bottom: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .humanGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(320px, 1fr));
   gap: 12px;
 }
 
 .humanCard {
   display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
+  grid-template-columns: 72px minmax(0, 1fr);
   gap: 12px;
   align-items: center;
   border: 1px solid var(--line);
   border-radius: 6px;
-  padding: 12px;
+  padding: 10px;
   background: #fbfcfd;
 }
 
+.humanTableWrap {
+  overflow-x: auto;
+}
+
+.assetListTable {
+  min-width: 980px;
+}
+
+.humanListTable {
+  min-width: 1040px;
+}
+
+.assetListTable th:last-child,
+.assetListTable td:last-child {
+  width: 170px;
+}
+
+.assetListTable td:first-child {
+  max-width: 320px;
+}
+
+.assetListTable strong {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.assetListTable .recordMeta {
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assetListTable .assetState {
+  white-space: nowrap;
+}
+
 .portraitPreview {
-  width: 96px;
-  height: 96px;
-  border-radius: 8px;
+  width: 72px;
+  height: 72px;
+  border-radius: 6px;
   overflow: hidden;
   background: #eef2f7;
 }
@@ -2180,6 +2702,145 @@ button:disabled {
   object-fit: cover;
 }
 
+.assetMiniThumb {
+  width: 72px;
+  height: 72px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: #eef2f7;
+}
+
+.mediaIcon {
+  display: grid;
+  place-items: center;
+  color: #0e7490;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.humanCardBody {
+  min-width: 0;
+}
+
+.humanCardBody strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assetMetaLine {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin: 6px 0;
+}
+
+.assetState {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.assetState.ready {
+  color: #047857;
+  background: #d1fae5;
+}
+
+.assetState.pending {
+  color: #9a3412;
+  background: #ffedd5;
+}
+
+.assetDetailContent {
+  display: grid;
+  gap: 16px;
+}
+
+.assetDrawerSummary {
+  display: grid;
+  gap: 12px;
+}
+
+.assetDetailGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.assetDetailGrid > div,
+.assetVoiceBlock {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+.assetDetailGrid span,
+.assetVoiceBlock span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.assetDetailGrid strong,
+.assetVoiceBlock code {
+  display: block;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.assetDrawerMediaGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.assetDrawerMediaGrid section {
+  min-width: 0;
+}
+
+.assetDrawerMediaGrid h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+.assetDrawerMedia {
+  display: block;
+  width: 100%;
+  max-height: 420px;
+  border-radius: 6px;
+  background: #eef2f7;
+  object-fit: contain;
+}
+
+.assetDrawerMedia.full {
+  max-height: 560px;
+}
+
+.assetDrawerEmpty {
+  display: grid;
+  place-items: center;
+  min-height: 180px;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  font-weight: 900;
+  background: #f8fafc;
+}
+
 .transcript {
   margin-top: 8px;
   padding: 10px;
@@ -2212,12 +2873,51 @@ button:disabled {
   justify-items: start;
 }
 
+.taskDetailContent {
+  display: grid;
+  gap: 14px;
+}
+
+.taskDrawerVideoPanel {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: #fbfcfd;
+}
+
+.taskDrawerVideoPanel h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+
 .taskOutputPreviewVideo {
   width: min(360px, 100%);
   aspect-ratio: 9 / 16;
   border-radius: 8px;
   background: #eef2f7;
   object-fit: cover;
+}
+
+.taskOutputPreviewVideo.drawerVideo {
+  width: min(420px, 100%);
+  max-height: 70vh;
+}
+
+.taskSegmentDetailList {
+  display: grid;
+  gap: 10px;
+}
+
+.segmentMaterialControl {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto;
+  gap: 6px;
+  align-items: start;
+  min-width: 260px;
+}
+
+.segmentMaterialControl .recordMeta {
+  grid-column: 1 / -1;
 }
 
 .integrationPanel {
@@ -2239,33 +2939,43 @@ button:disabled {
   font-weight: 800;
 }
 
-.voiceCloneStatus {
-  margin-top: 14px;
-}
-
-.voiceCloneCard {
+.humanAssetLayout {
   display: grid;
-  gap: 4px;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: #fbfcfd;
+  gap: 14px;
+  justify-items: start;
 }
 
-.voiceCloneCard.ready {
-  border-color: #99f6e4;
-  background: #f0fdfa;
+.humanAssetFormPanel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(260px, 1fr));
+  width: min(860px, 100%);
+  max-width: 860px;
+  gap: 14px 16px;
 }
 
-.voiceCloneCard.pending {
-  border-color: #fed7aa;
-  background: #fff7ed;
+.humanAssetFormPanel .sectionHeader {
+  grid-column: 1 / -1;
 }
 
-.voiceCloneCard span {
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.45;
+.humanAssetFormPanel .sectionHeader {
+  margin-bottom: 0;
+}
+
+.humanField {
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.humanField input,
+.humanField select {
+  min-height: 42px;
+}
+
+.humanSubmitButton {
+  grid-column: 1 / -1;
+  justify-self: start;
+  width: min(360px, 100%);
+  min-height: 44px;
 }
 
 .resolverPresetPanel {
@@ -2375,7 +3085,17 @@ button:disabled {
   }
 }
 
+@media (max-width: 1500px) {
+  .settingsAccountForm {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 1320px) {
+  .settingsAccountForm {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .referenceLinkForm {
     grid-template-columns: 1fr;
   }
@@ -2401,6 +3121,20 @@ button:disabled {
 
   .modelConfigForm .apiKeyField {
     grid-column: span 2;
+  }
+}
+
+@media (max-width: 1280px) {
+  .remoteUploadFields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .linkResolverTestForm {
+    grid-template-columns: minmax(0, 1fr) minmax(160px, 0.4fr);
+  }
+
+  .linkResolverTestForm button {
+    grid-column: 1 / -1;
   }
 }
 
@@ -2481,6 +3215,21 @@ button:disabled {
     gap: 12px;
   }
 
+  .headerActions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .accountMenu {
+    right: auto;
+    left: 0;
+    width: min(240px, calc(100vw - 36px));
+  }
+
+  .profileGrid {
+    grid-template-columns: 1fr;
+  }
+
   .inlineForm {
     grid-template-columns: 1fr;
   }
@@ -2490,7 +3239,9 @@ button:disabled {
   .creationFooterActions,
   .creationParamBar,
   .productionModeBar,
+  .referenceTabs,
   .analysisGrid,
+  .humanAssetFormPanel,
   .referenceLinkForm,
   .referenceContentGrid,
   .referenceActions,
@@ -2527,6 +3278,11 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
+  .assetDetailGrid,
+  .assetDrawerMediaGrid {
+    grid-template-columns: 1fr;
+  }
+
   .remoteUploadTopline,
   .remoteUploadActions {
     display: grid;
@@ -2539,10 +3295,6 @@ button:disabled {
 
   .remoteUploadActions button {
     width: 100%;
-  }
-
-  .storageActions {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .itemHeader {
@@ -2574,8 +3326,8 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
-  .storagePathRow button {
-    justify-self: start;
+  .humanSubmitButton {
+    width: 100%;
   }
 
   .analysisPreviewMedia {

@@ -11,6 +11,11 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(..., min_length=6)
+
+
 class AIModelConfigCreate(BaseModel):
     name: str
     provider: str
@@ -177,6 +182,8 @@ class VideoTaskCreate(BaseModel):
     production_mode: str = "talking_head_template"
     target_platform: Optional[str] = None
     export_profile: Optional[str] = None
+    subtitle_enabled: bool = True
+    subtitle_style: str = "auto"
 
 
 class ScriptVideoTaskCreate(BaseModel):
@@ -184,6 +191,8 @@ class ScriptVideoTaskCreate(BaseModel):
     production_mode: str = "talking_head_template"
     target_platform: Optional[str] = None
     export_profile: Optional[str] = None
+    subtitle_enabled: bool = True
+    subtitle_style: str = "auto"
 
 
 class VideoTaskBatchCreateRequest(BaseModel):
@@ -192,10 +201,16 @@ class VideoTaskBatchCreateRequest(BaseModel):
     production_mode: str = "talking_head_template"
     target_platform: Optional[str] = None
     export_profile: Optional[str] = None
+    subtitle_enabled: bool = True
+    subtitle_style: str = "auto"
 
 
 class VideoTaskBatchRunRequest(BaseModel):
     task_ids: list[int] = Field(..., min_length=1, max_length=20)
+
+
+class VideoSegmentMaterialUpdate(BaseModel):
+    material_id: Optional[int] = None
 
 
 class PlatformAccountCreate(BaseModel):

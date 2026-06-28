@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>登录 - 新媒体视频平台</title>
+    <script>
+      if (localStorage.getItem("authToken")) {
+        window.location.replace("/");
+      }
+    </script>
+    <link rel="stylesheet" href="/styles.css?v=20260622-task-workbench" />
+  </head>
+  <body class="loginPage">
+    <main class="loginShell">
+      <section class="loginCard" aria-labelledby="loginTitle">
+        <div class="loginBrand">
+          <div class="mark">AI</div>
+          <div>
+            <strong>新媒体视频平台</strong>
+            <span>内容生产中台</span>
+          </div>
+        </div>
+        <div class="loginTitleBlock">
+          <p class="eyebrow">Account</p>
+          <h1 id="loginTitle">账号登录</h1>
+        </div>
+        <form id="loginForm" class="loginForm">
+          <label>账号<input name="username" autocomplete="username" placeholder="请输入账号" required autofocus /></label>
+          <label>密码<input name="password" type="password" autocomplete="current-password" placeholder="请输入密码" required /></label>
+          <button type="submit">登录</button>
+        </form>
+      </section>
+    </main>
+    <div id="toast"></div>
+    <script src="/login.js?v=20260622-account-shell"></script>
+  </body>
+</html>

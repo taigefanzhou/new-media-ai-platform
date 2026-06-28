@@ -3,21 +3,19 @@ from __future__ import annotations
 import json
 import math
 import mimetypes
-import platform
-import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
 from uuid import uuid4
 import httpx
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlmodel import Session, func, select
 from app.core.config import get_settings
 from app.core.auth import current_user
 from app.core.db import engine, get_session
-from app.core.security import create_token, hash_password
+from app.core.security import create_token, hash_password, password_hash_needs_upgrade, verify_password
 from app.core.storage import STORAGE_ROOT_KEY, get_storage_root, save_storage_root
 from app.models.entities import (
     AIModelConfig,
@@ -47,6 +45,7 @@ from app.schemas.requests import (
     AIModelConfigCreate,
     AIModelConfigPublic,
     AIModelConfigUpdate,
+    ChangePasswordRequest,
     DigitalHumanCreate,
     LinkResolverTestRequest,
     LoginRequest,
@@ -69,6 +68,7 @@ from app.schemas.requests import (
     TopicCreate,
     TrendingSearchCreate,
     TrendingVideoCreate,
+    VideoSegmentMaterialUpdate,
     TranscriptionTaskCreate,
     UserCreate,
     UserPasswordReset,
@@ -79,7 +79,7 @@ from app.schemas.requests import (
     VideoTaskPublishPrepareRequest,
     VideoTaskCreate,
 )
-from app.services.ai_clients import ScriptGenerator
+from app.services.ai_clients import MediaGenerationClient, ScriptGenerator
 from app.services.asr import ASRClient
 from app.services.export_profiles import export_profile_options, resolve_export_profile
 from app.services.link_resolver import (
@@ -88,6 +88,7 @@ from app.services.link_resolver import (
     ShortVideoLinkResolver,
     detect_short_video_platform,
 )
+from app.services.model_router import choose_model_config, is_model_config_ready
 from app.services.pipeline import VideoPipeline
 from app.services.trending import TrendingCollector
 from app.services.usage import estimate_text_tokens, record_generated_model_usage, record_model_usage
@@ -102,7 +103,7 @@ REMOTE_UPLOAD_PUBLIC_BASE_URL_KEY = "remote_upload_public_base_url"
 REMOTE_UPLOAD_FIELD_NAME_KEY = "remote_upload_field_name"
 REMOTE_UPLOAD_TOKEN_KEY = "remote_upload_token"
 
-PRODUCTION_MODES = {"dynamic_explainer", "digital_human", "seedance_scene", "talking_head_template"}
+PRODUCTION_MODES = {"dynamic_explainer", "digital_human", "material_mix", "seedance_scene", "talking_head_template"}
 MODEL_PURPOSE_ORDER = [
     "script",
     "knowledge",
@@ -260,6 +261,10 @@ def _active_model_config(session: Session, purpose: str) -> AIModelConfig | None
     ).first()
 
 
+def _smart_model_config(session: Session, purpose: str, scenario: str = "") -> AIModelConfig | None:
+    return choose_model_config(session, purpose, scenario)
+
+
 def _model_config_public(config: AIModelConfig) -> AIModelConfigPublic:
     return AIModelConfigPublic(
         id=config.id or 0,
@@ -301,11 +306,52 @@ def _configured_model_status(
     }
 
 
+def _video_generation_fallback_ready(settings) -> bool:
+    provider = (settings.video_generation_provider or "").lower()
+    if provider == "mock":
+        return True
+    if "seedance" in provider:
+        return bool(settings.seedance_api_base and settings.seedance_api_key)
+    if provider == "comfyui":
+        return bool(settings.comfyui_api_base)
+    return False
+
+
 async def _run_video_task_background(task_id: int) -> None:
     with Session(engine) as session:
         task = session.get(VideoTask, task_id)
         if task is not None:
             await VideoPipeline(session).run(task)
+
+
+def _queue_video_task(session: Session, task: VideoTask, note: str | None = None) -> VideoTask:
+    task.status = TaskStatus.queued
+    task.error_message = None
+    task.subtitle_status = "pending" if task.subtitle_enabled else "disabled"
+    task.subtitle_srt_path = None
+    task.subtitle_ass_path = None
+    task.captioned_output_path = None
+    task.updated_at = datetime.utcnow()
+    if note:
+        task.audit_notes = f"{task.audit_notes}\n{note}".strip() if task.audit_notes else note
+    session.add(task)
+    session.commit()
+    session.refresh(task)
+    return task
+
+
+def _effective_video_output_path(task: VideoTask) -> Optional[str]:
+    if task.captioned_output_path:
+        path = Path(task.captioned_output_path)
+        if path.exists() and path.is_file():
+            return task.captioned_output_path
+    return task.output_path
+
+
+def _bearer_token(authorization: Optional[str]) -> str:
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing authorization token")
+    return authorization.removeprefix("Bearer ").strip()
 
 
 @router.get("/health")
@@ -316,21 +362,55 @@ def health() -> dict[str, str]:
 @router.post("/auth/login")
 def login(payload: LoginRequest, session: Session = Depends(get_session)) -> dict[str, object]:
     user = session.exec(select(User).where(User.username == payload.username)).first()
-    if user is None or user.password_hash != hash_password(payload.password) or not user.is_active:
+    if user is None or not verify_password(payload.password, user.password_hash) or not user.is_active:
         raise HTTPException(status_code=401, detail="Invalid username or password")
+    if password_hash_needs_upgrade(user.password_hash):
+        user.password_hash = hash_password(payload.password)
+        session.add(user)
     token = create_token()
     auth_session = AuthSession(user_id=user.id, token=token)
     session.add(auth_session)
     session.commit()
-    return {
-        "token": token,
-        "user": {"id": user.id, "username": user.username, "role": user.role},
-    }
+    return {"token": token, "user": _user_public(user)}
 
 
 @router.get("/auth/me")
-def me(user: User = Depends(current_user)) -> dict[str, object]:
-    return {"id": user.id, "username": user.username, "role": user.role}
+def me(user: User = Depends(current_user)) -> UserPublic:
+    return _user_public(user)
+
+
+@router.post("/auth/logout")
+def logout(
+    authorization: Optional[str] = Header(default=None),
+    session: Session = Depends(get_session),
+) -> dict[str, bool]:
+    token = _bearer_token(authorization)
+    auth_session = session.exec(select(AuthSession).where(AuthSession.token == token)).first()
+    if auth_session is not None:
+        session.delete(auth_session)
+        session.commit()
+    return {"ok": True}
+
+
+@router.post("/auth/change-password")
+def change_password(
+    payload: ChangePasswordRequest,
+    authorization: Optional[str] = Header(default=None),
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> dict[str, bool]:
+    if not verify_password(payload.current_password, user.password_hash):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    user.password_hash = hash_password(payload.new_password)
+    session.add(user)
+    current_token = _bearer_token(authorization)
+    other_sessions = session.exec(
+        select(AuthSession).where(AuthSession.user_id == user.id, AuthSession.token != current_token)
+    ).all()
+    for auth_session in other_sessions:
+        session.delete(auth_session)
+    session.commit()
+    return {"ok": True}
 
 
 def require_admin(user: User = Depends(current_user)) -> User:
@@ -613,12 +693,43 @@ def video_storage_summary(
 ) -> dict[str, object]:
     storage_root = get_storage_root(session)
     storage_setting = session.get(SystemSetting, STORAGE_ROOT_KEY)
-    home_dir = Path.home()
+    default_root = Path(get_settings().storage_dir).expanduser().resolve()
+    shared_root = default_root.parent
     suggested_roots = [
-        {"label": "当前保存位置", "path": str(storage_root)},
-        {"label": "桌面：AI 视频成片", "path": str(home_dir / "Desktop" / "AI视频成片")},
-        {"label": "文档：AI 视频素材", "path": str(home_dir / "Documents" / "AI视频素材")},
-        {"label": "影片：AI 视频输出", "path": str(home_dir / "Movies" / "AI视频输出")},
+        {
+            "label": "系统默认空间",
+            "description": "适合日常生成、审核和发布前准备，所有文件按类型自动归档。",
+            "path": str(default_root),
+        },
+        {
+            "label": "成片工作区",
+            "description": "适合集中保存已生成的视频任务和发布前成片。",
+            "path": str(shared_root / "ai-video-output"),
+        },
+        {
+            "label": "素材工作区",
+            "description": "适合集中保存采集素材、数字人口播源和中间视频。",
+            "path": str(shared_root / "ai-video-assets"),
+        },
+    ]
+    if not any(item["path"] == str(storage_root) for item in suggested_roots):
+        suggested_roots.insert(
+            0,
+            {
+                "label": "当前自定义空间",
+                "description": "沿用当前已经保存的系统位置。",
+                "path": str(storage_root),
+            },
+        )
+    for item in suggested_roots:
+        item["active"] = item["path"] == str(storage_root)
+    active_profile = next((item for item in suggested_roots if item["active"]), suggested_roots[0])
+    storage_groups = [
+        {"label": "成片库", "description": "最终审核和发布使用的视频。"},
+        {"label": "分段视频库", "description": "AI 生成的分镜片段和中间视频。"},
+        {"label": "数字人口播库", "description": "数字人口播视频和驱动结果。"},
+        {"label": "音频库", "description": "配音、声音复刻和口播音频。"},
+        {"label": "素材库", "description": "上传、采集和补传到服务器的素材。"},
     ]
     tasks = session.exec(select(VideoTask).order_by(VideoTask.created_at.desc())).all()
     videos = []
@@ -628,9 +739,10 @@ def video_storage_summary(
     external_count = 0
     placeholder_count = 0
     for task in tasks:
-        if not task.output_path:
+        effective_output_path = _effective_video_output_path(task)
+        if not effective_output_path:
             continue
-        output_path = task.output_path
+        output_path = effective_output_path
         is_mock_path = output_path.startswith("mock://")
         is_external_path = output_path.startswith(("http://", "https://"))
         is_local_path = not is_external_path and not is_mock_path
@@ -660,8 +772,19 @@ def video_storage_summary(
                 "export_width": task.export_width,
                 "export_height": task.export_height,
                 "output_path": str(path.resolve()) if path else output_path,
+                "raw_output_path": task.output_path,
+                "captioned_output_path": task.captioned_output_path,
+                "subtitle_status": task.subtitle_status,
+                "subtitle_style": task.subtitle_style,
                 "exists": exists,
                 "storage_kind": storage_kind,
+                "storage_label": (
+                    "云端素材库"
+                    if storage_kind == "external"
+                    else "占位结果"
+                    if storage_kind == "placeholder"
+                    else "本地成片库"
+                ),
                 "size_bytes": size_bytes,
                 "created_at": task.created_at,
                 "updated_at": task.updated_at,
@@ -669,6 +792,7 @@ def video_storage_summary(
         )
     return {
         "storage_root": str(storage_root),
+        "storage_profile_label": active_profile["label"],
         "final_video_dir": str(storage_root / "final"),
         "segment_video_dir": str(storage_root / "seedance"),
         "digital_human_dir": str(storage_root / "digital-human"),
@@ -676,6 +800,7 @@ def video_storage_summary(
         "configured_by": "后台设置" if storage_setting and storage_setting.value else "STORAGE_DIR",
         "final_video_pattern": str(storage_root / "final" / "{自动生成ID}" / "final-video.mp4"),
         "suggested_roots": suggested_roots,
+        "storage_groups": storage_groups,
         "totals": {
             "video_count": len(videos),
             "existing_count": existing_count,
@@ -758,29 +883,6 @@ async def upload_material_to_remote(
     await _publish_material_to_remote(material, session, require_config=True)
     session.refresh(material)
     return material
-
-
-@router.post("/settings/video-storage/choose-folder")
-def choose_video_storage_folder(user: User = Depends(current_user)) -> dict[str, str]:
-    if platform.system() != "Darwin":
-        raise HTTPException(status_code=400, detail="当前环境不支持系统文件夹选择，请手动输入本机目录。")
-    script = 'POSIX path of (choose folder with prompt "请选择 AI 视频文件保存位置")'
-    try:
-        result = subprocess.run(
-            ["osascript", "-e", script],
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-    except subprocess.TimeoutExpired as exc:
-        raise HTTPException(status_code=400, detail="选择文件夹超时，请重试或手动输入目录。") from exc
-    except subprocess.CalledProcessError as exc:
-        raise HTTPException(status_code=400, detail="没有选择文件夹。") from exc
-    selected_path = result.stdout.strip()
-    if not selected_path:
-        raise HTTPException(status_code=400, detail="没有选择文件夹。")
-    return {"storage_root": str(Path(selected_path).expanduser().resolve())}
 
 
 @router.post("/settings/models", response_model=AIModelConfigPublic)
@@ -1125,7 +1227,7 @@ def integrations_status(session: Session = Depends(get_session)) -> dict[str, di
             "video",
             settings.video_generation_provider,
             settings.seedance_model,
-            settings.video_generation_provider == "mock" or bool(settings.seedance_api_base) or bool(settings.comfyui_api_base),
+            _video_generation_fallback_ready(settings),
         ),
         "video_understanding": _configured_model_status(
             session,
@@ -1136,11 +1238,19 @@ def integrations_status(session: Session = Depends(get_session)) -> dict[str, di
         ),
         "composition": {
             "provider": settings.composition_provider,
-            "configured": settings.composition_provider in ("mock", "ffmpeg"),
+            "configured": settings.composition_provider in ("mock", "ffmpeg")
+            or (settings.composition_provider == "remotion" and bool(settings.remotion_render_api_base)),
+            "real_api": settings.composition_provider in {"ffmpeg", "remotion"}
+            and (settings.composition_provider != "remotion" or bool(settings.remotion_render_api_base)),
+            "missing": []
+            if settings.composition_provider in ("mock", "ffmpeg")
+            or (settings.composition_provider == "remotion" and bool(settings.remotion_render_api_base))
+            else ["remotion_render_api_base" if settings.composition_provider == "remotion" else "composition_provider"],
         },
         "trending_search": {
             "provider": settings.trending_search_provider,
             "configured": settings.trending_search_provider == "mock" or bool(settings.trending_search_api_base),
+            "real_api": settings.trending_search_provider != "mock" and bool(settings.trending_search_api_base),
         },
         "asr": _configured_model_status(
             session,
@@ -1472,7 +1582,9 @@ async def _save_uploaded_material(
     storage_dir = get_storage_root(session) / "materials" / uuid4().hex
     storage_dir.mkdir(parents=True, exist_ok=True)
     file_path = storage_dir / f"source{suffix}"
-    file_path.write_bytes(await file.read())
+    with file_path.open("wb") as output:
+        while chunk := await file.read(1024 * 1024):
+            output.write(chunk)
 
     material = Material(
         name=name or original_name,
@@ -1490,6 +1602,15 @@ async def _save_uploaded_material(
     except Exception:
         pass
     return material
+
+
+def _optional_form_id(value: Optional[str | int], field_label: str) -> Optional[int]:
+    if value is None or value == "":
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=f"{field_label}必须是有效素材 ID。") from exc
 
 
 def _save_system_setting(session: Session, key: str, value: str) -> SystemSetting:
@@ -1549,8 +1670,12 @@ async def _publish_material_to_remote(
             "kind": material.kind.value if hasattr(material.kind, "value") else str(material.kind),
         }
         async with httpx.AsyncClient(timeout=600) as client:
-            response = await client.post(upload_url, headers=headers, files=files, data=data)
-            response.raise_for_status()
+            try:
+                response = await client.post(upload_url, headers=headers, files=files, data=data)
+                response.raise_for_status()
+            except httpx.HTTPError as exc:
+                message = str(exc) or exc.__class__.__name__
+                raise HTTPException(status_code=502, detail=f"素材服务器上传失败：{message}") from exc
             try:
                 result = response.json()
             except ValueError:
@@ -1671,7 +1796,7 @@ async def run_transcription_task(
     material = session.get(Material, task.material_id)
     if material is None:
         raise HTTPException(status_code=404, detail="Material not found")
-    active_model = _active_model_config(session, "asr")
+    active_model = _smart_model_config(session, "asr", "transcription")
     settings = get_settings()
     task.provider = active_model.provider if active_model else settings.asr_provider
     task.status = TaskStatus.running
@@ -1687,8 +1812,8 @@ async def run_transcription_task(
             session=session,
             purpose="asr",
             model_config=active_model,
-            provider=settings.asr_provider,
-            model_name=settings.asr_model,
+            provider=active_model.provider if active_model else settings.asr_provider,
+            model_name=active_model.model_name if active_model else settings.asr_model,
             completion_tokens=estimate_text_tokens(result.transcript, result.summary, result.hook_analysis),
         )
     except Exception as exc:
@@ -1698,8 +1823,8 @@ async def run_transcription_task(
             session=session,
             purpose="asr",
             model_config=active_model,
-            provider=settings.asr_provider,
-            model_name=settings.asr_model,
+            provider=active_model.provider if active_model else settings.asr_provider,
+            model_name=active_model.model_name if active_model else settings.asr_model,
             status="failed",
         )
     session.add(task)
@@ -1763,7 +1888,7 @@ async def generate_script_from_transcription(
         f"开头钩子分析：{task.hook_analysis}。"
         "要求只借鉴结构和选题，不复制原文。"
     )
-    active_model = _active_model_config(session, "script")
+    active_model = _smart_model_config(session, "script", "script_generation")
     generated = await ScriptGenerator(active_model).generate(
         topic=topic,
         brand_voice="专业、可信、原创、适合公司数字人口播",
@@ -1784,14 +1909,13 @@ async def generate_script_from_transcription(
         compliance_notes=f"{generated.compliance_notes}\n基于转写任务 #{task.id} 生成，仅借鉴结构，不搬运原文。",
     )
     session.add(script)
-    settings = get_settings()
     record_generated_model_usage(
         session,
         "script",
         generated,
         active_model,
-        provider=settings.llm_provider,
-        model_name=settings.llm_model,
+        provider=active_model.provider if active_model else get_settings().llm_provider,
+        model_name=active_model.model_name if active_model else get_settings().llm_model,
     )
     session.commit()
     session.refresh(script)
@@ -1843,7 +1967,7 @@ async def run_reference_video_analysis(
     if material is None:
         raise HTTPException(status_code=404, detail="Material not found")
 
-    active_model = _active_model_config(session, "video_understanding")
+    active_model = _smart_model_config(session, "video_understanding", "reference_analysis")
     task.provider = active_model.provider if active_model else task.provider or "local"
     task.status = TaskStatus.running
     task.error_message = None
@@ -2004,7 +2128,7 @@ async def generate_script_from_reference_video_analysis(
         f"可复用模板：{task.reusable_template}\n"
         "请改写成适合酒店智能化、酒店运营或公司负责人数字人口播的原创脚本。"
     )
-    active_model = _active_model_config(session, "script")
+    active_model = _smart_model_config(session, "script", "script_generation")
     generated = await ScriptGenerator(active_model).generate(
         topic=topic,
         brand_voice="专业、可信、适合公司负责人口播；学习参考视频的结构和节奏，但不搬运原文和画面。",
@@ -2071,14 +2195,13 @@ def _create_script_record(
         compliance_notes=generated.compliance_notes,
     )
     session.add(script)
-    settings = get_settings()
     record_generated_model_usage(
         session,
         "script",
         generated,
         model_config,
-        provider=settings.llm_provider,
-        model_name=settings.llm_model,
+        provider=model_config.provider if model_config else get_settings().llm_provider,
+        model_name=model_config.model_name if model_config else get_settings().llm_model,
     )
     session.commit()
     session.refresh(script)
@@ -2087,7 +2210,7 @@ def _create_script_record(
 
 @router.post("/scripts/generate", response_model=Script)
 async def generate_script(payload: ScriptGenerateRequest, session: Session = Depends(get_session)) -> Script:
-    active_model = _active_model_config(session, "script")
+    active_model = _smart_model_config(session, "script", "script_generation")
     generated = await ScriptGenerator(active_model).generate(
         topic=payload.topic,
         brand_voice=payload.brand_voice,
@@ -2100,20 +2223,26 @@ async def generate_script(payload: ScriptGenerateRequest, session: Session = Dep
 
 @router.post("/scripts/batch-generate", response_model=list[Script])
 async def batch_generate_scripts(payload: ScriptBatchGenerateRequest, session: Session = Depends(get_session)) -> list[Script]:
-    active_model = _active_model_config(session, "script")
+    active_model = _smart_model_config(
+        session,
+        "script",
+        "long_script" if payload.duration_seconds >= 120 else "script_generation",
+    )
     generator = ScriptGenerator(active_model)
-    topics = [item.strip() for item in payload.topics if item.strip()] or [
-        f"{payload.topic}\n批量生成第 {index + 1} 条：请换一个标题角度、开头钩子和分镜结构，避免与其他脚本重复。"
-        for index in range(payload.count)
-    ]
+    topics = [item.strip() for item in payload.topics if item.strip()] or [payload.topic.strip() for _ in range(payload.count)]
     scripts: list[Script] = []
     for index, topic in enumerate(topics[: payload.count]):
+        variation_instruction = (
+            f"候选方案 {index + 1}/{payload.count}：请只在标题角度、开头钩子、案例侧重点和分镜节奏上做差异化。"
+            "这是内部策划要求，不得出现在最终脚本、口播稿、分镜或屏幕文字里。"
+        )
         generated = await generator.generate(
             topic=topic,
             brand_voice=payload.brand_voice,
             duration_seconds=payload.duration_seconds,
             target_platform=payload.target_platform,
             output_language=payload.output_language,
+            variation_instruction=variation_instruction,
         )
         item_payload = ScriptGenerateRequest(
             topic_id=payload.topic_id,
@@ -2159,6 +2288,8 @@ def _build_video_task(
     production_mode: str = "talking_head_template",
     target_platform: Optional[str] = None,
     export_profile: Optional[str] = None,
+    subtitle_enabled: bool = True,
+    subtitle_style: str = "auto",
     status: TaskStatus = TaskStatus.queued,
     audit_notes: str = "",
 ) -> VideoTask:
@@ -2179,8 +2310,33 @@ def _build_video_task(
         production_mode=production_mode,
         segment_count=segment_count,
         completed_segments=0,
+        subtitle_enabled=subtitle_enabled,
+        subtitle_style=subtitle_style or "auto",
+        subtitle_status="pending" if subtitle_enabled else "disabled",
         audit_notes=audit_notes,
     )
+
+
+def _prepare_material_mix_segments(session: Session, task: VideoTask, script: Script) -> VideoTask:
+    if task.production_mode != "material_mix":
+        return task
+    pipeline = VideoPipeline(session)
+    segment_specs = pipeline.media.segment_plan(
+        script.seedance_prompt,
+        script.storyboard,
+        script.duration_seconds,
+        script.storyboard_plan,
+    )
+    segments = pipeline._reset_segments(task, segment_specs)
+    task.segment_count = len(segments)
+    task.completed_segments = 0
+    note = "素材库混剪方案已按分镜生成，可在任务详情里人工修改每段素材；未绑定素材的段落会由 Seedance 补镜头。"
+    task.audit_notes = f"{task.audit_notes}\n{note}".strip() if task.audit_notes else note
+    task.updated_at = datetime.utcnow()
+    session.add(task)
+    session.commit()
+    session.refresh(task)
+    return task
 
 
 def _validate_video_task_inputs(
@@ -2208,10 +2364,10 @@ def _validate_video_task_inputs(
 
 
 def _digital_human_service_ready(session: Session) -> bool:
-    model_config = _active_model_config(session, "digital_human")
+    model_config = _smart_model_config(session, "digital_human", "talking_head_template")
     settings = get_settings()
     if model_config:
-        return bool(_diagnose_model_config(model_config)["configured"])
+        return is_model_config_ready(model_config)
     api_base = model_config.api_base if model_config and model_config.api_base else settings.digital_human_api_base
     provider = model_config.provider if model_config else settings.digital_human_provider
     if provider in MODEL_LOCAL_PROVIDERS:
@@ -2247,10 +2403,13 @@ def create_video_task_from_script(
         production_mode=payload.production_mode,
         target_platform=payload.target_platform,
         export_profile=payload.export_profile,
+        subtitle_enabled=payload.subtitle_enabled,
+        subtitle_style=payload.subtitle_style,
     )
     session.add(task)
     session.commit()
     session.refresh(task)
+    task = _prepare_material_mix_segments(session, task, script)
     return task
 
 
@@ -2272,7 +2431,9 @@ async def approve_script_and_run_video_task(
         production_mode=payload.production_mode,
         target_platform=payload.target_platform,
         export_profile=payload.export_profile,
-        status=TaskStatus.running,
+        subtitle_enabled=payload.subtitle_enabled,
+        subtitle_style=payload.subtitle_style,
+        status=TaskStatus.queued,
         audit_notes=f"脚本已审核通过，系统已按「{payload.production_mode}」创建视频任务并进入生成队列。",
     )
     session.add(task)
@@ -2280,6 +2441,47 @@ async def approve_script_and_run_video_task(
     session.refresh(task)
     background_tasks.add_task(_run_video_task_background, task.id)
     return task
+
+
+@router.post("/scripts/{script_id}/voice-preview")
+async def generate_script_voice_preview(
+    script_id: int,
+    payload: ScriptVideoTaskCreate,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> FileResponse:
+    script = session.get(Script, script_id)
+    if script is None:
+        raise HTTPException(status_code=404, detail="Script not found")
+    human = session.get(DigitalHuman, payload.digital_human_id) if payload.digital_human_id else None
+    voice = human.default_voice if human and human.default_voice else None
+    tts_model = _smart_model_config(session, "tts", "voice_preview")
+    media = MediaGenerationClient(tts_model_config=tts_model, storage_dir=get_storage_root(session))
+    try:
+        audio_path = await media.synthesize_voice(script.voiceover, voice)
+        record_model_usage(
+            session,
+            "tts",
+            tts_model,
+            provider=(tts_model.provider if tts_model else get_settings().tts_provider),
+            model_name=(tts_model.model_name if tts_model else get_settings().tts_voice),
+            prompt_tokens=estimate_text_tokens(script.voiceover),
+        )
+        session.commit()
+    except Exception as exc:
+        record_model_usage(
+            session,
+            "tts",
+            tts_model,
+            provider=(tts_model.provider if tts_model else get_settings().tts_provider),
+            model_name=(tts_model.model_name if tts_model else get_settings().tts_voice),
+            prompt_tokens=estimate_text_tokens(script.voiceover),
+            status="failed",
+        )
+        session.commit()
+        raise HTTPException(status_code=400, detail=f"口播试听生成失败：{exc}") from exc
+    media_type = mimetypes.guess_type(audio_path)[0] or "audio/wav"
+    return FileResponse(audio_path, media_type=media_type, filename=f"script-{script_id}-voice-preview.wav")
 
 
 @router.post("/digital-humans", response_model=DigitalHuman)
@@ -2306,14 +2508,14 @@ async def create_digital_human_with_assets(
     style: str = Form(default="realistic"),
     authorization_scope: str = Form(default="internal_marketing"),
     default_voice: Optional[str] = Form(default=None),
-    portrait_material_id: Optional[int] = Form(default=None),
-    source_video_material_id: Optional[int] = Form(default=None),
+    portrait_material_id: Optional[str] = Form(default=None),
+    source_video_material_id: Optional[str] = Form(default=None),
     portrait_file: Optional[UploadFile] = File(default=None),
     source_video_file: Optional[UploadFile] = File(default=None),
     session: Session = Depends(get_session),
 ) -> DigitalHuman:
-    portrait_id = portrait_material_id
-    source_video_id = source_video_material_id
+    portrait_id = _optional_form_id(portrait_material_id, "头像素材 ID")
+    source_video_id = _optional_form_id(source_video_material_id, "口播源视频素材 ID")
 
     if portrait_file is not None and portrait_file.filename:
         portrait = await _save_uploaded_material(
@@ -2378,6 +2580,8 @@ def create_video_task(payload: VideoTaskCreate, session: Session = Depends(get_s
         production_mode=payload.production_mode,
         target_platform=payload.target_platform,
         export_profile=payload.export_profile,
+        subtitle_enabled=payload.subtitle_enabled,
+        subtitle_style=payload.subtitle_style,
     )
     session.add(task)
     session.commit()
@@ -2399,35 +2603,53 @@ def batch_create_video_tasks(payload: VideoTaskBatchCreateRequest, session: Sess
             production_mode=payload.production_mode,
             target_platform=payload.target_platform,
             export_profile=payload.export_profile,
+            subtitle_enabled=payload.subtitle_enabled,
+            subtitle_style=payload.subtitle_style,
         )
         session.add(task)
         tasks.append(task)
     session.commit()
     for task in tasks:
         session.refresh(task)
+        script = session.get(Script, task.script_id)
+        if script is not None:
+            _prepare_material_mix_segments(session, task, script)
     return tasks
 
 
 @router.post("/video-tasks/batch-run", response_model=list[VideoTask])
-async def batch_run_video_tasks(payload: VideoTaskBatchRunRequest, session: Session = Depends(get_session)) -> list[VideoTask]:
-    pipeline = VideoPipeline(session)
+async def batch_run_video_tasks(
+    payload: VideoTaskBatchRunRequest,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> list[VideoTask]:
     results: list[VideoTask] = []
     for task_id in payload.task_ids:
         task = session.get(VideoTask, task_id)
         if task is None:
             raise HTTPException(status_code=404, detail=f"Video task {task_id} not found")
         _ensure_video_task_can_run(task)
-        results.append(await pipeline.run(task))
+        queued_task = _queue_video_task(session, task, "任务已进入后台生成队列。")
+        background_tasks.add_task(_run_video_task_background, queued_task.id)
+        results.append(queued_task)
     return results
 
 
 @router.post("/video-tasks/{task_id}/run", response_model=VideoTask)
-async def run_video_task(task_id: int, session: Session = Depends(get_session)) -> VideoTask:
+async def run_video_task(
+    task_id: int,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> VideoTask:
     task = session.get(VideoTask, task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Video task not found")
     _ensure_video_task_can_run(task)
-    return await VideoPipeline(session).run(task)
+    queued_task = _queue_video_task(session, task, "任务已进入后台生成队列。")
+    background_tasks.add_task(_run_video_task_background, queued_task.id)
+    return queued_task
 
 
 @router.post("/video-tasks/{task_id}/approve", response_model=VideoTask)
@@ -2462,12 +2684,62 @@ def list_video_task_segments(task_id: int, session: Session = Depends(get_sessio
     )
 
 
+@router.patch("/video-tasks/{task_id}/segments/{segment_id}/material", response_model=VideoSegment)
+def update_video_segment_material(
+    task_id: int,
+    segment_id: int,
+    payload: VideoSegmentMaterialUpdate,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> VideoSegment:
+    task = session.get(VideoTask, task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Video task not found")
+    if task.status == TaskStatus.running:
+        raise HTTPException(status_code=409, detail="生成中的任务不能修改素材方案。")
+    segment = session.get(VideoSegment, segment_id)
+    if segment is None or segment.video_task_id != task_id:
+        raise HTTPException(status_code=404, detail="Video segment not found")
+    if payload.material_id is not None:
+        material = session.get(Material, payload.material_id)
+        if material is None:
+            raise HTTPException(status_code=404, detail="Material not found")
+        if material.kind not in {MaterialKind.video, MaterialKind.image, MaterialKind.product, MaterialKind.portrait}:
+            raise HTTPException(status_code=400, detail="请选择素材库里的图片、产品图或视频素材；参考素材不能直接用于成片。")
+        if material.copyright_status in {CopyrightStatus.blocked, CopyrightStatus.reference_only}:
+            raise HTTPException(status_code=400, detail="这个素材未获得成片使用授权。")
+        segment.material_id = material.id
+        segment.material_match_notes = f"人工指定素材 #{material.id}：{material.name}"
+    else:
+        segment.material_id = None
+        segment.material_match_notes = "人工取消素材，生成时将由 Seedance 补镜头。"
+    segment.output_path = None
+    segment.error_message = None
+    segment.status = TaskStatus.queued
+    segment.updated_at = datetime.utcnow()
+    task.output_path = None
+    task.subtitle_srt_path = None
+    task.subtitle_ass_path = None
+    task.captioned_output_path = None
+    task.subtitle_status = "pending" if task.subtitle_enabled else "disabled"
+    task.completed_segments = 0
+    if task.status in {TaskStatus.needs_review, TaskStatus.approved, TaskStatus.failed}:
+        task.status = TaskStatus.queued
+    task.updated_at = datetime.utcnow()
+    session.add(segment)
+    session.add(task)
+    session.commit()
+    session.refresh(segment)
+    return segment
+
+
 @router.get("/video-tasks/{task_id}/output")
 def preview_video_task_output(task_id: int, session: Session = Depends(get_session)) -> FileResponse:
     task = session.get(VideoTask, task_id)
-    if task is None or not task.output_path:
+    output_path = _effective_video_output_path(task) if task else None
+    if task is None or not output_path:
         raise HTTPException(status_code=404, detail="Video output not found")
-    path = Path(task.output_path)
+    path = Path(output_path)
     if not path.exists() or not path.is_file():
         raise HTTPException(status_code=404, detail="Video file not found")
     return FileResponse(path, media_type="video/mp4")
@@ -2480,9 +2752,12 @@ def delete_video_task_output(task_id: int, session: Session = Depends(get_sessio
         raise HTTPException(status_code=404, detail="Video task not found")
     if task.status == TaskStatus.running:
         raise HTTPException(status_code=409, detail="Cannot delete output while video is generating")
-    if not task.output_path:
+    if not _effective_video_output_path(task):
         raise HTTPException(status_code=400, detail="Video task has no generated output")
     _delete_local_file(task.output_path)
+    _delete_local_file(task.captioned_output_path)
+    _delete_local_file(task.subtitle_srt_path)
+    _delete_local_file(task.subtitle_ass_path)
     segments = session.exec(select(VideoSegment).where(VideoSegment.video_task_id == task_id)).all()
     for segment in segments:
         _delete_local_file(segment.output_path)
@@ -2492,6 +2767,10 @@ def delete_video_task_output(task_id: int, session: Session = Depends(get_sessio
         segment.updated_at = datetime.utcnow()
         session.add(segment)
     task.output_path = None
+    task.subtitle_srt_path = None
+    task.subtitle_ass_path = None
+    task.captioned_output_path = None
+    task.subtitle_status = "pending" if task.subtitle_enabled else "disabled"
     task.status = TaskStatus.queued
     task.completed_segments = 0
     task.updated_at = datetime.utcnow()
@@ -2515,6 +2794,9 @@ def delete_video_task(task_id: int, session: Session = Depends(get_session)) -> 
         _delete_local_file(segment.output_path)
         session.delete(segment)
     _delete_local_file(task.output_path)
+    _delete_local_file(task.captioned_output_path)
+    _delete_local_file(task.subtitle_srt_path)
+    _delete_local_file(task.subtitle_ass_path)
     session.delete(task)
     session.commit()
     return {"deleted": True, "id": task_id}
@@ -2532,11 +2814,12 @@ def prepare_publish_record_from_video_task(
         raise HTTPException(status_code=404, detail="Video task not found")
     if task.status != TaskStatus.approved:
         raise HTTPException(status_code=400, detail="Video task must be approved before publishing")
-    if not task.output_path:
+    if not _effective_video_output_path(task):
         raise HTTPException(status_code=400, detail="Video task has no generated output")
     script = session.get(Script, task.script_id)
     account = _resolve_publish_account(session, payload.platform_account_id, payload.platform)
     title = payload.title or _publish_title_from_script(script)
+    _ensure_publish_ready(session, task, script, title, account)
     record = PublishRecord(
         video_task_id=task.id,
         platform=account.platform if account else payload.platform,
@@ -2569,6 +2852,64 @@ def _caption_from_script(script: Optional[Script]) -> str:
     if script is None:
         return ""
     return f"{script.hook}\n\n{script.hashtags}".strip()
+
+
+def _publish_validation_blockers(
+    session: Session,
+    task: VideoTask,
+    script: Optional[Script],
+    title: str | None,
+    account: Optional[PlatformAccount] = None,
+) -> list[str]:
+    blockers: list[str] = []
+    if task.status != TaskStatus.approved:
+        blockers.append("视频任务必须先审核通过")
+    output_path_value = _effective_video_output_path(task)
+    if not output_path_value:
+        blockers.append("视频任务还没有成片文件")
+    elif output_path_value.startswith("mock://"):
+        blockers.append("当前成片仍是占位结果，不能发布")
+    elif not output_path_value.startswith("http"):
+        output_path = Path(output_path_value)
+        if not output_path.exists() or not output_path.is_file():
+            blockers.append("本地成片文件不存在")
+    if not (title or "").strip():
+        blockers.append("发布标题不能为空")
+    if account is not None and account.status != "active":
+        blockers.append("发布账号不是启用状态")
+
+    if script is not None:
+        notes = (script.compliance_notes or "").lower()
+        blocked_markers = ("不可发布", "禁止发布", "侵权", "未授权", "blocked", "do not publish")
+        if any(marker in notes for marker in blocked_markers):
+            blockers.append("脚本合规备注包含不可发布风险")
+
+    if task.digital_human_id:
+        human = session.get(DigitalHuman, task.digital_human_id)
+        for material_id, label in (
+            (human.portrait_material_id if human else None, "数字人头像"),
+            (human.source_video_material_id if human else None, "数字人口播源视频"),
+        ):
+            if material_id is None:
+                continue
+            material = session.get(Material, material_id)
+            if material is None:
+                blockers.append(f"{label}素材不存在")
+            elif material.copyright_status in {CopyrightStatus.blocked, CopyrightStatus.reference_only}:
+                blockers.append(f"{label}素材未获得发布授权")
+    return blockers
+
+
+def _ensure_publish_ready(
+    session: Session,
+    task: VideoTask,
+    script: Optional[Script],
+    title: str | None,
+    account: Optional[PlatformAccount] = None,
+) -> None:
+    blockers = _publish_validation_blockers(session, task, script, title, account)
+    if blockers:
+        raise HTTPException(status_code=400, detail="发布前校验未通过：" + "；".join(blockers))
 
 
 def _parse_optional_datetime(value: Optional[str]):
@@ -2677,9 +3018,12 @@ def prepare_publish_record(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
 ) -> PublishRecord:
-    if session.get(VideoTask, payload.video_task_id) is None:
+    task = session.get(VideoTask, payload.video_task_id)
+    if task is None:
         raise HTTPException(status_code=404, detail="Video task not found")
+    script = session.get(Script, task.script_id)
     account = _resolve_publish_account(session, payload.platform_account_id, payload.platform)
+    _ensure_publish_ready(session, task, script, payload.title, account)
     record = PublishRecord(
         video_task_id=payload.video_task_id,
         platform=account.platform if account else payload.platform,
@@ -2745,6 +3089,15 @@ def mark_publish_record_published(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
 ) -> PublishRecord:
+    record = session.get(PublishRecord, record_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Publish record not found")
+    task = session.get(VideoTask, record.video_task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Video task not found")
+    script = session.get(Script, task.script_id)
+    account = session.get(PlatformAccount, record.platform_account_id) if record.platform_account_id else None
+    _ensure_publish_ready(session, task, script, record.title, account)
     return _set_publish_status(session, record_id, "published", datetime.utcnow())
 
 

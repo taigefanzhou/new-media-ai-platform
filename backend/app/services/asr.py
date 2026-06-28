@@ -4,6 +4,7 @@ import base64
 from dataclasses import dataclass
 import mimetypes
 from pathlib import Path
+import subprocess
 from typing import Any
 import httpx
 from app.core.config import get_settings
@@ -13,6 +14,8 @@ HTTP_JSON_ASR_PROVIDERS = {"aliyun-bailian", "http-json", "openai-compatible", "
 KEYLESS_ASR_PROVIDERS = {"http-json", "whisperx"}
 QWEN_ASR_PROVIDERS = {"aliyun-bailian", "qwen-asr"}
 QWEN_ASR_BASE64_MAX_BYTES = 7_500_000
+QWEN_ASR_VIDEO_EXTENSIONS = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi"}
+QWEN_ASR_MEDIA_EXTENSIONS = QWEN_ASR_VIDEO_EXTENSIONS | {".mp3", ".m4a", ".aac", ".wav", ".flac", ".ogg"}
 
 
 @dataclass
@@ -148,18 +151,68 @@ class ASRClient:
         return normalized_provider in QWEN_ASR_PROVIDERS and "asr" in normalized_model
 
     def _qwen_audio_input(self, material: Material) -> str:
-        if material.source_url and material.source_url.startswith(("http://", "https://")):
+        path = self._local_material_path(material.file_path)
+        if path:
+            return self._qwen_local_audio_input(path)
+        if material.source_url and self._looks_like_media_url(material.source_url):
             return material.source_url
-        if not material.file_path:
-            raise RuntimeError("素材没有可用于 ASR 的文件或公网 URL")
-        path = Path(material.file_path)
-        if not path.exists():
-            raise RuntimeError(f"ASR 素材文件不存在：{material.file_path}")
-        if path.stat().st_size > QWEN_ASR_BASE64_MAX_BYTES:
-            raise RuntimeError("Qwen-ASR 本地 Base64 输入不能超过 10MB，请先把音频上传到可访问的 OSS/公网 URL。")
-        mime_type = mimetypes.guess_type(path.name)[0] or "audio/mpeg"
-        encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+        raise RuntimeError("素材没有可用于 ASR 的本地音频/视频文件或公网媒体 URL")
+
+    def _local_material_path(self, file_path: str | None) -> Path | None:
+        if not file_path:
+            return None
+        original = Path(file_path)
+        candidates = [original]
+        if not original.is_absolute():
+            candidates.extend([Path.cwd() / original, Path("/app") / original])
+        for candidate in candidates:
+            if candidate.exists():
+                return candidate
+        return None
+
+    def _qwen_local_audio_input(self, path: Path) -> str:
+        audio_path = self._extract_audio_for_asr(path) if path.suffix.lower() in QWEN_ASR_VIDEO_EXTENSIONS else path
+        if audio_path.stat().st_size > QWEN_ASR_BASE64_MAX_BYTES:
+            raise RuntimeError("Qwen-ASR 本地 Base64 输入不能超过 7.5MB，请先把音频上传到可访问的 OSS/公网 URL。")
+        mime_type = mimetypes.guess_type(audio_path.name)[0] or "audio/mpeg"
+        encoded = base64.b64encode(audio_path.read_bytes()).decode("ascii")
         return f"data:{mime_type};base64,{encoded}"
+
+    def _extract_audio_for_asr(self, video_path: Path) -> Path:
+        audio_path = video_path.with_suffix(".asr.wav")
+        if audio_path.exists() and audio_path.stat().st_size > 0:
+            return audio_path
+        command = [
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(video_path),
+            "-vn",
+            "-ac",
+            "1",
+            "-ar",
+            "16000",
+            "-acodec",
+            "pcm_s16le",
+            str(audio_path),
+        ]
+        try:
+            subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+        except FileNotFoundError as exc:
+            raise RuntimeError("服务器未安装 ffmpeg，无法从视频中提取 ASR 音频。") from exc
+        except subprocess.CalledProcessError as exc:
+            detail = (exc.stderr or "").strip().splitlines()[-1:] or ["未知错误"]
+            raise RuntimeError(f"视频音频提取失败：{detail[0]}") from exc
+        if not audio_path.exists() or audio_path.stat().st_size == 0:
+            raise RuntimeError("视频音频提取失败：没有生成可用音频文件")
+        return audio_path
+
+    def _looks_like_media_url(self, source_url: str) -> bool:
+        suffix = Path(source_url.split("?", 1)[0]).suffix.lower()
+        if suffix in QWEN_ASR_MEDIA_EXTENSIONS:
+            return True
+        lowered = source_url.lower()
+        return "finder.video.qq.com" in lowered or any(marker in lowered for marker in ("download", "media", "video", "play"))
 
     def _qwen_language(self, language: str) -> str:
         normalized = (language or "").lower()

@@ -66,6 +66,12 @@ STORAGE_DIR="./data/storage"
 docker compose -f infra/server/docker-compose.prod.yml up -d --build
 ```
 
+如果这台服务器已经有其他系统占用 `8000`，推荐给新媒体平台使用独立本地端口，例如 `8010`：
+
+```bash
+PLATFORM_HOST_PORT=8010 docker compose -f infra/server/docker-compose.prod.yml up -d --build
+```
+
 如果服务器访问默认 PyPI 慢或失败，可以显式使用国内镜像：
 
 ```bash
@@ -106,6 +112,8 @@ systemctl reload nginx
 - `80/tcp`：平台网页入口
 - `443/tcp`：后续绑定域名和 HTTPS 时使用
 - `8099/tcp`：视频号解析代理接口。如果只通过内网或 Nginx 转发访问，可以不对公网开放。
+
+绑定正式域名和 HTTPS 证书见：`docs/https-domain-setup.md`。
 
 如果暂时没有域名，可以先访问：
 
