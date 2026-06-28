@@ -696,13 +696,13 @@ h2 {
 
 .usageApiTag {
   display: inline-flex;
-  min-height: 22px;
+  min-height: 20px;
   align-items: center;
   border-radius: 999px;
-  padding: 2px 7px;
+  padding: 1px 7px;
   margin-right: 6px;
   font-size: 11px;
-  font-weight: 950;
+  font-weight: 800;
 }
 
 .usageApiTag.real {
@@ -929,10 +929,45 @@ h2 {
 }
 
 .storageTable {
-  min-width: 880px;
+  min-width: 1180px;
+}
+
+.storageTable th:nth-child(1),
+.storageTable td:nth-child(1) {
+  width: 72px;
+}
+
+.storageTable th:nth-child(2),
+.storageTable td:nth-child(2) {
+  width: 22%;
+}
+
+.storageTable th:nth-child(3),
+.storageTable td:nth-child(3),
+.storageTable th:nth-child(5),
+.storageTable td:nth-child(5) {
+  width: 92px;
+}
+
+.storageTable th:nth-child(4),
+.storageTable td:nth-child(4),
+.storageTable th:nth-child(6),
+.storageTable td:nth-child(6) {
+  width: 120px;
+}
+
+.storageTable th:nth-child(8),
+.storageTable td:nth-child(8) {
+  width: 130px;
+}
+
+.storageTable th:nth-child(9),
+.storageTable td:nth-child(9) {
+  width: 150px;
 }
 
 .storageTable td:nth-child(7) {
+  width: 92px;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
@@ -952,11 +987,11 @@ h2 {
 .storageFileState {
   display: inline-flex;
   align-items: center;
-  min-height: 22px;
+  min-height: 20px;
   border-radius: 999px;
-  padding: 2px 7px;
+  padding: 1px 7px;
   font-size: 11px;
-  font-weight: 900;
+  font-weight: 800;
 }
 
 .storageFileOk {
@@ -1032,6 +1067,28 @@ h2 {
   min-width: 920px;
 }
 
+.userTable th:nth-child(1),
+.userTable td:nth-child(1) {
+  width: 24%;
+}
+
+.userTable th:nth-child(2),
+.userTable td:nth-child(2),
+.userTable th:nth-child(3),
+.userTable td:nth-child(3) {
+  width: 150px;
+}
+
+.userTable th:nth-child(4),
+.userTable td:nth-child(4) {
+  width: 170px;
+}
+
+.userTable th:nth-child(5),
+.userTable td:nth-child(5) {
+  width: 210px;
+}
+
 label {
   display: grid;
   gap: 6px;
@@ -1103,11 +1160,11 @@ label {
 }
 
 .modelDiagnosticsTable td:nth-child(2) {
-  max-width: 280px;
+  width: 26%;
 }
 
 .modelDiagnosticsTable td:last-child {
-  max-width: 360px;
+  width: 30%;
   color: var(--muted);
 }
 
@@ -1659,19 +1716,48 @@ button:disabled {
 
 .storyboardPlanTableWrap {
   overflow-x: auto;
-  border: 1px solid var(--line);
+  border: 1px solid #e5e8ef;
   border-radius: 6px;
+  background: #ffffff;
 }
 
 .storyboardPlanTable {
   min-width: 780px;
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
 }
 
 .storyboardPlanTable th,
 .storyboardPlanTable td {
-  padding: 8px 10px;
+  border-bottom: 1px solid #eef1f5;
+  padding: 9px 12px;
   font-size: 12px;
+  line-height: 1.45;
+  text-align: left;
   vertical-align: top;
+}
+
+.storyboardPlanTable th {
+  background: #f7f8fb;
+  color: #5f6b7a;
+  font-weight: 800;
+}
+
+.storyboardPlanTable tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.storyboardPlanTable th:nth-child(1),
+.storyboardPlanTable td:nth-child(1) {
+  width: 92px;
+}
+
+.storyboardPlanTable th:nth-child(2),
+.storyboardPlanTable td:nth-child(2),
+.storyboardPlanTable th:nth-child(5),
+.storyboardPlanTable td:nth-child(5) {
+  width: 104px;
 }
 
 .storyboardPlanTable td:nth-child(1),
@@ -1890,6 +1976,9 @@ button:disabled {
 
 .taskTableWrap {
   overflow-x: auto;
+  border: 1px solid #e5e8ef;
+  border-radius: 6px;
+  background: #ffffff;
 }
 
 .captureEntryPanel {
@@ -1973,23 +2062,35 @@ button:disabled {
 
 .taskTable {
   width: 100%;
-  min-width: 980px;
+  min-width: 1220px;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
 .taskTable th,
 .taskTable td {
-  border-bottom: 1px solid var(--line);
-  padding: 9px 10px;
+  border-bottom: 1px solid #eef1f5;
+  padding: 10px 12px;
   text-align: left;
   vertical-align: middle;
+  overflow: hidden;
+  color: #1f2937;
+  text-overflow: ellipsis;
 }
 
 .taskTable th {
-  color: var(--muted);
+  color: #5f6b7a;
   font-size: 12px;
-  font-weight: 900;
-  background: #f8fafc;
+  font-weight: 800;
+  background: #f7f8fb;
+}
+
+.taskTable tbody tr:hover {
+  background: #fbfdff;
+}
+
+.taskTable tbody tr:last-child td {
+  border-bottom: 0;
 }
 
 .taskSelectCheckbox {
@@ -1999,10 +2100,12 @@ button:disabled {
 .taskTable .status {
   display: inline-flex;
   align-items: center;
-  min-height: 22px;
+  min-height: 20px;
   margin-top: 4px;
-  padding: 2px 7px;
+  padding: 1px 7px;
   font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 .taskStatusQueued,
@@ -2037,23 +2140,85 @@ button:disabled {
   margin-right: 6px;
 }
 
+.taskTable:not(.scriptTaskTable) th:nth-child(1),
+.taskTable:not(.scriptTaskTable) td:nth-child(1) {
+  width: 58px;
+}
+
+.taskTable:not(.scriptTaskTable) th:nth-child(2),
+.taskTable:not(.scriptTaskTable) td:nth-child(2) {
+  width: 104px;
+}
+
 .taskTable td:nth-child(3) {
-  max-width: 280px;
   font-size: 13px;
   line-height: 1.45;
 }
 
 .taskTable td:nth-child(4) {
-  max-width: 150px;
   font-size: 13px;
 }
 
-.scriptTaskTable {
-  min-width: 760px;
+.taskTable:not(.scriptTaskTable) th:nth-child(3),
+.taskTable:not(.scriptTaskTable) td:nth-child(3) {
+  width: 22%;
 }
 
+.taskTable:not(.scriptTaskTable) th:nth-child(4),
+.taskTable:not(.scriptTaskTable) td:nth-child(4) {
+  width: 12%;
+}
+
+.taskTable:not(.scriptTaskTable) th:nth-child(5),
+.taskTable:not(.scriptTaskTable) td:nth-child(5) {
+  width: 9%;
+}
+
+.taskTable:not(.scriptTaskTable) th:nth-child(6),
+.taskTable:not(.scriptTaskTable) td:nth-child(6),
+.taskTable:not(.scriptTaskTable) th:nth-child(7),
+.taskTable:not(.scriptTaskTable) td:nth-child(7) {
+  width: 12%;
+}
+
+.taskTable:not(.scriptTaskTable) th:nth-child(8),
+.taskTable:not(.scriptTaskTable) td:nth-child(8) {
+  width: 18%;
+}
+
+.taskTable:not(.scriptTaskTable) th:nth-child(9),
+.taskTable:not(.scriptTaskTable) td:nth-child(9) {
+  width: 152px;
+}
+
+.taskTable td:nth-child(3),
+.taskTable td:nth-child(4),
+.taskTable .recordMeta,
+.modelDiagnosticsTable td:last-child,
+.analysisTimelineTable td,
+.storyboardPlanTable td {
+  overflow-wrap: anywhere;
+}
+
+.scriptTaskTable {
+  min-width: 920px;
+}
+
+.scriptTaskTable th:nth-child(1),
 .scriptTaskTable td:nth-child(1) {
-  max-width: 420px;
+  width: 34%;
+}
+
+.scriptTaskTable th:nth-child(2),
+.scriptTaskTable td:nth-child(2),
+.scriptTaskTable th:nth-child(3),
+.scriptTaskTable td:nth-child(3) {
+  width: 16%;
+}
+
+.scriptTaskTable th:nth-child(4),
+.scriptTaskTable td:nth-child(4) {
+  width: 140px;
 }
 
 .scriptTaskTable th:last-child,
@@ -2635,13 +2800,27 @@ button:disabled {
   width: 100%;
   margin-top: 10px;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
 .analysisTimelineTable th,
 .analysisTimelineTable td {
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid #eef1f5;
+  padding: 9px 12px;
+  font-size: 12px;
+  line-height: 1.45;
   text-align: left;
   vertical-align: top;
+}
+
+.analysisTimelineTable th {
+  background: #f7f8fb;
+  color: #5f6b7a;
+  font-weight: 800;
+}
+
+.analysisTimelineTable tbody tr:last-child td {
+  border-bottom: 0;
 }
 
 .analysisReuseNotes {
