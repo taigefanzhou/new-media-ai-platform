@@ -651,6 +651,47 @@ def require_admin(user: User = Depends(current_user)) -> User:
     return user
 
 
+def _is_admin(user: User) -> bool:
+    return user.role == UserRole.admin
+
+
+def _require_write_user(user: User) -> None:
+    if user.role == UserRole.reviewer:
+        raise HTTPException(status_code=403, detail="Reviewer accounts cannot create or modify business data")
+
+
+def _assign_owner(record: object, user: User) -> None:
+    if hasattr(record, "owner_user_id") and getattr(record, "owner_user_id", None) is None:
+        setattr(record, "owner_user_id", user.id)
+
+
+def _owned_statement(statement, model: object, user: User):
+    if _is_admin(user):
+        return statement
+    owner_field = getattr(model, "owner_user_id", None)
+    if owner_field is None:
+        return statement
+    return statement.where(owner_field == user.id)
+
+
+def _ensure_record_access(record: object | None, user: User, label: str, *, write: bool = False):
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"{label} not found")
+    if write:
+        _require_write_user(user)
+    if _is_admin(user):
+        return record
+    owner_id = getattr(record, "owner_user_id", None)
+    if owner_id != user.id:
+        raise HTTPException(status_code=403, detail=f"No permission to access this {label}")
+    return record
+
+
+def _owned_count(session: Session, model: object, user: User) -> int:
+    statement = _owned_statement(select(func.count()).select_from(model), model, user)
+    return session.exec(statement).one()
+
+
 def _user_public(user: User) -> UserPublic:
     return UserPublic(
         id=user.id or 0,
@@ -735,27 +776,34 @@ def reset_user_password(
 
 
 @router.get("/dashboard")
-def dashboard(session: Session = Depends(get_session)) -> dict[str, object]:
+def dashboard(
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> dict[str, object]:
     counts = {
-        "materials": session.exec(select(func.count()).select_from(Material)).one(),
-        "topics": session.exec(select(func.count()).select_from(Topic)).one(),
-        "scripts": session.exec(select(func.count()).select_from(Script)).one(),
-        "digital_humans": session.exec(select(func.count()).select_from(DigitalHuman)).one(),
-        "video_tasks": session.exec(select(func.count()).select_from(VideoTask)).one(),
-        "publish_records": session.exec(select(func.count()).select_from(PublishRecord)).one(),
-        "trending_videos": session.exec(select(func.count()).select_from(TrendingVideo)).one(),
-        "transcriptions": session.exec(select(func.count()).select_from(TranscriptionTask)).one(),
-        "video_analyses": session.exec(select(func.count()).select_from(ReferenceVideoAnalysis)).one(),
+        "materials": _owned_count(session, Material, user),
+        "topics": _owned_count(session, Topic, user),
+        "scripts": _owned_count(session, Script, user),
+        "digital_humans": _owned_count(session, DigitalHuman, user),
+        "video_tasks": _owned_count(session, VideoTask, user),
+        "publish_records": _owned_count(session, PublishRecord, user),
+        "trending_videos": _owned_count(session, TrendingVideo, user),
+        "transcriptions": _owned_count(session, TranscriptionTask, user),
+        "video_analyses": _owned_count(session, ReferenceVideoAnalysis, user),
     }
-    recent_tasks = session.exec(select(VideoTask).order_by(VideoTask.created_at.desc()).limit(5)).all()
-    recent_scripts = session.exec(select(Script).order_by(Script.created_at.desc()).limit(5)).all()
+    recent_tasks = session.exec(
+        _owned_statement(select(VideoTask).order_by(VideoTask.created_at.desc()).limit(5), VideoTask, user)
+    ).all()
+    recent_scripts = session.exec(
+        _owned_statement(select(Script).order_by(Script.created_at.desc()).limit(5), Script, user)
+    ).all()
     return {"counts": counts, "recent_tasks": recent_tasks, "recent_scripts": recent_scripts}
 
 
 @router.get("/settings/models", response_model=list[AIModelConfigPublic])
 def list_model_configs(
     session: Session = Depends(get_session),
-    user: User = Depends(current_user),
+    admin: User = Depends(require_admin),
 ) -> list[AIModelConfigPublic]:
     configs = session.exec(select(AIModelConfig).order_by(AIModelConfig.created_at.desc())).all()
     return [_model_config_public(config) for config in configs]
@@ -764,7 +812,7 @@ def list_model_configs(
 @router.get("/settings/model-diagnostics")
 def model_diagnostics(
     session: Session = Depends(get_session),
-    user: User = Depends(current_user),
+    admin: User = Depends(require_admin),
 ) -> dict[str, object]:
     items = []
     for purpose in MODEL_PURPOSE_ORDER:
@@ -781,7 +829,7 @@ def model_diagnostics(
 @router.get("/settings/model-usage")
 def model_usage_summary(
     session: Session = Depends(get_session),
-    user: User = Depends(current_user),
+    admin: User = Depends(require_admin),
 ) -> dict[str, object]:
     rows = session.exec(select(AIModelUsage).order_by(AIModelUsage.created_at.desc())).all()
     summary: dict[tuple[str, str, str], dict[str, object]] = {}
@@ -925,7 +973,7 @@ def model_usage_summary(
 @router.get("/settings/video-storage")
 def video_storage_summary(
     session: Session = Depends(get_session),
-    user: User = Depends(current_user),
+    admin: User = Depends(require_admin),
 ) -> dict[str, object]:
     storage_root = get_storage_root(session)
     storage_setting = session.get(SystemSetting, STORAGE_ROOT_KEY)
@@ -1053,7 +1101,7 @@ def video_storage_summary(
 def update_video_storage(
     payload: StorageSettingsUpdate,
     session: Session = Depends(get_session),
-    user: User = Depends(current_user),
+    admin: User = Depends(require_admin),
 ) -> dict[str, object]:
     try:
         save_storage_root(session, payload.storage_root)
@@ -1061,13 +1109,13 @@ def update_video_storage(
         raise HTTPException(status_code=400, detail=f"无法使用这个目录：{exc}") from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return video_storage_summary(session=session, user=user)
+    return video_storage_summary(session=session, admin=admin)
 
 
 @router.get("/settings/remote-upload")
 def remote_upload_settings(
     session: Session = Depends(get_session),
-    user: User = Depends(current_user),
+    admin: User = Depends(require_admin),
 ) -> dict[str, object]:
     settings = _remote_upload_settings(session)
     return {
@@ -1084,7 +1132,7 @@ def remote_upload_settings(
 def update_remote_upload_settings(
     payload: RemoteUploadSettingsUpdate,
     session: Session = Depends(get_session),
-    user: User = Depends(current_user),
+    admin: User = Depends(require_admin),
 ) -> dict[str, object]:
     upload_url = (payload.upload_url or "").strip()
     public_base_url = (payload.public_base_url or "").strip()
@@ -1104,7 +1152,7 @@ def update_remote_upload_settings(
         _save_system_setting(session, REMOTE_UPLOAD_TOKEN_KEY, "")
     elif payload.upload_token:
         _save_system_setting(session, REMOTE_UPLOAD_TOKEN_KEY, payload.upload_token.strip())
-    return remote_upload_settings(session=session, user=user)
+    return remote_upload_settings(session=session, admin=admin)
 
 
 @router.post("/materials/{material_id}/remote-upload", response_model=Material)
@@ -1114,8 +1162,7 @@ async def upload_material_to_remote(
     user: User = Depends(current_user),
 ) -> Material:
     material = session.get(Material, material_id)
-    if material is None:
-        raise HTTPException(status_code=404, detail="Material not found")
+    _ensure_record_access(material, user, "Material", write=True)
     await _publish_material_to_remote(material, session, require_config=True)
     session.refresh(material)
     return material
@@ -1125,7 +1172,7 @@ async def upload_material_to_remote(
 def create_model_config(
     payload: AIModelConfigCreate,
     session: Session = Depends(get_session),
-    user: User = Depends(current_user),
+    admin: User = Depends(require_admin),
 ) -> AIModelConfigPublic:
     if payload.is_active:
         _deactivate_models(session, payload.purpose)
@@ -1141,7 +1188,7 @@ def update_model_config(
     model_id: int,
     payload: AIModelConfigUpdate,
     session: Session = Depends(get_session),
-    user: User = Depends(current_user),
+    admin: User = Depends(require_admin),
 ) -> AIModelConfigPublic:
     config = session.get(AIModelConfig, model_id)
     if config is None:
@@ -1161,7 +1208,7 @@ def update_model_config(
 def activate_model_config(
     model_id: int,
     session: Session = Depends(get_session),
-    user: User = Depends(current_user),
+    admin: User = Depends(require_admin),
 ) -> AIModelConfigPublic:
     config = session.get(AIModelConfig, model_id)
     if config is None:
@@ -1178,7 +1225,7 @@ def activate_model_config(
 async def test_model_config(
     model_id: int,
     session: Session = Depends(get_session),
-    user: User = Depends(current_user),
+    admin: User = Depends(require_admin),
 ) -> dict[str, object]:
     config = session.get(AIModelConfig, model_id)
     if config is None:
@@ -1245,7 +1292,7 @@ def _deactivate_models(session: Session, purpose: str) -> None:
 @router.get("/settings/platform-credentials", response_model=list[PlatformCredentialPublic])
 def list_platform_credentials(
     session: Session = Depends(get_session),
-    user: User = Depends(current_user),
+    admin: User = Depends(require_admin),
 ) -> list[PlatformCredentialPublic]:
     credentials = session.exec(
         select(PlatformCredential).order_by(
@@ -1260,7 +1307,7 @@ def list_platform_credentials(
 def create_platform_credential(
     payload: PlatformCredentialCreate,
     session: Session = Depends(get_session),
-    user: User = Depends(current_user),
+    admin: User = Depends(require_admin),
 ) -> PlatformCredentialPublic:
     if payload.is_active:
         _deactivate_platform_credentials(session, payload.platform, payload.purpose)
@@ -1277,7 +1324,7 @@ def update_platform_credential(
     credential_id: int,
     payload: PlatformCredentialUpdate,
     session: Session = Depends(get_session),
-    user: User = Depends(current_user),
+    admin: User = Depends(require_admin),
 ) -> PlatformCredentialPublic:
     credential = session.get(PlatformCredential, credential_id)
     if credential is None:
@@ -1300,7 +1347,7 @@ def update_platform_credential(
 def activate_platform_credential(
     credential_id: int,
     session: Session = Depends(get_session),
-    user: User = Depends(current_user),
+    admin: User = Depends(require_admin),
 ) -> PlatformCredentialPublic:
     credential = session.get(PlatformCredential, credential_id)
     if credential is None:
@@ -1390,7 +1437,7 @@ async def _probe_reference_media_url(source_url: str) -> dict[str, object]:
 async def test_link_resolver(
     payload: LinkResolverTestRequest,
     session: Session = Depends(get_session),
-    user: User = Depends(current_user),
+    admin: User = Depends(require_admin),
 ) -> dict[str, object]:
     source_url = payload.source_url.strip()
     parsed = urlparse(source_url)
@@ -1527,8 +1574,14 @@ def list_video_export_profiles() -> list[dict[str, object]]:
 
 
 @router.post("/materials", response_model=Material)
-def create_material(payload: MaterialCreate, session: Session = Depends(get_session)) -> Material:
+def create_material(
+    payload: MaterialCreate,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> Material:
+    _require_write_user(user)
     material = Material.model_validate(payload)
+    _assign_owner(material, user)
     session.add(material)
     session.commit()
     session.refresh(material)
@@ -1739,6 +1792,7 @@ async def create_reference_material_from_link(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
 ) -> Material:
+    _require_write_user(user)
     source_url = payload.source_url.strip()
     parsed = urlparse(source_url)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
@@ -1767,6 +1821,7 @@ async def create_reference_material_from_link(
         source_url=source_url,
         tags=_reference_tags(platform_name, payload.tags, f"解析:{resolver_name}", parse_status),
     )
+    _assign_owner(material, user)
     session.add(material)
     session.commit()
     session.refresh(material)
@@ -1780,8 +1835,7 @@ async def resolve_download_reference_material(
     user: User = Depends(current_user),
 ) -> Material:
     material = session.get(Material, material_id)
-    if material is None:
-        raise HTTPException(status_code=404, detail="Material not found")
+    _ensure_record_access(material, user, "Material", write=True)
     if material.kind != MaterialKind.reference or not material.source_url:
         raise HTTPException(status_code=400, detail="只有通过链接保存的参考素材可以解析下载。")
     if material.file_path and Path(material.file_path).exists():
@@ -1817,7 +1871,9 @@ async def upload_material(
     copyright_status: CopyrightStatus = Form(default=CopyrightStatus.owned),
     tags: str = Form(default=""),
     session: Session = Depends(get_session),
+    user: User = Depends(current_user),
 ) -> Material:
+    _require_write_user(user)
     return await _save_uploaded_material(
         file=file,
         kind=kind,
@@ -1825,6 +1881,7 @@ async def upload_material(
         copyright_status=copyright_status,
         tags=tags,
         session=session,
+        owner=user,
     )
 
 
@@ -1835,6 +1892,7 @@ async def _save_uploaded_material(
     session: Session,
     copyright_status: CopyrightStatus = CopyrightStatus.owned,
     tags: str = "",
+    owner: User | None = None,
 ) -> Material:
     original_name = file.filename or "upload.bin"
     suffix = Path(original_name).suffix
@@ -1852,6 +1910,8 @@ async def _save_uploaded_material(
         file_path=str(file_path),
         tags=tags,
     )
+    if owner is not None:
+        _assign_owner(material, owner)
     session.add(material)
     session.commit()
     session.refresh(material)
@@ -1969,14 +2029,23 @@ def _join_public_base_url(base_url: str, filename: str) -> str:
 
 
 @router.get("/materials", response_model=list[Material])
-def list_materials(session: Session = Depends(get_session)) -> list[Material]:
-    return list(session.exec(select(Material).order_by(Material.created_at.desc())).all())
+def list_materials(
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> list[Material]:
+    statement = _owned_statement(select(Material).order_by(Material.created_at.desc()), Material, user)
+    return list(session.exec(statement).all())
 
 
 @router.get("/materials/{material_id}/preview")
-def preview_material(material_id: int, session: Session = Depends(get_session)) -> FileResponse:
+def preview_material(
+    material_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> FileResponse:
     material = session.get(Material, material_id)
-    if material is None or not material.file_path:
+    _ensure_record_access(material, user, "Material")
+    if not material.file_path:
         raise HTTPException(status_code=404, detail="Material preview not found")
     path = Path(material.file_path)
     if not path.exists() or not path.is_file():
@@ -1985,10 +2054,13 @@ def preview_material(material_id: int, session: Session = Depends(get_session)) 
 
 
 @router.delete("/materials/{material_id}")
-def delete_material(material_id: int, session: Session = Depends(get_session)) -> dict[str, object]:
+def delete_material(
+    material_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> dict[str, object]:
     material = session.get(Material, material_id)
-    if material is None:
-        raise HTTPException(status_code=404, detail="Material not found")
+    _ensure_record_access(material, user, "Material", write=True)
 
     humans = session.exec(
         select(DigitalHuman).where(
@@ -2029,14 +2101,16 @@ def create_transcription_task(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
 ) -> TranscriptionTask:
-    if session.get(Material, payload.material_id) is None:
-        raise HTTPException(status_code=404, detail="Material not found")
+    _require_write_user(user)
+    material = session.get(Material, payload.material_id)
+    _ensure_record_access(material, user, "Material")
     task = TranscriptionTask(
         material_id=payload.material_id,
         language=payload.language,
         provider=get_settings().asr_provider,
         status=TaskStatus.queued,
     )
+    _assign_owner(task, user)
     session.add(task)
     session.commit()
     session.refresh(task)
@@ -2050,11 +2124,9 @@ async def run_transcription_task(
     user: User = Depends(current_user),
 ) -> TranscriptionTask:
     task = session.get(TranscriptionTask, task_id)
-    if task is None:
-        raise HTTPException(status_code=404, detail="Transcription task not found")
+    _ensure_record_access(task, user, "Transcription task", write=True)
     material = session.get(Material, task.material_id)
-    if material is None:
-        raise HTTPException(status_code=404, detail="Material not found")
+    _ensure_record_access(material, user, "Material")
     active_model = _smart_model_config(session, "asr", "transcription")
     settings = get_settings()
     task.provider = active_model.provider if active_model else settings.asr_provider
@@ -2097,7 +2169,12 @@ def list_transcription_tasks(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
 ) -> list[TranscriptionTask]:
-    return list(session.exec(select(TranscriptionTask).order_by(TranscriptionTask.created_at.desc())).all())
+    statement = _owned_statement(
+        select(TranscriptionTask).order_by(TranscriptionTask.created_at.desc()),
+        TranscriptionTask,
+        user,
+    )
+    return list(session.exec(statement).all())
 
 
 @router.post("/transcriptions/{task_id}/create-topic", response_model=Topic)
@@ -2107,8 +2184,7 @@ def create_topic_from_transcription(
     user: User = Depends(current_user),
 ) -> Topic:
     task = session.get(TranscriptionTask, task_id)
-    if task is None:
-        raise HTTPException(status_code=404, detail="Transcription task not found")
+    _ensure_record_access(task, user, "Transcription task", write=True)
     if not task.transcript:
         raise HTTPException(status_code=400, detail="Transcription has no transcript")
     material = session.get(Material, task.material_id)
@@ -2124,6 +2200,7 @@ def create_topic_from_transcription(
             f"钩子分析：{task.hook_analysis}"
         ),
     )
+    _assign_owner(topic, user)
     session.add(topic)
     session.commit()
     session.refresh(topic)
@@ -2137,8 +2214,7 @@ async def generate_script_from_transcription(
     user: User = Depends(current_user),
 ) -> Script:
     task = session.get(TranscriptionTask, task_id)
-    if task is None:
-        raise HTTPException(status_code=404, detail="Transcription task not found")
+    _ensure_record_access(task, user, "Transcription task", write=True)
     if not task.transcript:
         raise HTTPException(status_code=400, detail="Transcription has no transcript")
     topic = (
@@ -2167,6 +2243,7 @@ async def generate_script_from_transcription(
         hashtags=generated.hashtags,
         compliance_notes=f"{generated.compliance_notes}\n基于转写任务 #{task.id} 生成，仅借鉴结构，不搬运原文。",
     )
+    _assign_owner(script, user)
     session.add(script)
     record_generated_model_usage(
         session,
@@ -2196,9 +2273,9 @@ def create_reference_video_analysis(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
 ) -> ReferenceVideoAnalysis:
+    _require_write_user(user)
     material = session.get(Material, payload.material_id)
-    if material is None:
-        raise HTTPException(status_code=404, detail="Material not found")
+    _ensure_record_access(material, user, "Material")
     if material.kind not in (MaterialKind.avatar_source, MaterialKind.video, MaterialKind.reference):
         raise HTTPException(status_code=400, detail="深度视频拆解需要选择视频或参考素材。")
     task = ReferenceVideoAnalysis(
@@ -2207,6 +2284,7 @@ def create_reference_video_analysis(
         language=payload.language,
         status=TaskStatus.queued,
     )
+    _assign_owner(task, user)
     session.add(task)
     session.commit()
     session.refresh(task)
@@ -2220,11 +2298,9 @@ async def run_reference_video_analysis(
     user: User = Depends(current_user),
 ) -> ReferenceVideoAnalysis:
     task = session.get(ReferenceVideoAnalysis, analysis_id)
-    if task is None:
-        raise HTTPException(status_code=404, detail="Reference video analysis not found")
+    _ensure_record_access(task, user, "Reference video analysis")
     material = session.get(Material, task.material_id)
-    if material is None:
-        raise HTTPException(status_code=404, detail="Material not found")
+    _ensure_record_access(material, user, "Material")
 
     active_model = _smart_model_config(session, "video_understanding", "reference_analysis")
     task.provider = active_model.provider if active_model else task.provider or "local"
@@ -2299,7 +2375,12 @@ def list_reference_video_analyses(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
 ) -> list[ReferenceVideoAnalysis]:
-    return list(session.exec(select(ReferenceVideoAnalysis).order_by(ReferenceVideoAnalysis.created_at.desc())).all())
+    statement = _owned_statement(
+        select(ReferenceVideoAnalysis).order_by(ReferenceVideoAnalysis.created_at.desc()),
+        ReferenceVideoAnalysis,
+        user,
+    )
+    return list(session.exec(statement).all())
 
 
 @router.post("/video-analyses/{analysis_id}/approve", response_model=ReferenceVideoAnalysis)
@@ -2309,8 +2390,7 @@ def approve_reference_video_analysis(
     user: User = Depends(current_user),
 ) -> ReferenceVideoAnalysis:
     task = session.get(ReferenceVideoAnalysis, analysis_id)
-    if task is None:
-        raise HTTPException(status_code=404, detail="Reference video analysis not found")
+    _ensure_record_access(task, user, "Reference video analysis")
     if task.status == TaskStatus.failed:
         raise HTTPException(status_code=400, detail="失败的拆解结果不能采纳，请重新拆解。")
     task.status = TaskStatus.approved
@@ -2328,8 +2408,7 @@ def reject_reference_video_analysis(
     user: User = Depends(current_user),
 ) -> ReferenceVideoAnalysis:
     task = session.get(ReferenceVideoAnalysis, analysis_id)
-    if task is None:
-        raise HTTPException(status_code=404, detail="Reference video analysis not found")
+    _ensure_record_access(task, user, "Reference video analysis", write=True)
     task.status = TaskStatus.rejected
     task.updated_at = datetime.utcnow()
     session.add(task)
@@ -2342,9 +2421,11 @@ def reject_reference_video_analysis(
 def reference_video_analysis_contact_sheet(
     analysis_id: int,
     session: Session = Depends(get_session),
+    user: User = Depends(current_user),
 ) -> FileResponse:
     task = session.get(ReferenceVideoAnalysis, analysis_id)
-    if task is None or not task.contact_sheet_path:
+    _ensure_record_access(task, user, "Reference video analysis")
+    if not task.contact_sheet_path:
         raise HTTPException(status_code=404, detail="Contact sheet not found")
     path = Path(task.contact_sheet_path)
     if not path.exists() or not path.is_file():
@@ -2356,9 +2437,11 @@ def reference_video_analysis_contact_sheet(
 def reference_video_analysis_dense_contact_sheet(
     analysis_id: int,
     session: Session = Depends(get_session),
+    user: User = Depends(current_user),
 ) -> FileResponse:
     task = session.get(ReferenceVideoAnalysis, analysis_id)
-    if task is None or not task.dense_contact_sheet_path:
+    _ensure_record_access(task, user, "Reference video analysis")
+    if not task.dense_contact_sheet_path:
         raise HTTPException(status_code=404, detail="Dense contact sheet not found")
     path = Path(task.dense_contact_sheet_path)
     if not path.exists() or not path.is_file():
@@ -2373,8 +2456,7 @@ async def generate_script_from_reference_video_analysis(
     user: User = Depends(current_user),
 ) -> Script:
     task = session.get(ReferenceVideoAnalysis, analysis_id)
-    if task is None:
-        raise HTTPException(status_code=404, detail="Reference video analysis not found")
+    _ensure_record_access(task, user, "Reference video analysis", write=True)
     if task.status != TaskStatus.approved:
         raise HTTPException(status_code=400, detail="请先在拆解详情里采纳这个参考模板。")
     material = session.get(Material, task.material_id)
@@ -2402,7 +2484,7 @@ async def generate_script_from_reference_video_analysis(
         target_platform="wechat_channels" if task.height >= task.width else "douyin",
         output_language="zh-CN",
     )
-    script = _create_script_record(session, payload, generated, active_model)
+    script = _create_script_record(session, payload, generated, active_model, owner=user)
     script.compliance_notes = (
         f"{script.compliance_notes}\n基于深度视频拆解 #{task.id} 生成，仅学习结构、节奏、拍摄和剪辑方法。"
     )
@@ -2420,8 +2502,17 @@ def _topic_title_from_text(text: str) -> str:
 
 
 @router.post("/topics", response_model=Topic)
-def create_topic(payload: TopicCreate, session: Session = Depends(get_session)) -> Topic:
+def create_topic(
+    payload: TopicCreate,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> Topic:
+    _require_write_user(user)
+    if payload.reference_material_id is not None:
+        material = session.get(Material, payload.reference_material_id)
+        _ensure_record_access(material, user, "Material")
     topic = Topic.model_validate(payload)
+    _assign_owner(topic, user)
     session.add(topic)
     session.commit()
     session.refresh(topic)
@@ -2429,8 +2520,12 @@ def create_topic(payload: TopicCreate, session: Session = Depends(get_session)) 
 
 
 @router.get("/topics", response_model=list[Topic])
-def list_topics(session: Session = Depends(get_session)) -> list[Topic]:
-    return list(session.exec(select(Topic).order_by(Topic.created_at.desc())).all())
+def list_topics(
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> list[Topic]:
+    statement = _owned_statement(select(Topic).order_by(Topic.created_at.desc()), Topic, user)
+    return list(session.exec(statement).all())
 
 
 def _create_script_record(
@@ -2438,6 +2533,7 @@ def _create_script_record(
     payload: ScriptGenerateRequest,
     generated,
     model_config: Optional[AIModelConfig] = None,
+    owner: User | None = None,
 ) -> Script:
     storyboard_plan = json.dumps(getattr(generated, "storyboard_plan", []) or [], ensure_ascii=False)
     script = Script(
@@ -2453,6 +2549,8 @@ def _create_script_record(
         hashtags=generated.hashtags,
         compliance_notes=generated.compliance_notes,
     )
+    if owner is not None:
+        _assign_owner(script, owner)
     session.add(script)
     record_generated_model_usage(
         session,
@@ -2468,7 +2566,15 @@ def _create_script_record(
 
 
 @router.post("/scripts/generate", response_model=Script)
-async def generate_script(payload: ScriptGenerateRequest, session: Session = Depends(get_session)) -> Script:
+async def generate_script(
+    payload: ScriptGenerateRequest,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> Script:
+    _require_write_user(user)
+    if payload.topic_id is not None:
+        topic_record = session.get(Topic, payload.topic_id)
+        _ensure_record_access(topic_record, user, "Topic")
     active_model = _smart_model_config(session, "script", "script_generation")
     generated = await ScriptGenerator(active_model).generate(
         topic=payload.topic,
@@ -2477,11 +2583,19 @@ async def generate_script(payload: ScriptGenerateRequest, session: Session = Dep
         target_platform=payload.target_platform,
         output_language=payload.output_language,
     )
-    return _create_script_record(session, payload, generated, active_model)
+    return _create_script_record(session, payload, generated, active_model, owner=user)
 
 
 @router.post("/scripts/batch-generate", response_model=list[Script])
-async def batch_generate_scripts(payload: ScriptBatchGenerateRequest, session: Session = Depends(get_session)) -> list[Script]:
+async def batch_generate_scripts(
+    payload: ScriptBatchGenerateRequest,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> list[Script]:
+    _require_write_user(user)
+    if payload.topic_id is not None:
+        topic_record = session.get(Topic, payload.topic_id)
+        _ensure_record_access(topic_record, user, "Topic")
     active_model = _smart_model_config(
         session,
         "script",
@@ -2511,21 +2625,29 @@ async def batch_generate_scripts(payload: ScriptBatchGenerateRequest, session: S
             target_platform=payload.target_platform,
             output_language=payload.output_language,
         )
-        script = _create_script_record(session, item_payload, generated, active_model)
+        script = _create_script_record(session, item_payload, generated, active_model, owner=user)
         scripts.append(script)
     return scripts
 
 
 @router.get("/scripts", response_model=list[Script])
-def list_scripts(session: Session = Depends(get_session)) -> list[Script]:
-    return list(session.exec(select(Script).order_by(Script.created_at.desc())).all())
+def list_scripts(
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> list[Script]:
+    statement = _owned_statement(select(Script).order_by(Script.created_at.desc()), Script, user)
+    return list(session.exec(statement).all())
 
 
 @router.patch("/scripts/{script_id}", response_model=Script)
-def update_script(script_id: int, payload: ScriptUpdate, session: Session = Depends(get_session)) -> Script:
+def update_script(
+    script_id: int,
+    payload: ScriptUpdate,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> Script:
     script = session.get(Script, script_id)
-    if script is None:
-        raise HTTPException(status_code=404, detail="Script not found")
+    _ensure_record_access(script, user, "Script", write=True)
     update_data = payload.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         if value is not None:
@@ -2551,13 +2673,14 @@ def _build_video_task(
     subtitle_style: str = "auto",
     status: TaskStatus = TaskStatus.queued,
     audit_notes: str = "",
+    owner: User | None = None,
 ) -> VideoTask:
     if production_mode not in PRODUCTION_MODES:
         raise HTTPException(status_code=400, detail="Unknown production mode")
     segment_count = _estimated_video_segment_count(script.duration_seconds)
     platform_name = target_platform or script.target_platform or "douyin"
     profile = resolve_export_profile(export_profile, platform_name)
-    return VideoTask(
+    task = VideoTask(
         script_id=script.id or 0,
         digital_human_id=digital_human_id,
         status=status,
@@ -2574,6 +2697,9 @@ def _build_video_task(
         subtitle_status="pending" if subtitle_enabled else "disabled",
         audit_notes=audit_notes,
     )
+    if owner is not None:
+        _assign_owner(task, owner)
+    return task
 
 
 def _prepare_material_mix_segments(session: Session, task: VideoTask, script: Script) -> VideoTask:
@@ -2602,6 +2728,7 @@ def _validate_video_task_inputs(
     session: Session,
     production_mode: str,
     digital_human_id: Optional[int],
+    user: User | None = None,
 ) -> None:
     if production_mode not in PRODUCTION_MODES:
         raise HTTPException(status_code=400, detail="Unknown production mode")
@@ -2610,7 +2737,9 @@ def _validate_video_task_inputs(
             raise HTTPException(status_code=400, detail="数字人口播需要选择数字人，并上传头像或口播源视频。")
         return
     human = session.get(DigitalHuman, digital_human_id)
-    if human is None:
+    if user is not None:
+        _ensure_record_access(human, user, "Digital human")
+    elif human is None:
         raise HTTPException(status_code=404, detail="Digital human not found")
     if (
         production_mode in {"digital_human", "talking_head_template"}
@@ -2669,10 +2798,10 @@ def create_video_task_from_script(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
 ) -> VideoTask:
+    _require_write_user(user)
     script = session.get(Script, script_id)
-    if script is None:
-        raise HTTPException(status_code=404, detail="Script not found")
-    _validate_video_task_inputs(session, payload.production_mode, payload.digital_human_id)
+    _ensure_record_access(script, user, "Script")
+    _validate_video_task_inputs(session, payload.production_mode, payload.digital_human_id, user=user)
     task = _build_video_task(
         script,
         payload.digital_human_id,
@@ -2681,6 +2810,7 @@ def create_video_task_from_script(
         export_profile=payload.export_profile,
         subtitle_enabled=payload.subtitle_enabled,
         subtitle_style=payload.subtitle_style,
+        owner=user,
     )
     session.add(task)
     session.commit()
@@ -2697,10 +2827,10 @@ async def approve_script_and_run_video_task(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
 ) -> VideoTask:
+    _require_write_user(user)
     script = session.get(Script, script_id)
-    if script is None:
-        raise HTTPException(status_code=404, detail="Script not found")
-    _validate_video_task_inputs(session, payload.production_mode, payload.digital_human_id)
+    _ensure_record_access(script, user, "Script")
+    _validate_video_task_inputs(session, payload.production_mode, payload.digital_human_id, user=user)
     task = _build_video_task(
         script,
         payload.digital_human_id,
@@ -2711,6 +2841,7 @@ async def approve_script_and_run_video_task(
         subtitle_style=payload.subtitle_style,
         status=TaskStatus.queued,
         audit_notes=f"脚本已审核通过，系统已按「{payload.production_mode}」创建视频任务并进入生成队列。",
+        owner=user,
     )
     session.add(task)
     session.commit()
@@ -2727,9 +2858,10 @@ async def generate_script_voice_preview(
     user: User = Depends(current_user),
 ) -> FileResponse:
     script = session.get(Script, script_id)
-    if script is None:
-        raise HTTPException(status_code=404, detail="Script not found")
+    _ensure_record_access(script, user, "Script")
     human = session.get(DigitalHuman, payload.digital_human_id) if payload.digital_human_id else None
+    if human is not None:
+        _ensure_record_access(human, user, "Digital human")
     voice = human.default_voice if human and human.default_voice else None
     tts_model = _smart_model_config(session, "tts", "voice_preview")
     media = MediaGenerationClient(tts_model_config=tts_model, storage_dir=get_storage_root(session))
@@ -2761,16 +2893,22 @@ async def generate_script_voice_preview(
 
 
 @router.post("/digital-humans", response_model=DigitalHuman)
-def create_digital_human(payload: DigitalHumanCreate, session: Session = Depends(get_session)) -> DigitalHuman:
-    if payload.portrait_material_id is not None and session.get(Material, payload.portrait_material_id) is None:
-        raise HTTPException(status_code=404, detail="Portrait material not found")
+def create_digital_human(
+    payload: DigitalHumanCreate,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> DigitalHuman:
+    _require_write_user(user)
+    if payload.portrait_material_id is not None:
+        portrait_material = session.get(Material, payload.portrait_material_id)
+        _ensure_record_access(portrait_material, user, "Portrait material")
     if payload.source_video_material_id is not None:
         source_material = session.get(Material, payload.source_video_material_id)
-        if source_material is None:
-            raise HTTPException(status_code=404, detail="Source video material not found")
+        _ensure_record_access(source_material, user, "Source video material")
         if source_material.kind not in (MaterialKind.avatar_source, MaterialKind.video):
             raise HTTPException(status_code=400, detail="Source video material must be a video source")
     human = DigitalHuman.model_validate(payload)
+    _assign_owner(human, user)
     session.add(human)
     session.commit()
     session.refresh(human)
@@ -2789,9 +2927,17 @@ async def create_digital_human_with_assets(
     portrait_file: Optional[UploadFile] = File(default=None),
     source_video_file: Optional[UploadFile] = File(default=None),
     session: Session = Depends(get_session),
+    user: User = Depends(current_user),
 ) -> DigitalHuman:
+    _require_write_user(user)
     portrait_id = _optional_form_id(portrait_material_id, "头像素材 ID")
     source_video_id = _optional_form_id(source_video_material_id, "口播源视频素材 ID")
+    if portrait_id is not None:
+        portrait = session.get(Material, portrait_id)
+        _ensure_record_access(portrait, user, "Portrait material")
+    if source_video_id is not None:
+        source_video = session.get(Material, source_video_id)
+        _ensure_record_access(source_video, user, "Source video material")
 
     if portrait_file is not None and portrait_file.filename:
         portrait = await _save_uploaded_material(
@@ -2800,6 +2946,7 @@ async def create_digital_human_with_assets(
             name=f"{name}头像",
             tags="digital-human,portrait",
             session=session,
+            owner=user,
         )
         portrait_id = portrait.id
 
@@ -2810,6 +2957,7 @@ async def create_digital_human_with_assets(
             name=f"{name}口播源视频",
             tags="digital-human,voice-source",
             session=session,
+            owner=user,
         )
         source_video_id = source_video.id
 
@@ -2822,12 +2970,16 @@ async def create_digital_human_with_assets(
         default_voice=default_voice,
         authorization_scope=authorization_scope,
     )
-    return create_digital_human(payload, session)
+    return create_digital_human(payload, session, user)
 
 
 @router.get("/digital-humans", response_model=list[DigitalHuman])
-def list_digital_humans(session: Session = Depends(get_session)) -> list[DigitalHuman]:
-    return list(session.exec(select(DigitalHuman).order_by(DigitalHuman.created_at.desc())).all())
+def list_digital_humans(
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> list[DigitalHuman]:
+    statement = _owned_statement(select(DigitalHuman).order_by(DigitalHuman.created_at.desc()), DigitalHuman, user)
+    return list(session.exec(statement).all())
 
 
 @router.post("/digital-humans/{human_id}/volcengine-auth/session")
@@ -2836,10 +2988,10 @@ async def create_volcengine_portrait_auth_session(
     payload: VolcenginePortraitAuthSessionCreate,
     request: Request,
     session: Session = Depends(get_session),
+    user: User = Depends(current_user),
 ) -> dict[str, object]:
     human = session.get(DigitalHuman, human_id)
-    if human is None:
-        raise HTTPException(status_code=404, detail="Digital human not found")
+    _ensure_record_access(human, user, "Digital human", write=True)
     callback_url = (payload.callback_url or str(request.url_for("volcengine_portrait_auth_callback"))).strip()
     callback_url = _append_query_param(callback_url, "human_id", str(human_id))
     request_payload = {
@@ -2888,10 +3040,10 @@ async def create_volcengine_portrait_auth_session(
 async def sync_volcengine_portrait_auth_session(
     human_id: int,
     session: Session = Depends(get_session),
+    user: User = Depends(current_user),
 ) -> dict[str, object]:
     human = session.get(DigitalHuman, human_id)
-    if human is None:
-        raise HTTPException(status_code=404, detail="Digital human not found")
+    _ensure_record_access(human, user, "Digital human", write=True)
     return await _sync_volcengine_portrait_auth_result(session, human)
 
 
@@ -2899,10 +3051,10 @@ async def sync_volcengine_portrait_auth_session(
 def get_volcengine_portrait_auth_status(
     human_id: int,
     session: Session = Depends(get_session),
+    user: User = Depends(current_user),
 ) -> dict[str, object]:
     human = session.get(DigitalHuman, human_id)
-    if human is None:
-        raise HTTPException(status_code=404, detail="Digital human not found")
+    _ensure_record_access(human, user, "Digital human")
     return _human_portrait_auth_state(human)
 
 
@@ -2967,10 +3119,13 @@ async def volcengine_portrait_auth_callback(
 
 
 @router.delete("/digital-humans/{human_id}")
-def delete_digital_human(human_id: int, session: Session = Depends(get_session)) -> dict[str, object]:
+def delete_digital_human(
+    human_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> dict[str, object]:
     human = session.get(DigitalHuman, human_id)
-    if human is None:
-        raise HTTPException(status_code=404, detail="Digital human not found")
+    _ensure_record_access(human, user, "Digital human", write=True)
     tasks = session.exec(select(VideoTask).where(VideoTask.digital_human_id == human_id)).all()
     for task in tasks:
         task.digital_human_id = None
@@ -2981,11 +3136,15 @@ def delete_digital_human(human_id: int, session: Session = Depends(get_session))
 
 
 @router.post("/video-tasks", response_model=VideoTask)
-def create_video_task(payload: VideoTaskCreate, session: Session = Depends(get_session)) -> VideoTask:
+def create_video_task(
+    payload: VideoTaskCreate,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> VideoTask:
+    _require_write_user(user)
     script = session.get(Script, payload.script_id)
-    if script is None:
-        raise HTTPException(status_code=404, detail="Script not found")
-    _validate_video_task_inputs(session, payload.production_mode, payload.digital_human_id)
+    _ensure_record_access(script, user, "Script")
+    _validate_video_task_inputs(session, payload.production_mode, payload.digital_human_id, user=user)
     task = _build_video_task(
         script,
         payload.digital_human_id,
@@ -2994,6 +3153,7 @@ def create_video_task(payload: VideoTaskCreate, session: Session = Depends(get_s
         export_profile=payload.export_profile,
         subtitle_enabled=payload.subtitle_enabled,
         subtitle_style=payload.subtitle_style,
+        owner=user,
     )
     session.add(task)
     session.commit()
@@ -3002,13 +3162,17 @@ def create_video_task(payload: VideoTaskCreate, session: Session = Depends(get_s
 
 
 @router.post("/video-tasks/batch-create", response_model=list[VideoTask])
-def batch_create_video_tasks(payload: VideoTaskBatchCreateRequest, session: Session = Depends(get_session)) -> list[VideoTask]:
-    _validate_video_task_inputs(session, payload.production_mode, payload.digital_human_id)
+def batch_create_video_tasks(
+    payload: VideoTaskBatchCreateRequest,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> list[VideoTask]:
+    _require_write_user(user)
+    _validate_video_task_inputs(session, payload.production_mode, payload.digital_human_id, user=user)
     tasks: list[VideoTask] = []
     for script_id in payload.script_ids:
         script = session.get(Script, script_id)
-        if script is None:
-            raise HTTPException(status_code=404, detail=f"Script {script_id} not found")
+        _ensure_record_access(script, user, f"Script {script_id}")
         task = _build_video_task(
             script,
             payload.digital_human_id,
@@ -3017,6 +3181,7 @@ def batch_create_video_tasks(payload: VideoTaskBatchCreateRequest, session: Sess
             export_profile=payload.export_profile,
             subtitle_enabled=payload.subtitle_enabled,
             subtitle_style=payload.subtitle_style,
+            owner=user,
         )
         session.add(task)
         tasks.append(task)
@@ -3039,8 +3204,7 @@ async def batch_run_video_tasks(
     results: list[VideoTask] = []
     for task_id in payload.task_ids:
         task = session.get(VideoTask, task_id)
-        if task is None:
-            raise HTTPException(status_code=404, detail=f"Video task {task_id} not found")
+        _ensure_record_access(task, user, f"Video task {task_id}", write=True)
         _ensure_video_task_can_run(task)
         queued_task = _queue_video_task(session, task, "任务已进入后台生成队列。")
         background_tasks.add_task(_run_video_task_background, queued_task.id)
@@ -3056,8 +3220,7 @@ async def run_video_task(
     user: User = Depends(current_user),
 ) -> VideoTask:
     task = session.get(VideoTask, task_id)
-    if task is None:
-        raise HTTPException(status_code=404, detail="Video task not found")
+    _ensure_record_access(task, user, "Video task", write=True)
     _ensure_video_task_can_run(task)
     queued_task = _queue_video_task(session, task, "任务已进入后台生成队列。")
     background_tasks.add_task(_run_video_task_background, queued_task.id)
@@ -3065,10 +3228,13 @@ async def run_video_task(
 
 
 @router.post("/video-tasks/{task_id}/approve", response_model=VideoTask)
-def approve_video_task(task_id: int, session: Session = Depends(get_session)) -> VideoTask:
+def approve_video_task(
+    task_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> VideoTask:
     task = session.get(VideoTask, task_id)
-    if task is None:
-        raise HTTPException(status_code=404, detail="Video task not found")
+    _ensure_record_access(task, user, "Video task")
     if task.status != TaskStatus.needs_review or not task.output_path:
         raise HTTPException(status_code=400, detail="Only generated videos waiting for review can be approved")
     task.status = TaskStatus.approved
@@ -3079,14 +3245,22 @@ def approve_video_task(task_id: int, session: Session = Depends(get_session)) ->
 
 
 @router.get("/video-tasks", response_model=list[VideoTask])
-def list_video_tasks(session: Session = Depends(get_session)) -> list[VideoTask]:
-    return list(session.exec(select(VideoTask).order_by(VideoTask.created_at.desc())).all())
+def list_video_tasks(
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> list[VideoTask]:
+    statement = _owned_statement(select(VideoTask).order_by(VideoTask.created_at.desc()), VideoTask, user)
+    return list(session.exec(statement).all())
 
 
 @router.get("/video-tasks/{task_id}/segments", response_model=list[VideoSegment])
-def list_video_task_segments(task_id: int, session: Session = Depends(get_session)) -> list[VideoSegment]:
-    if session.get(VideoTask, task_id) is None:
-        raise HTTPException(status_code=404, detail="Video task not found")
+def list_video_task_segments(
+    task_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> list[VideoSegment]:
+    task = session.get(VideoTask, task_id)
+    _ensure_record_access(task, user, "Video task")
     return list(
         session.exec(
             select(VideoSegment)
@@ -3105,8 +3279,7 @@ def update_video_segment_material(
     user: User = Depends(current_user),
 ) -> VideoSegment:
     task = session.get(VideoTask, task_id)
-    if task is None:
-        raise HTTPException(status_code=404, detail="Video task not found")
+    _ensure_record_access(task, user, "Video task", write=True)
     if task.status == TaskStatus.running:
         raise HTTPException(status_code=409, detail="生成中的任务不能修改素材方案。")
     segment = session.get(VideoSegment, segment_id)
@@ -3114,8 +3287,7 @@ def update_video_segment_material(
         raise HTTPException(status_code=404, detail="Video segment not found")
     if payload.material_id is not None:
         material = session.get(Material, payload.material_id)
-        if material is None:
-            raise HTTPException(status_code=404, detail="Material not found")
+        _ensure_record_access(material, user, "Material")
         allowed_kinds = {MaterialKind.video, MaterialKind.image, MaterialKind.product, MaterialKind.portrait}
         if task.production_mode == "seedance_scene":
             allowed_kinds.update({MaterialKind.reference, MaterialKind.avatar_source})
@@ -3154,10 +3326,15 @@ def update_video_segment_material(
 
 
 @router.get("/video-tasks/{task_id}/output")
-def preview_video_task_output(task_id: int, session: Session = Depends(get_session)) -> FileResponse:
+def preview_video_task_output(
+    task_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> FileResponse:
     task = session.get(VideoTask, task_id)
+    _ensure_record_access(task, user, "Video task")
     output_path = _effective_video_output_path(task) if task else None
-    if task is None or not output_path:
+    if not output_path:
         raise HTTPException(status_code=404, detail="Video output not found")
     path = Path(output_path)
     if not path.exists() or not path.is_file():
@@ -3166,10 +3343,13 @@ def preview_video_task_output(task_id: int, session: Session = Depends(get_sessi
 
 
 @router.delete("/video-tasks/{task_id}/output")
-def delete_video_task_output(task_id: int, session: Session = Depends(get_session)) -> dict[str, object]:
+def delete_video_task_output(
+    task_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> dict[str, object]:
     task = session.get(VideoTask, task_id)
-    if task is None:
-        raise HTTPException(status_code=404, detail="Video task not found")
+    _ensure_record_access(task, user, "Video task", write=True)
     if task.status == TaskStatus.running:
         raise HTTPException(status_code=409, detail="Cannot delete output while video is generating")
     if not _effective_video_output_path(task):
@@ -3200,10 +3380,13 @@ def delete_video_task_output(task_id: int, session: Session = Depends(get_sessio
 
 
 @router.delete("/video-tasks/{task_id}")
-def delete_video_task(task_id: int, session: Session = Depends(get_session)) -> dict[str, object]:
+def delete_video_task(
+    task_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> dict[str, object]:
     task = session.get(VideoTask, task_id)
-    if task is None:
-        raise HTTPException(status_code=404, detail="Video task not found")
+    _ensure_record_access(task, user, "Video task", write=True)
     if task.status == TaskStatus.running:
         raise HTTPException(status_code=409, detail="Cannot delete a video task while it is generating")
     records = session.exec(select(PublishRecord).where(PublishRecord.video_task_id == task_id)).all()
@@ -3230,14 +3413,13 @@ def prepare_publish_record_from_video_task(
     user: User = Depends(current_user),
 ) -> PublishRecord:
     task = session.get(VideoTask, task_id)
-    if task is None:
-        raise HTTPException(status_code=404, detail="Video task not found")
+    _ensure_record_access(task, user, "Video task")
     if task.status != TaskStatus.approved:
         raise HTTPException(status_code=400, detail="Video task must be approved before publishing")
     if not _effective_video_output_path(task):
         raise HTTPException(status_code=400, detail="Video task has no generated output")
     script = session.get(Script, task.script_id)
-    account = _resolve_publish_account(session, payload.platform_account_id, payload.platform)
+    account = _resolve_publish_account(session, payload.platform_account_id, payload.platform, user=user)
     title = payload.title or _publish_title_from_script(script)
     _ensure_publish_ready(session, task, script, title, account)
     record = PublishRecord(
@@ -3251,6 +3433,7 @@ def prepare_publish_record_from_video_task(
         scheduled_at=_parse_optional_datetime(payload.scheduled_at),
         publish_status="prepared",
     )
+    _assign_owner(record, user)
     session.add(record)
     session.commit()
     session.refresh(record)
@@ -3342,24 +3525,31 @@ def _resolve_publish_account(
     session: Session,
     account_id: Optional[int],
     platform: Optional[str],
+    user: User | None = None,
 ) -> Optional[PlatformAccount]:
     if account_id is not None:
         account = session.get(PlatformAccount, account_id)
-        if account is None:
+        if user is not None:
+            _ensure_record_access(account, user, "Platform account")
+        elif account is None:
             raise HTTPException(status_code=404, detail="Platform account not found")
         return account
     if platform is None:
         return None
-    return session.exec(
-        select(PlatformAccount).where(
+    statement = select(PlatformAccount).where(
             PlatformAccount.platform == platform,
             PlatformAccount.is_default == True,
-        )
-    ).first()
+    )
+    if user is not None:
+        statement = _owned_statement(statement, PlatformAccount, user)
+    return session.exec(statement).first()
 
 
-def _clear_default_account(session: Session, platform: str) -> None:
-    accounts = session.exec(select(PlatformAccount).where(PlatformAccount.platform == platform)).all()
+def _clear_default_account(session: Session, platform: str, user: User | None = None) -> None:
+    statement = select(PlatformAccount).where(PlatformAccount.platform == platform)
+    if user is not None:
+        statement = _owned_statement(statement, PlatformAccount, user)
+    accounts = session.exec(statement).all()
     for account in accounts:
         account.is_default = False
         session.add(account)
@@ -3371,7 +3561,9 @@ def create_trending_search(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
 ) -> TrendingSearch:
+    _require_write_user(user)
     search = TrendingSearch.model_validate(payload)
+    _assign_owner(search, user)
     session.add(search)
     session.commit()
     session.refresh(search)
@@ -3385,8 +3577,7 @@ async def run_trending_search(
     user: User = Depends(current_user),
 ) -> TrendingSearch:
     search = session.get(TrendingSearch, search_id)
-    if search is None:
-        raise HTTPException(status_code=404, detail="Trending search not found")
+    _ensure_record_access(search, user, "Trending search", write=True)
     search.status = TaskStatus.running
     session.add(search)
     session.commit()
@@ -3405,6 +3596,7 @@ async def run_trending_search(
     for existing_video in existing_videos:
         session.delete(existing_video)
     for video in videos:
+        _assign_owner(video, user)
         session.add(video)
     search.status = TaskStatus.needs_review
     search.result_count = len(videos)
@@ -3419,7 +3611,8 @@ def list_trending_searches(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
 ) -> list[TrendingSearch]:
-    return list(session.exec(select(TrendingSearch).order_by(TrendingSearch.created_at.desc())).all())
+    statement = _owned_statement(select(TrendingSearch).order_by(TrendingSearch.created_at.desc()), TrendingSearch, user)
+    return list(session.exec(statement).all())
 
 
 @router.get("/trending/videos", response_model=list[TrendingVideo])
@@ -3427,7 +3620,8 @@ def list_trending_videos(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
 ) -> list[TrendingVideo]:
-    return list(session.exec(select(TrendingVideo).order_by(TrendingVideo.created_at.desc())).all())
+    statement = _owned_statement(select(TrendingVideo).order_by(TrendingVideo.created_at.desc()), TrendingVideo, user)
+    return list(session.exec(statement).all())
 
 
 @router.post("/trending/videos", response_model=TrendingVideo)
@@ -3436,7 +3630,9 @@ def create_trending_video(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
 ) -> TrendingVideo:
+    _require_write_user(user)
     video = TrendingVideo.model_validate(payload)
+    _assign_owner(video, user)
     session.add(video)
     session.commit()
     session.refresh(video)
@@ -3450,10 +3646,9 @@ def prepare_publish_record(
     user: User = Depends(current_user),
 ) -> PublishRecord:
     task = session.get(VideoTask, payload.video_task_id)
-    if task is None:
-        raise HTTPException(status_code=404, detail="Video task not found")
+    _ensure_record_access(task, user, "Video task")
     script = session.get(Script, task.script_id)
-    account = _resolve_publish_account(session, payload.platform_account_id, payload.platform)
+    account = _resolve_publish_account(session, payload.platform_account_id, payload.platform, user=user)
     _ensure_publish_ready(session, task, script, payload.title, account)
     record = PublishRecord(
         video_task_id=payload.video_task_id,
@@ -3466,6 +3661,7 @@ def prepare_publish_record(
         scheduled_at=_parse_optional_datetime(payload.scheduled_at),
         publish_status="prepared",
     )
+    _assign_owner(record, user)
     session.add(record)
     session.commit()
     session.refresh(record)
@@ -3477,7 +3673,8 @@ def list_publish_records(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
 ) -> list[PublishRecord]:
-    return list(session.exec(select(PublishRecord).order_by(PublishRecord.created_at.desc())).all())
+    statement = _owned_statement(select(PublishRecord).order_by(PublishRecord.created_at.desc()), PublishRecord, user)
+    return list(session.exec(statement).all())
 
 
 @router.patch("/publish-records/{record_id}", response_model=PublishRecord)
@@ -3488,8 +3685,7 @@ def update_publish_record(
     user: User = Depends(current_user),
 ) -> PublishRecord:
     record = session.get(PublishRecord, record_id)
-    if record is None:
-        raise HTTPException(status_code=404, detail="Publish record not found")
+    _ensure_record_access(record, user, "Publish record", write=True)
     update_data = payload.model_dump(exclude_unset=True)
     if "platform_account_id" in update_data:
         account_id = update_data.pop("platform_account_id")
@@ -3498,7 +3694,7 @@ def update_publish_record(
             if "account_name" not in update_data:
                 record.account_name = None
         else:
-            account = _resolve_publish_account(session, account_id, update_data.get("platform"))
+            account = _resolve_publish_account(session, account_id, update_data.get("platform"), user=user)
             if account is not None:
                 record.platform = account.platform
                 record.platform_account_id = account.id
@@ -3521,15 +3717,13 @@ def mark_publish_record_published(
     user: User = Depends(current_user),
 ) -> PublishRecord:
     record = session.get(PublishRecord, record_id)
-    if record is None:
-        raise HTTPException(status_code=404, detail="Publish record not found")
+    _ensure_record_access(record, user, "Publish record")
     task = session.get(VideoTask, record.video_task_id)
-    if task is None:
-        raise HTTPException(status_code=404, detail="Video task not found")
+    _ensure_record_access(task, user, "Video task")
     script = session.get(Script, task.script_id)
     account = session.get(PlatformAccount, record.platform_account_id) if record.platform_account_id else None
     _ensure_publish_ready(session, task, script, record.title, account)
-    return _set_publish_status(session, record_id, "published", datetime.utcnow())
+    return _set_publish_status(session, record_id, "published", datetime.utcnow(), user=user)
 
 
 @router.post("/publish-records/{record_id}/fail", response_model=PublishRecord)
@@ -3538,7 +3732,7 @@ def mark_publish_record_failed(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
 ) -> PublishRecord:
-    return _set_publish_status(session, record_id, "failed")
+    return _set_publish_status(session, record_id, "failed", user=user)
 
 
 @router.post("/publish-records/{record_id}/cancel", response_model=PublishRecord)
@@ -3547,7 +3741,7 @@ def cancel_publish_record(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
 ) -> PublishRecord:
-    return _set_publish_status(session, record_id, "canceled")
+    return _set_publish_status(session, record_id, "canceled", user=user)
 
 
 def _set_publish_status(
@@ -3555,9 +3749,12 @@ def _set_publish_status(
     record_id: int,
     status: str,
     published_at: Optional[datetime] = None,
+    user: User | None = None,
 ) -> PublishRecord:
     record = session.get(PublishRecord, record_id)
-    if record is None:
+    if user is not None:
+        _ensure_record_access(record, user, "Publish record", write=True)
+    elif record is None:
         raise HTTPException(status_code=404, detail="Publish record not found")
     record.publish_status = status
     if published_at is not None:
@@ -3588,9 +3785,11 @@ def create_platform_account(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
 ) -> PlatformAccount:
+    _require_write_user(user)
     if payload.is_default:
-        _clear_default_account(session, payload.platform)
+        _clear_default_account(session, payload.platform, user=user)
     account = PlatformAccount.model_validate(payload)
+    _assign_owner(account, user)
     session.add(account)
     session.commit()
     session.refresh(account)
@@ -3602,14 +3801,15 @@ def list_platform_accounts(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
 ) -> list[PlatformAccount]:
-    return list(
-        session.exec(
-            select(PlatformAccount).order_by(
-                PlatformAccount.is_default.desc(),
-                PlatformAccount.created_at.desc(),
-            )
-        ).all()
+    statement = _owned_statement(
+        select(PlatformAccount).order_by(
+            PlatformAccount.is_default.desc(),
+            PlatformAccount.created_at.desc(),
+        ),
+        PlatformAccount,
+        user,
     )
+    return list(session.exec(statement).all())
 
 
 @router.patch("/platform-accounts/{account_id}", response_model=PlatformAccount)
@@ -3620,12 +3820,11 @@ def update_platform_account(
     user: User = Depends(current_user),
 ) -> PlatformAccount:
     account = session.get(PlatformAccount, account_id)
-    if account is None:
-        raise HTTPException(status_code=404, detail="Platform account not found")
+    _ensure_record_access(account, user, "Platform account", write=True)
     update_data = payload.model_dump(exclude_unset=True)
     next_platform = update_data.get("platform", account.platform)
     if update_data.get("is_default") is True:
-        _clear_default_account(session, next_platform)
+        _clear_default_account(session, next_platform, user=user)
     for key, value in update_data.items():
         setattr(account, key, value)
     session.add(account)
@@ -3641,9 +3840,8 @@ def set_default_platform_account(
     user: User = Depends(current_user),
 ) -> PlatformAccount:
     account = session.get(PlatformAccount, account_id)
-    if account is None:
-        raise HTTPException(status_code=404, detail="Platform account not found")
-    _clear_default_account(session, account.platform)
+    _ensure_record_access(account, user, "Platform account", write=True)
+    _clear_default_account(session, account.platform, user=user)
     account.is_default = True
     session.add(account)
     session.commit()

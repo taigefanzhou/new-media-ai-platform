@@ -564,6 +564,22 @@ function roleLabel(role) {
   }[role] || role || "-";
 }
 
+function isAdminUser(user = state.currentUser) {
+  return user?.role === "admin";
+}
+
+function applyRoleAccess(user = state.currentUser) {
+  const isAdmin = isAdminUser(user);
+  document.body.classList.toggle("role-admin", isAdmin);
+  document.body.classList.toggle("role-limited", Boolean(user) && !isAdmin);
+  document.querySelectorAll("[data-page='settings'], .subNav").forEach((el) => {
+    el.classList.toggle("hiddenPanel", !isAdmin);
+  });
+  if (!isAdmin && state.currentPage === "settings") {
+    switchPage("overview", null, true);
+  }
+}
+
 function accountInitials(username) {
   const value = String(username || "").trim();
   return value ? Array.from(value).slice(0, 2).join("").toUpperCase() : "--";
@@ -3300,6 +3316,7 @@ function setLoginState(user) {
     closeAccountModal();
   }
   renderAccountMenu(user);
+  applyRoleAccess(user);
 }
 
 function renderAccountProfile() {
@@ -3396,6 +3413,7 @@ async function logout() {
 
 async function refresh() {
   if (!api.token) return;
+  const admin = isAdminUser();
   const [dashboard, integrations, materials, exportProfiles] = await Promise.all([
     api.get("/dashboard"),
     api.get("/integrations/status"),
@@ -3412,8 +3430,6 @@ async function refresh() {
   renderTasks(dashboard.recent_tasks);
   if (api.token) {
     const [
-      models,
-      platformCredentials,
       searches,
       videos,
       transcriptions,
@@ -3423,14 +3439,7 @@ async function refresh() {
       digitalHumans,
       scripts,
       videoTasks,
-      modelUsage,
-      modelDiagnostics,
-      videoStorage,
-      remoteUpload,
-      users,
     ] = await Promise.all([
-      api.get("/settings/models"),
-      api.get("/settings/platform-credentials"),
       api.get("/trending/searches"),
       api.get("/trending/videos"),
       api.get("/transcriptions"),
@@ -3440,12 +3449,26 @@ async function refresh() {
       api.get("/digital-humans"),
       api.get("/scripts"),
       api.get("/video-tasks"),
-      api.get("/settings/model-usage"),
-      api.get("/settings/model-diagnostics"),
-      api.get("/settings/video-storage"),
-      api.get("/settings/remote-upload"),
-      api.get("/settings/users").catch(() => []),
     ]);
+    const [
+      models,
+      platformCredentials,
+      modelUsage,
+      modelDiagnostics,
+      videoStorage,
+      remoteUpload,
+      users,
+    ] = admin
+      ? await Promise.all([
+          api.get("/settings/models"),
+          api.get("/settings/platform-credentials"),
+          api.get("/settings/model-usage"),
+          api.get("/settings/model-diagnostics"),
+          api.get("/settings/video-storage"),
+          api.get("/settings/remote-upload"),
+          api.get("/settings/users").catch(() => []),
+        ])
+      : [[], [], null, null, null, null, []];
     state.platformCredentials = platformCredentials;
     state.platformAccounts = platformAccounts;
     state.publishRecords = publishRecords;
@@ -3456,13 +3479,15 @@ async function refresh() {
     state.videoStorage = videoStorage;
     state.remoteUpload = remoteUpload;
     state.users = users;
-    renderModels(models);
-    renderModelDiagnostics(modelDiagnostics);
-    renderPlatformCredentials(platformCredentials);
-    renderModelUsage(modelUsage);
-    renderVideoStorage(videoStorage);
-    renderRemoteUpload(remoteUpload);
-    renderSystemUsers(users);
+    if (admin) {
+      renderModels(models);
+      renderModelDiagnostics(modelDiagnostics);
+      renderPlatformCredentials(platformCredentials);
+      renderModelUsage(modelUsage);
+      renderVideoStorage(videoStorage);
+      renderRemoteUpload(remoteUpload);
+      renderSystemUsers(users);
+    }
     renderTrending(searches, videos);
     renderTranscriptions(transcriptions);
     renderVideoAnalyses(videoAnalyses);

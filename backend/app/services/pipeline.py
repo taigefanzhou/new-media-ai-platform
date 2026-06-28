@@ -222,7 +222,7 @@ class VideoPipeline:
 
         segments: list[VideoSegment] = []
         for index, spec in enumerate(segment_specs):
-            material, match_note = self._match_material_for_segment(spec)
+            material, match_note = self._match_material_for_segment(spec, task.owner_user_id)
             segment = VideoSegment(
                 video_task_id=task.id or 0,
                 segment_index=index + 1,
@@ -247,6 +247,8 @@ class VideoPipeline:
         self.session.commit()
         try:
             material = self.session.get(Material, segment.material_id) if segment.material_id else None
+            if material and task.owner_user_id is not None and material.owner_user_id != task.owner_user_id:
+                material = None
             if (
                 task.production_mode == "material_mix"
                 and material
@@ -361,7 +363,11 @@ class VideoPipeline:
             return None
         return self.session.get(Material, human.source_video_material_id)
 
-    def _match_material_for_segment(self, spec: dict[str, object]) -> tuple[Material | None, str]:
+    def _match_material_for_segment(
+        self,
+        spec: dict[str, object],
+        owner_user_id: int | None = None,
+    ) -> tuple[Material | None, str]:
         query = " ".join(
             str(spec.get(key) or "")
             for key in ("title", "visual", "prompt", "asset_or_background")
@@ -369,23 +375,24 @@ class VideoPipeline:
         query_tokens = self._match_tokens(query)
         if not query_tokens:
             return None, "没有足够关键词，生成时将由 Seedance 补镜头。"
-        candidates = self.session.exec(
-            select(Material).where(
-                Material.kind.in_([
-                    MaterialKind.video,
-                    MaterialKind.image,
-                    MaterialKind.product,
-                    MaterialKind.portrait,
-                    MaterialKind.reference,
-                    MaterialKind.avatar_source,
-                ]),
-                Material.copyright_status.in_([
-                    CopyrightStatus.owned,
-                    CopyrightStatus.licensed,
-                    CopyrightStatus.reference_only,
-                ]),
-            )
-        ).all()
+        statement = select(Material).where(
+            Material.kind.in_([
+                MaterialKind.video,
+                MaterialKind.image,
+                MaterialKind.product,
+                MaterialKind.portrait,
+                MaterialKind.reference,
+                MaterialKind.avatar_source,
+            ]),
+            Material.copyright_status.in_([
+                CopyrightStatus.owned,
+                CopyrightStatus.licensed,
+                CopyrightStatus.reference_only,
+            ]),
+        )
+        if owner_user_id is not None:
+            statement = statement.where(Material.owner_user_id == owner_user_id)
+        candidates = self.session.exec(statement).all()
         best: tuple[int, Material] | None = None
         for material in candidates:
             text = f"{material.name} {material.tags} {material.kind}".lower()

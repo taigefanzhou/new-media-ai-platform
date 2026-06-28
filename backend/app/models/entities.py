@@ -64,6 +64,7 @@ class Material(SQLModel, table=True):
     file_path: Optional[str] = None
     source_url: Optional[str] = None
     tags: str = ""
+    owner_user_id: Optional[int] = Field(default=None, index=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -127,6 +128,7 @@ class TrendingSearch(SQLModel, table=True):
     status: TaskStatus = TaskStatus.queued
     result_count: int = 0
     notes: str = ""
+    owner_user_id: Optional[int] = Field(default=None, index=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -146,6 +148,7 @@ class TrendingVideo(SQLModel, table=True):
     summary: str = ""
     tags: str = ""
     compliance_notes: str = "仅作为选题和结构参考，不可直接搬运画面或文案。"
+    owner_user_id: Optional[int] = Field(default=None, index=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -159,6 +162,7 @@ class TranscriptionTask(SQLModel, table=True):
     summary: str = ""
     hook_analysis: str = ""
     error_message: Optional[str] = None
+    owner_user_id: Optional[int] = Field(default=None, index=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -190,6 +194,7 @@ class ReferenceVideoAnalysis(SQLModel, table=True):
     quality_summary: str = ""
     model_enhanced: bool = False
     error_message: Optional[str] = None
+    owner_user_id: Optional[int] = Field(default=None, index=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -202,6 +207,7 @@ class Topic(SQLModel, table=True):
     audience: Optional[str] = None
     reference_material_id: Optional[int] = None
     notes: str = ""
+    owner_user_id: Optional[int] = Field(default=None, index=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -218,6 +224,7 @@ class Script(SQLModel, table=True):
     title_options: str
     hashtags: str
     compliance_notes: str = ""
+    owner_user_id: Optional[int] = Field(default=None, index=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -239,6 +246,7 @@ class DigitalHuman(SQLModel, table=True):
     volcengine_asset_uri: Optional[str] = None
     volcengine_asset_status: Optional[str] = None
     volcengine_auth_payload: str = ""
+    owner_user_id: Optional[int] = Field(default=None, index=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -264,6 +272,7 @@ class VideoTask(SQLModel, table=True):
     output_path: Optional[str] = None
     error_message: Optional[str] = None
     audit_notes: str = ""
+    owner_user_id: Optional[int] = Field(default=None, index=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -292,6 +301,7 @@ class PlatformAccount(SQLModel, table=True):
     status: str = "active"
     is_default: bool = False
     notes: str = ""
+    owner_user_id: Optional[int] = Field(default=None, index=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -325,4 +335,5 @@ class PublishRecord(SQLModel, table=True):
     scheduled_at: Optional[datetime] = None
     publish_status: str = "prepared"
     published_at: Optional[datetime] = None
+    owner_user_id: Optional[int] = Field(default=None, index=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)

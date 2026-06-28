@@ -20,6 +20,21 @@ def apply_sqlite_migrations() -> None:
     if not settings.database_url.startswith("sqlite"):
         return
     with engine.begin() as connection:
+        default_owner_id = connection.execute(
+            text("SELECT id FROM user WHERE role = 'admin' ORDER BY created_at ASC LIMIT 1")
+        ).scalar()
+
+        def add_owner_column(table_name: str) -> None:
+            rows = connection.execute(text(f"PRAGMA table_info({table_name})")).fetchall()
+            columns = {row[1] for row in rows}
+            if rows and "owner_user_id" not in columns:
+                connection.execute(text(f"ALTER TABLE {table_name} ADD COLUMN owner_user_id INTEGER"))
+            if rows and default_owner_id is not None:
+                connection.execute(
+                    text(f"UPDATE {table_name} SET owner_user_id = :owner_id WHERE owner_user_id IS NULL"),
+                    {"owner_id": default_owner_id},
+                )
+
         connection.execute(
             text(
                 """
@@ -83,6 +98,21 @@ def apply_sqlite_migrations() -> None:
         account_columns = {row[1] for row in account_rows}
         if account_rows and "is_default" not in account_columns:
             connection.execute(text("ALTER TABLE platformaccount ADD COLUMN is_default BOOLEAN DEFAULT 0"))
+
+        for table_name in (
+            "material",
+            "trendingsearch",
+            "trendingvideo",
+            "transcriptiontask",
+            "referencevideoanalysis",
+            "topic",
+            "script",
+            "digitalhuman",
+            "videotask",
+            "platformaccount",
+            "publishrecord",
+        ):
+            add_owner_column(table_name)
 
         human_rows = connection.execute(text("PRAGMA table_info(digitalhuman)")).fetchall()
         human_columns = {row[1] for row in human_rows}
