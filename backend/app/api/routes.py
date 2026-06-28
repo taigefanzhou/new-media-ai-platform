@@ -1187,6 +1187,7 @@ async def test_link_resolver(
         "title": resolution.title or "",
         "content_type": probe.get("content_type") or "",
         "message": message,
+        "diagnostics": list(resolution.diagnostic_errors),
     }
 
 

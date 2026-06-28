@@ -284,6 +284,71 @@ Production deployment note:
 - The temporary tar-based path used for this release is: build linux/amd64 image outside production, upload tar, `docker load`, then `docker compose up -d --no-build`.
 - Runtime installation of Chromium works for development but is too slow and heavy for production startup.
 
+## Link Resolver / Reference Material Collection
+
+The reference-material import flow supports pasting public short-video links into the app.
+
+The backend first tries direct media URLs and public page metadata. If the page does not expose a downloadable media URL, it calls active platform credentials whose `purpose` is `link_resolver`.
+
+Generic resolver configuration:
+
+```text
+platform: wechat_channels / douyin / xiaohongshu / kuaishou / manual
+purpose: link_resolver
+api_base: https://your-resolver.example.com/api/fetch_video_profile
+notes:
+  method=post
+  timeout=8
+```
+
+Generic request payload:
+
+```json
+{
+  "url": "https://weixin.qq.com/sph/...",
+  "source_url": "https://weixin.qq.com/sph/...",
+  "share_url": "https://weixin.qq.com/sph/...",
+  "platform": "wechat_channels"
+}
+```
+
+Generic resolver responses may return common fields such as:
+
+```json
+{
+  "data": {
+    "feedInfo": {
+      "description": "视频描述",
+      "h264VideoInfo": {"videoUrl": "https://finder.video.qq.com/.../stodownload?..."},
+      "likeCountFmt": "123",
+      "commentCountFmt": "45"
+    },
+    "authorInfo": {"nickname": "作者"}
+  }
+}
+```
+
+Just One WeChat Channels configuration:
+
+```text
+platform: wechat_channels
+purpose: link_resolver
+api_base: http://47.117.133.51:30015
+access_token: <Just One token>
+notes:
+  provider=justone
+  timeout=12
+```
+
+The backend calls:
+
+```text
+GET {api_base}/api/weixin-channels/get-video-basic-info/v1
+GET {api_base}/api/weixin-channels/get-video-download-url/v1
+```
+
+The app stores unresolved links as reference-only materials instead of pretending that the video file was downloaded. The link resolver test endpoint returns `diagnostics` so operators can tell whether a failure is caused by an unreachable resolver, missing token, timeout, or a resolver response without a video URL.
+
 ## Trending Search
 
 Mock mode:

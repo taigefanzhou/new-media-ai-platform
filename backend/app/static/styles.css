@@ -3039,6 +3039,19 @@ button:disabled {
   line-height: 1.45;
 }
 
+.diagnosticList {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.diagnosticList li {
+  margin: 2px 0;
+  overflow-wrap: anywhere;
+}
+
 .linkResolverTestResult.ok {
   border-color: #99f6e4;
   background: #f0fdfa;

@@ -72,6 +72,7 @@
 | 视频理解/深度拆解 | 可用 | 是 | 线上模型配置显示 `volcengine-ark / doubao-seed-2-0-pro-260215` 已配置为真实 API。 |
 | 视频合成/专业包装 | 可用 | 是 | 线上 `COMPOSITION_PROVIDER=remotion`，通过独立 Remotion 渲染服务做专业包装；FFmpeg 通用 concat 链路仍未作为主链路启用。 |
 | 字幕引擎 | 可用 | 是 | 已内置自研字幕后处理：脚本文案自动断句、生成 SRT/ASS、按模板烧录到本地视频。依赖 FFmpeg 和真实本地视频；如果前置视频仍是 `mock://` 或云端 URL，会跳过烧录并记录真实状态。 |
+| 链接素材采集 | 部分可用 | 否 | 系统支持粘贴链接保存为参考素材，也支持外部解析器下载视频；当前公开视频号 worker 在本机可解析，但线上服务器访问 `sph.litao.workers.dev` 不可达，需切换 Just One/TikHub/自有解析服务。 |
 | 爆款采集 | 可用 | 否 | 当前 `mock`。 |
 | ASR 转写 | 可用 | 是 | 线上模型配置显示 `aliyun-bailian / qwen3-asr-flash` 已配置为真实 API。 |
 
@@ -84,6 +85,7 @@
 尚未真实打通或仍需验证的能力：
 
 - FFmpeg 通用 concat 链路：未作为主链路启用；当前真实专业包装主链路是 Remotion。
+- 链接素材采集：粘贴链接保存已可用；自动解析下载依赖第三方/自有链接解析服务。公开视频号 worker `https://sph.litao.workers.dev/api/fetch_video_profile` 在本机可解析测试链接，但生产服务器访问该域名报 `Network is unreachable` 或超时，不能作为稳定线上解析服务。
 - 爆款采集：当前 `mock`。
 - 真实接口的费用/配额/失败重试策略：数字人、Seedance、TTS、ASR 已显示真实 API 可用，但正式批量跑之前仍要确认费用阈值、并发限制和失败重试策略。
 
@@ -113,6 +115,23 @@
   - 梁欣欣
   - 黄丽
   - 视频号参考素材
+
+### 链接素材采集
+
+- 线上页面：`https://media.tech-ark.com/#analysis` 的“导入参考”，以及 `#settings` 的“短视频采集接入/链接解析测试”。
+- 已支持的入口：
+  - 粘贴视频链接保存为参考素材。
+  - 配置链接解析服务后自动解析下载视频文件。
+  - 解析失败时保存链接，不假装已经下载。
+- 本次实测链接：`https://weixin.qq.com/sph/ARzjCDiEUH`。
+  - 本机直接调用 `https://sph.litao.workers.dev/api/fetch_video_profile` 可解析出作者、描述、点赞/评论和 `finder.video.qq.com/.../stodownload` 视频地址。
+  - 线上服务器和平台容器访问 `sph.litao.workers.dev` 不可达/超时，所以系统只能保存为参考链接，不能自动下载。
+  - 测试时线上生成参考素材 `#13`，状态为“需上传源文件”。
+- 已改进：
+  - 链接解析测试会返回并展示 `diagnostics`，能看到具体是“解析服务不可达、超时、缺 Token、未返回视频地址”等原因。
+  - 链接解析服务支持 `timeout=秒数` 备注，默认不再长时间卡住页面。
+  - 后端新增 `provider=justone` 支持，可直接配置 Just One 视频号解析：`api_base=http://47.117.133.51:30015`，Access Token 填 Just One token。
+- 下一步要把线上解析从公开视频号 worker 切换到服务器可访问的正式 provider，例如 Just One、TikHub 或自有解析中转。
 
 ### 内容创作页面
 
