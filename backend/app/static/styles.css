@@ -517,27 +517,40 @@ h2 {
 
 .settingsTableWrap {
   overflow-x: auto;
+  border: 1px solid #e5e8ef;
+  border-radius: 6px;
+  background: #ffffff;
 }
 
 .settingsTable {
   width: 100%;
   min-width: 760px;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
 .settingsTable th,
 .settingsTable td {
-  border-bottom: 1px solid var(--line);
-  padding: 11px 10px;
+  border-bottom: 1px solid #eef1f5;
+  padding: 10px 12px;
   text-align: left;
   vertical-align: middle;
+  color: #1f2937;
 }
 
 .settingsTable th {
-  background: #f7f8fa;
-  color: var(--muted);
+  background: #f7f8fb;
+  color: #5f6b7a;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 800;
+}
+
+.settingsTable tbody tr:hover {
+  background: #fbfdff;
+}
+
+.settingsTable tbody tr:last-child td {
+  border-bottom: 0;
 }
 
 .tabSwitch {
@@ -611,9 +624,9 @@ h2 {
 
 .compactTable th,
 .compactTable td {
-  padding: 8px 10px;
+  padding: 10px 12px;
   font-size: 13px;
-  line-height: 1.35;
+  line-height: 1.45;
 }
 
 .compactTable th {
@@ -1367,6 +1380,13 @@ button:disabled {
   color: #075985;
   font-size: 12px;
   font-weight: 800;
+}
+
+.status.subtle {
+  margin-top: 0;
+  background: #f2f5f9;
+  color: #4e5969;
+  white-space: nowrap;
 }
 
 .statusBoard {
@@ -2630,9 +2650,9 @@ button:disabled {
 
 .tableActions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 6px;
-  min-width: 190px;
+  min-width: 0;
   max-width: 100%;
 }
 
@@ -2640,7 +2660,7 @@ button:disabled {
   flex: 0 0 auto;
   width: auto;
   min-height: 28px;
-  padding-inline: 8px;
+  padding-inline: 9px;
   font-size: 12px;
 }
 
@@ -2720,39 +2740,153 @@ button:disabled {
 
 .humanTableWrap {
   overflow-x: auto;
+  border: 1px solid #e5e8ef;
+  border-radius: 6px;
+  background: #ffffff;
 }
 
 .assetListTable {
-  min-width: 980px;
+  min-width: 1120px;
+  border-collapse: collapse;
 }
 
 .humanListTable {
-  min-width: 1040px;
+  min-width: 1180px;
 }
 
-.assetListTable th:last-child,
-.assetListTable td:last-child {
+.assetListTable th,
+.assetListTable td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.assetListTable:not(.humanListTable) th:nth-child(1),
+.assetListTable:not(.humanListTable) td:nth-child(1) {
+  width: 34%;
+}
+
+.assetListTable:not(.humanListTable) th:nth-child(2),
+.assetListTable:not(.humanListTable) td:nth-child(2) {
+  width: 11%;
+}
+
+.assetListTable:not(.humanListTable) th:nth-child(3),
+.assetListTable:not(.humanListTable) td:nth-child(3) {
+  width: 12%;
+}
+
+.assetListTable:not(.humanListTable) th:nth-child(4),
+.assetListTable:not(.humanListTable) td:nth-child(4) {
+  width: 24%;
+}
+
+.assetListTable:not(.humanListTable) th:nth-child(5),
+.assetListTable:not(.humanListTable) td:nth-child(5) {
+  width: 120px;
+}
+
+.assetListTable:not(.humanListTable) th:nth-child(6),
+.assetListTable:not(.humanListTable) td:nth-child(6) {
   width: 170px;
 }
 
-.assetListTable td:first-child {
-  max-width: 320px;
+.humanListTable th:nth-child(1),
+.humanListTable td:nth-child(1) {
+  width: 22%;
+}
+
+.humanListTable th:nth-child(2),
+.humanListTable td:nth-child(2) {
+  width: 13%;
+}
+
+.humanListTable th:nth-child(3),
+.humanListTable td:nth-child(3) {
+  width: 9%;
+}
+
+.humanListTable th:nth-child(4),
+.humanListTable td:nth-child(4) {
+  width: 10%;
+}
+
+.humanListTable th:nth-child(5),
+.humanListTable td:nth-child(5) {
+  width: 13%;
+}
+
+.humanListTable th:nth-child(6),
+.humanListTable td:nth-child(6) {
+  width: 15%;
+}
+
+.humanListTable th:nth-child(7),
+.humanListTable td:nth-child(7) {
+  width: 118px;
+}
+
+.humanListTable th:nth-child(8),
+.humanListTable td:nth-child(8) {
+  width: 120px;
 }
 
 .assetListTable strong {
-  display: block;
+  display: -webkit-box;
+  overflow: hidden;
   overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 13px;
+  line-height: 1.4;
 }
 
 .assetListTable .recordMeta {
-  max-width: 360px;
+  display: -webkit-box;
+  max-width: 100%;
+  margin-top: 4px;
   overflow: hidden;
   text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.assetListTable .assetState,
+.assetListTable .status {
+  margin-top: 0;
   white-space: nowrap;
 }
 
-.assetListTable .assetState {
+.assetListTable td:nth-child(5),
+.humanListTable td:nth-child(7) {
   white-space: nowrap;
+}
+
+.assetListTable .tableActions {
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.assetListTable .tableActions button {
+  min-height: 28px;
+  border: 1px solid #d8e0eb;
+  border-radius: 4px;
+  background: #ffffff;
+  box-shadow: none;
+  font-weight: 700;
+}
+
+.assetListTable .tableActions .secondary {
+  color: #1664ff;
+}
+
+.assetListTable .tableActions .danger {
+  border-color: #f8d4d1;
+  color: #b42318;
+  background: #fffafa;
 }
 
 .portraitPreview {
@@ -2831,11 +2965,11 @@ button:disabled {
 .assetState {
   display: inline-flex;
   align-items: center;
-  min-height: 22px;
-  padding: 2px 8px;
+  min-height: 20px;
+  padding: 1px 7px;
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 800;
 }
 
 .assetState.ready {

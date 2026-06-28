@@ -1987,6 +1987,23 @@ function materialKindLabel(kind) {
   }[kind] || kind;
 }
 
+function materialCopyrightLabel(status) {
+  return {
+    owned: "自有版权",
+    licensed: "授权可用",
+    reference_only: "仅作参考",
+  }[status] || status || "未标记";
+}
+
+function humanStyleLabel(style) {
+  return {
+    business: "商务",
+    ai_recommended: "AI 推荐",
+    realistic: "写实",
+    casual: "自然",
+  }[style] || String(style || "未设置").replace(/_/g, " ");
+}
+
 function isImageMaterial(material) {
   return ["portrait", "product", "image"].includes(material.kind);
 }
@@ -2078,10 +2095,10 @@ function renderMaterials(materials) {
               <strong>#${material.id} ${escapeHtml(material.name)}</strong>
               <div class="recordMeta">${escapeHtml(material.source_url || "未上传云端地址")}</div>
             </td>
-            <td>${materialKindLabel(material.kind)}</td>
+            <td><span class="status subtle">${materialKindLabel(material.kind)}</span></td>
             <td>${assetStateLabel(Boolean(material.source_url), "云端已就绪", "待补传")}</td>
             <td>
-              <div>${escapeHtml(material.copyright_status)}</div>
+              <span class="status subtle">${escapeHtml(materialCopyrightLabel(material.copyright_status))}</span>
               <div class="recordMeta">${escapeHtml(material.tags || "未打标签")}</div>
             </td>
             <td>${formatDateTime(material.created_at)}</td>
@@ -2358,7 +2375,7 @@ function openAssetDetailDrawer(kind, id) {
         <div>
           <strong>${escapeHtml(human.role || "未设置角色")}</strong>
           <div class="assetMetaLine">
-            <span class="status">${escapeHtml(human.style)}</span>
+            <span class="status subtle">${escapeHtml(humanStyleLabel(human.style))}</span>
             ${assetStateLabel(Boolean(human.default_voice), "声音已复刻", "声音未复刻")}
             ${assetStateLabel(Boolean(sourceVideo), "已绑定视频源", "未绑定视频源")}
             ${volcengineAuthStateLabel(human)}
@@ -2429,7 +2446,7 @@ function openAssetDetailDrawer(kind, id) {
           ${assetStateLabel(Boolean(material.source_url), "云端已就绪", "待补传")}
         </div>
         <div class="assetDetailGrid">
-          <div><span>版权状态</span><strong>${escapeHtml(material.copyright_status)}</strong></div>
+          <div><span>版权状态</span><strong>${escapeHtml(materialCopyrightLabel(material.copyright_status))}</strong></div>
           <div><span>标签</span><strong>${escapeHtml(material.tags || "未打标签")}</strong></div>
           <div><span>创建时间</span><strong>${formatDateTime(material.created_at)}</strong></div>
           <div><span>素材类型</span><strong>${materialKindLabel(material.kind)}</strong></div>
@@ -2504,7 +2521,7 @@ function renderDigitalHumans(humans) {
               <div class="recordMeta">详情里可预览头像和口播源视频</div>
             </td>
             <td>${escapeHtml(human.role || "未设置角色")}</td>
-            <td><span class="status">${escapeHtml(human.style)}</span></td>
+            <td><span class="status subtle">${escapeHtml(humanStyleLabel(human.style))}</span></td>
             <td>${assetStateLabel(Boolean(human.default_voice), "声音已复刻", "声音未复刻")}</td>
             <td>
               <div>头像 #${human.portrait_material_id || "-"}</div>
