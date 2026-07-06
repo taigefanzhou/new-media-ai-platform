@@ -72,6 +72,7 @@ const state = {
   videoStorage: null,
   remoteUpload: null,
   videoProductionSkills: null,
+  productModules: null,
   localSaveDirectoryHandle: null,
   localSaveDirectoryName: localStorage.getItem("localSaveDirectoryName") || "",
   autoSaveToLocalFolder: localStorage.getItem("autoSaveToLocalFolder") === "1",
@@ -161,14 +162,14 @@ const linkResolverPresets = {
 };
 
 const pages = {
-  overview: { title: "运营总览", eyebrow: "Overview" },
-  materials: { title: "数字人素材", eyebrow: "Digital Human Assets" },
-  creation: { title: "内容创作", eyebrow: "Creation" },
-  analysis: { title: "链接参考解析", eyebrow: "Reference Breakdown" },
-  humans: { title: "数字人素材", eyebrow: "Digital Human Assets" },
-  tasks: { title: "视频任务", eyebrow: "Video Tasks" },
+  overview: { title: "模块总览", eyebrow: "Modular Console" },
+  materials: { title: "素材库与数字人", eyebrow: "Assets" },
+  creation: { title: "脚本方向创作", eyebrow: "Script Direction" },
+  analysis: { title: "参考视频学习", eyebrow: "Reference Learning" },
+  humans: { title: "素材库与数字人", eyebrow: "Assets & Avatars" },
+  tasks: { title: "视频库", eyebrow: "Video Library" },
   trending: { title: "主题自动采集", eyebrow: "Trending" },
-  publish: { title: "发布中心", eyebrow: "Publishing" },
+  publish: { title: "账号发布", eyebrow: "Publishing" },
   settings: { title: "系统设置", eyebrow: "Settings" },
 };
 
@@ -818,6 +819,34 @@ function renderMetrics(counts) {
   document.querySelector("#overview").innerHTML = Object.entries(labels)
     .map(([key, label]) => `<div class="metric"><strong>${counts[key] ?? 0}</strong><span>${label}</span></div>`)
     .join("");
+}
+
+function renderProductModules(report) {
+  const target = document.querySelector("#productModuleList");
+  if (!target) return;
+  const modules = report?.modules || [];
+  if (!modules.length) {
+    target.innerHTML = `<div class="item">模块配置加载中</div>`;
+    return;
+  }
+  target.innerHTML = modules.map((module) => `
+    <article class="productModuleCard">
+      <div class="productModuleHeader">
+        <span>${escapeHtml(module.role || "模块")}</span>
+        <strong>${escapeHtml(module.label || module.key)}</strong>
+      </div>
+      <p>${escapeHtml(module.summary || "")}</p>
+      <div class="moduleStageLine">
+        ${(module.stages || []).slice(0, 6).map((stage) => `<span>${escapeHtml(stage)}</span>`).join("")}
+      </div>
+      <div class="moduleOutputLine">
+        ${(module.outputs || []).slice(0, 5).map((output) => `<span>${escapeHtml(output)}</span>`).join("")}
+      </div>
+      <button type="button" class="secondary" data-module-page="${escapeHtml(module.primary_action?.page || module.page || "overview")}">
+        ${escapeHtml(module.primary_action?.label || "进入模块")}
+      </button>
+    </article>
+  `).join("");
 }
 
 function renderOverviewActivity() {
@@ -3455,16 +3484,19 @@ async function logout() {
 async function refresh() {
   if (!api.token) return;
   const admin = isAdminUser();
-  const [dashboard, integrations, materials, exportProfiles, videoProductionSkills] = await Promise.all([
+  const [dashboard, integrations, materials, exportProfiles, videoProductionSkills, productModules] = await Promise.all([
     api.get("/dashboard"),
     api.get("/integrations/status"),
     api.get("/materials"),
     api.get("/video-export-profiles"),
     api.get("/video-production-skills"),
+    api.get("/product-modules"),
   ]);
   state.videoProductionSkills = videoProductionSkills;
+  state.productModules = productModules;
   renderExportProfileSelects(exportProfiles);
   renderVideoProductionSkills(videoProductionSkills);
+  renderProductModules(productModules);
   state.materials = materials;
   renderMetrics(dashboard.counts);
   renderIntegrations(integrations);
@@ -3546,6 +3578,12 @@ async function refresh() {
 }
 
 document.querySelector("#refreshBtn").addEventListener("click", () => refresh().then(() => toast("已刷新")));
+
+document.querySelector("#productModuleList")?.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-module-page]");
+  if (!button) return;
+  switchPage(button.dataset.modulePage || "overview");
+});
 
 document.querySelector("#mobileNavToggle")?.addEventListener("click", () => {
   setMobileNavOpen(!document.body.classList.contains("nav-open"));

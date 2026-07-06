@@ -9,7 +9,7 @@
         window.location.replace("/login.html");
       }
     </script>
-    <link rel="stylesheet" href="/styles.css?v=20260706-video-skills" />
+    <link rel="stylesheet" href="/styles.css?v=20260706-product-modules" />
   </head>
   <body class="auth-pending">
     <aside class="sidebar">
@@ -21,13 +21,13 @@
         </div>
       </div>
       <nav id="mainNav">
-        <button class="navItem active" data-page="overview">总览</button>
-        <button class="navItem" data-page="humans">数字人素材</button>
-        <button class="navItem" data-page="creation">内容创作</button>
-        <button class="navItem" data-page="analysis">链接解析</button>
-        <button class="navItem" data-page="tasks">视频任务</button>
+        <button class="navItem active" data-page="overview">模块总览</button>
+        <button class="navItem" data-page="analysis">参考视频学习</button>
+        <button class="navItem" data-page="creation">脚本方向创作</button>
+        <button class="navItem" data-page="humans">素材库与数字人</button>
+        <button class="navItem" data-page="tasks">视频库</button>
         <button class="navItem" data-page="trending">主题采集</button>
-        <button class="navItem" data-page="publish">发布中心</button>
+        <button class="navItem" data-page="publish">账号发布</button>
         <button class="navItem" data-page="settings" data-settings-section="usage">系统设置</button>
         <div class="subNav" aria-label="系统设置二级菜单">
           <button class="subNavItem" data-page="settings" data-settings-section="usage">模型用量</button>
@@ -67,6 +67,16 @@
 
       <section id="page-overview" class="page activePage">
         <section id="overview" class="metrics"></section>
+        <section class="panel productModulePanel">
+          <div class="sectionHeader compactSectionHeader">
+            <div>
+              <h2>系统模块</h2>
+              <p>围绕两条主生产路径组织：参考视频学习生成，或输入方向自动创作，最终进入视频库和账号发布。</p>
+            </div>
+            <span class="status">Modular</span>
+          </div>
+          <div id="productModuleList" class="productModuleList"></div>
+        </section>
         <section class="panel integrationPanel">
           <h2>集成状态</h2>
           <div id="integrationStatus" class="roadmap"></div>
@@ -966,6 +976,6 @@
     </div>
 
     <div id="toast"></div>
-    <script src="/app.js?v=20260706-video-skills"></script>
+    <script src="/app.js?v=20260706-product-modules"></script>
   </body>
 </html>

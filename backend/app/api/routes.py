@@ -94,6 +94,7 @@ from app.services.link_resolver import (
 )
 from app.services.model_router import choose_model_config, is_model_config_ready
 from app.services.pipeline import VideoPipeline
+from app.services.product_modules import product_module_manifest
 from app.services.trending import TrendingCollector
 from app.services.usage import estimate_text_tokens, record_generated_model_usage, record_model_usage
 from app.services.video_analysis import ReferenceVideoAnalyzer
@@ -1589,6 +1590,22 @@ def list_video_production_skills() -> dict[str, object]:
             "质量检查",
         ],
         "skills": video_skill_manifest(),
+    }
+
+
+@router.get("/product-modules")
+def list_product_modules() -> dict[str, object]:
+    return {
+        "version": "2026-07-06",
+        "architecture": "modular_video_production",
+        "navigation": [
+            "参考视频学习生成",
+            "输入方向自动创作",
+            "素材库与数字人",
+            "视频库与生成任务",
+            "账号绑定与自动发布",
+        ],
+        "modules": product_module_manifest(),
     }
 
 
