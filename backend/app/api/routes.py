@@ -97,6 +97,7 @@ from app.services.pipeline import VideoPipeline
 from app.services.trending import TrendingCollector
 from app.services.usage import estimate_text_tokens, record_generated_model_usage, record_model_usage
 from app.services.video_analysis import ReferenceVideoAnalyzer
+from app.services.video_skills import video_skill_manifest
 
 
 router = APIRouter()
@@ -1571,6 +1572,24 @@ def integrations_status(session: Session = Depends(get_session)) -> dict[str, di
 @router.get("/video-export-profiles")
 def list_video_export_profiles() -> list[dict[str, object]]:
     return export_profile_options()
+
+
+@router.get("/video-production-skills")
+def list_video_production_skills() -> dict[str, object]:
+    return {
+        "enabled": True,
+        "mode": "built_in",
+        "pipeline": [
+            "参考拆解",
+            "原创脚本",
+            "分镜执行表",
+            "素材匹配",
+            "视频生成",
+            "字幕包装",
+            "质量检查",
+        ],
+        "skills": video_skill_manifest(),
+    }
 
 
 @router.post("/materials", response_model=Material)

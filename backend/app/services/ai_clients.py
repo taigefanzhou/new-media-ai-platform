@@ -19,6 +19,7 @@ from uuid import uuid4
 import httpx
 from app.core.config import get_settings
 from app.services.export_profiles import resolve_export_profile
+from app.services.video_skills import script_generation_requirements, skill_prompt_payload
 
 
 @dataclass
@@ -139,7 +140,9 @@ class ScriptGenerator:
                 "notes": profile.notes,
             },
             "built_in_realism_preset": SCRIPT_REALISM_PRESET,
+            "built_in_video_production_skills": skill_prompt_payload(),
             "requirements": [
+                *script_generation_requirements(),
                 "如果 output_language 是 en-US，所有 hook、voiceover、title_options、hashtags、compliance_notes 必须使用英文；否则使用中文",
                 "不要复刻或搬运任何参考视频原文",
                 "适合公司新媒体账号和数字人口播",
@@ -152,8 +155,8 @@ class ScriptGenerator:
                 "storyboard_plan 每项必须包含：start_second,end_second,shot_type,visual,person_action,screen_text,asset_or_background,ai_prompt,needs_lip_sync",
                 "分镜要能真正执行：说明镜头如何动、画面元素如何变化、屏幕文字如何出现；不能只写“继续讲解”",
                 "所有画面策划必须符合 export_profile；最终画幅按 final_width/final_height 输出，视频生成提示词按 video_generation_ratio 生成",
-                "ai_prompt 始终使用英文，适合 Seedance 或其他视频模型；必须包含目标画幅、自然皮肤、真实灯光、非塑料感、非机械感等真实口播要求",
-                "seedance_prompt 始终使用英文，必须包含 realistic live-action talking-head style、natural skin texture、natural speech rhythm、no watermark 和 video_generation_ratio",
+                "ai_prompt 始终使用英文，适合 Seedance 或其他视频模型；必须包含目标画幅、自然皮肤、真实灯光、非塑料感、非机械感、clean plate、no on-screen text、no watermark、consistent background 等真实口播要求",
+                "seedance_prompt 始终使用英文，必须包含 realistic live-action talking-head style、natural skin texture、natural speech rhythm、clean plate、no on-screen text、no watermark 和 video_generation_ratio",
                 "必须输出严格 JSON",
                 "variation_instruction 只是给模型看的内部差异化要求，绝不能逐字出现在 hook、voiceover、storyboard、storyboard_plan、seedance_prompt、title_options 或字幕文字里",
                 "hook 和 voiceover 只能包含最终用户能听到的自然口播内容，不得包含“批量生成第几条”“请换一个标题角度”“避免与其他脚本重复”等内部工作流文字",
@@ -246,7 +249,8 @@ class ScriptGenerator:
                     f"{profile_prompt}, long-form business explainer video, consistent modern hotel lobby and guest room, "
                     "smart operations dashboard, realistic live-action talking-head style, natural skin texture, "
                     "relaxed facial expression, natural speech rhythm, smooth transitions, professional lighting, "
-                    "continuity across segments, no plastic skin, no robotic pose, no watermark, no third-party logos."
+                    "continuity across segments, clean plate, no on-screen text, no plastic skin, no robotic pose, "
+                    "no watermark, no third-party logos."
                 ),
                 title_options=(
                     "1. Smarter Hotel Energy Control\n"
@@ -254,7 +258,10 @@ class ScriptGenerator:
                     "3. Better Guest Experience, Lower Energy Waste"
                 ),
                 hashtags="#HotelTech #SmartHotel #EnergySaving #Hospitality",
-                compliance_notes="Use only licensed visuals and verify that all product claims are accurate before publishing.",
+                compliance_notes=(
+                    "Built-in video production skills enabled: learn structure only from references, keep clean plates, "
+                    "verify face stability, subtitles, watermark, script alignment, and asset rights before publishing."
+                ),
             )
         voiceover = self._stub_voiceover_zh(topic, duration_seconds)
         storyboard = self._stub_storyboard_zh(topic, duration_seconds)
@@ -268,7 +275,7 @@ class ScriptGenerator:
                 f"{profile_prompt}, long-form corporate explainer video, consistent presenter and modern business hotel scenes, "
                 "clear chapter-like progression, smart operations interface, realistic live-action talking-head style, "
                 "natural skin texture, relaxed facial expression, medium speech pace, smooth transitions, professional lighting, "
-                "no plastic skin, no robotic pose, no third-party logos, no watermark."
+                "clean plate, no on-screen text, no plastic skin, no robotic pose, no third-party logos, no watermark."
             ),
             title_options=(
                 f"1. {topic}怎么选？看这3点\n"
@@ -276,7 +283,7 @@ class ScriptGenerator:
                 f"3. {topic}的关键判断标准"
             ),
             hashtags=f"#{target_platform} #企业服务 #数字人 #短视频运营",
-            compliance_notes="外部素材只可作为选题参考；成片需人工确认无侵权、无夸大承诺。",
+            compliance_notes="已启用视频生产 Skill：参考视频只学结构不搬运；底片不生成内嵌文字；成片需检查脸部稳定、字幕、水印、脚本一致性和素材版权。",
         )
 
     def _stub_voiceover_zh(self, topic: str, duration_seconds: int) -> str:
@@ -386,7 +393,7 @@ class ScriptGenerator:
                     "ai_prompt": (
                         f"{profile.label}, generation ratio {profile.generation_ratio}, realistic business hotel video, {shot_type}, {visual}, "
                         f"topic: {topic}, natural skin texture, relaxed facial expression, medium speech pace, "
-                        "smooth motion, clean subtitles, professional lighting, no plastic skin, no robotic pose, no watermark"
+                        "smooth motion, clean plate, no on-screen text, professional lighting, no plastic skin, no robotic pose, no watermark"
                     ),
                     "needs_lip_sync": shot_type == "talking_head",
                 }
@@ -476,7 +483,7 @@ class ScriptGenerator:
                     "person_action": "根据口播自然讲解，画面需要有轻微镜头运动",
                     "screen_text": line[:18],
                     "asset_or_background": "business hotel scene",
-                    "ai_prompt": f"Vertical 9:16 realistic business hotel video, {line}, smooth camera motion, no watermark",
+                    "ai_prompt": f"Vertical 9:16 realistic business hotel video, {line}, smooth camera motion, clean plate, no on-screen text, no watermark",
                     "needs_lip_sync": index in (0, len(lines) - 1),
                 }
             )

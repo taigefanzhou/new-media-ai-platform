@@ -24,6 +24,7 @@ from app.services.model_router import choose_model_config, model_choice_note
 from app.services.professional_render import ProfessionalRenderClient
 from app.services.subtitles import SubtitleEngine
 from app.services.usage import estimate_text_tokens, record_model_usage
+from app.services.video_skills import material_selection_rules, quality_guard_checklist, video_skill_manifest
 
 
 class VideoPipeline:
@@ -319,9 +320,15 @@ class VideoPipeline:
             f"成片方式：{task.production_mode}。长视频分段计划：脚本时长 {script.duration_seconds} 秒，"
             f"共 {task.segment_count} 段，每段约 10 秒，可用于后续分段预览和失败段重跑。"
             f"导出规格：{profile.label}，{profile.width}x{profile.height}，{profile.notes}"
-            f"\n" + "\n".join(model_notes)
+            f"\n{chr(10).join(model_notes)}"
+            f"\n内置视频生产 Skill：{self._skill_summary_note()}"
+            f"\n素材匹配规则：{'; '.join(material_selection_rules()[:3])}"
+            f"\n成片质检清单：{'; '.join(quality_guard_checklist())}"
         )
         return f"{base_note}\n{plan_note}".strip() if base_note else plan_note
+
+    def _skill_summary_note(self) -> str:
+        return " -> ".join(str(item["label"]) for item in video_skill_manifest())
 
     def _script_title(self, script: Script) -> str:
         for line in script.title_options.splitlines():
@@ -406,7 +413,8 @@ class VideoPipeline:
         if best is None:
             return None, "素材库暂无匹配素材，生成时将由 Seedance 补镜头。"
         material = best[1]
-        return material, f"系统推荐素材 #{material.id}：{material.name}"
+        copyright_note = "仅作模型参考，不直接混剪" if material.copyright_status == CopyrightStatus.reference_only else "可用于成片"
+        return material, f"素材匹配 Skill 推荐素材 #{material.id}：{material.name}（{copyright_note}）"
 
     def _seedance_reference_media(self, material: Material | None) -> list[dict[str, object]]:
         if material is None:

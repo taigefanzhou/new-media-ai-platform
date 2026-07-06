@@ -71,6 +71,7 @@ const state = {
   modelDiagnostics: null,
   videoStorage: null,
   remoteUpload: null,
+  videoProductionSkills: null,
   localSaveDirectoryHandle: null,
   localSaveDirectoryName: localStorage.getItem("localSaveDirectoryName") || "",
   autoSaveToLocalFolder: localStorage.getItem("autoSaveToLocalFolder") === "1",
@@ -1016,6 +1017,29 @@ function syncCreationExportProfileHint() {
     return;
   }
   target.textContent = `${platformLabel(platformSelect.value)}默认导出：${profile.label}，${profile.width}x${profile.height}，${profile.notes}`;
+}
+
+function renderVideoProductionSkills(report) {
+  const target = document.querySelector("#videoProductionSkillPanel");
+  if (!target) return;
+  const skills = report?.skills || [];
+  if (!skills.length) {
+    target.innerHTML = "";
+    return;
+  }
+  target.innerHTML = `
+    <div class="skillPanelHeader">
+      <strong>视频生产 Skill 已启用</strong>
+      <span>${escapeHtml((report.pipeline || []).join(" / "))}</span>
+    </div>
+    <div class="skillPillGrid">
+      ${skills.map((skill) => `
+        <span title="${escapeHtml(skill.summary || "")}">
+          ${escapeHtml(skill.label || skill.key)}
+        </span>
+      `).join("")}
+    </div>
+  `;
 }
 
 function parseStoryboardPlan(script) {
@@ -3431,13 +3455,16 @@ async function logout() {
 async function refresh() {
   if (!api.token) return;
   const admin = isAdminUser();
-  const [dashboard, integrations, materials, exportProfiles] = await Promise.all([
+  const [dashboard, integrations, materials, exportProfiles, videoProductionSkills] = await Promise.all([
     api.get("/dashboard"),
     api.get("/integrations/status"),
     api.get("/materials"),
     api.get("/video-export-profiles"),
+    api.get("/video-production-skills"),
   ]);
+  state.videoProductionSkills = videoProductionSkills;
   renderExportProfileSelects(exportProfiles);
+  renderVideoProductionSkills(videoProductionSkills);
   state.materials = materials;
   renderMetrics(dashboard.counts);
   renderIntegrations(integrations);

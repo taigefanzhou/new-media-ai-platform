@@ -13,6 +13,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 from app.models.entities import Material, ReferenceVideoAnalysis
+from app.services.video_skills import reference_analysis_requirements, skill_prompt_payload
 
 
 @dataclass
@@ -220,9 +221,11 @@ class ReferenceVideoAnalyzer:
                     "avg_shot_seconds": local_result.avg_shot_seconds,
                     "visual_change_frequency": local_result.visual_change_frequency,
                 },
+                "built_in_video_production_skills": skill_prompt_payload(),
                 "local_timeline": json.loads(local_result.timeline_json or "[]"),
                 "transcript": transcript,
                 "requirements": [
+                    *reference_analysis_requirements(),
                     "只学习结构、节奏、拍摄和剪辑方法，不复刻原视频原文、人物、画面或商家信息。",
                     "重点拆解：开头如何抓人、论点如何推进、证据画面如何穿插、字幕/关键词如何设计。",
                     "拍摄方式要说清楚人物景别、机位、背景、表情、手势、屏幕录制或B-roll的使用。",
@@ -574,6 +577,7 @@ class ReferenceVideoAnalyzer:
                 f"结构判断：约 {round(duration, 1)} 秒，适合拆成“钩子-背景-证据-方法-总结”五段。",
                 "脚本精髓：不是平铺直叙，而是每讲一个观点就配一个证据画面或关键词卡片。",
                 "复用方式：我们生成酒店视频时，应让 AI 先写口播主线，再给每 3-6 秒安排证据画面。",
+                "内置 Skill：只学习参考视频的结构、节奏、镜头角色和字幕策略，不搬运原文、人物或商家画面。",
             ]
         )
 
@@ -614,6 +618,7 @@ class ReferenceVideoAnalyzer:
                 "3. 证据：用平台页、订单页、后台看板、客房/前台/B-roll 证明观点。",
                 "4. 总结：回到人物正面，给出行动建议，最后做关注或咨询引导。",
                 "5. 生成规则：AI 生成脚本时必须同步输出“口播稿 + 分镜时间轴 + 证据素材清单 + 字幕重点词”。",
+                "6. 质检规则：底片无内嵌文字和水印；字幕后期统一添加；成片检查脸部、嘴形、背景和脚本一致性。",
             ]
         )
 
@@ -623,6 +628,7 @@ class ReferenceVideoAnalyzer:
             [
                 "可学习：节奏、结构、字幕位置、证据插入方式、关键词卡片方式。",
                 "不可直接搬运：原视频画面、人物形象、原文字幕、平台截图里的具体商家信息。",
+                "生成脚本时：必须换成自己的业务观点、数字人身份、素材库画面和后期字幕。",
                 f"本条视频的可复用视觉角色：{'、'.join(dict.fromkeys(roles))}",
             ]
         )

@@ -363,6 +363,54 @@ h2 {
   line-height: 1.45;
 }
 
+.videoProductionSkillPanel {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  border: 1px solid #e5e8ef;
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: #fbfdff;
+}
+
+.skillPanelHeader {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.skillPanelHeader strong {
+  color: #1f2937;
+  font-size: 13px;
+}
+
+.skillPanelHeader span {
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.skillPillGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.skillPillGrid span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  border: 1px solid #d8e0eb;
+  border-radius: 999px;
+  padding: 1px 8px;
+  background: #ffffff;
+  color: #1664ff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .scriptDetailPanel {
   min-width: 0;
 }
