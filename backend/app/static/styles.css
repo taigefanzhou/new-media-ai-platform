@@ -687,6 +687,98 @@ h2 {
   border-bottom: 0;
 }
 
+.wechatLightTable {
+  min-width: 860px;
+  font-size: 13px;
+}
+
+.wechatLightTable th,
+.wechatLightTable td {
+  padding: 9px 14px;
+}
+
+.wechatLightTable th {
+  height: 38px;
+  background: #f8fafc;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.wechatLightTable td {
+  height: 56px;
+  color: #253041;
+}
+
+.wechatLightTable strong {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.wechatLightTable .recordMeta,
+.wechatLightTable .mutedCell {
+  color: #7a8493;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.wechatLightTable .status {
+  margin-top: 0;
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
+.wechatLightTable .monoCell {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  border: 1px solid #e5e8ef;
+  border-radius: 4px;
+  padding: 1px 7px;
+  background: #fbfcfd;
+  color: #344054;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.wechatLightTable .wechatUserColumn {
+  width: 22%;
+}
+
+.wechatLightTable .wechatNicknameColumn {
+  width: 18%;
+}
+
+.wechatLightTable .wechatStatusColumn {
+  width: 11%;
+}
+
+.wechatLightTable .wechatOpenidColumn {
+  width: 14%;
+}
+
+.wechatLightTable .wechatTimeColumn {
+  width: 18%;
+}
+
+.wechatLightTable .wechatActionColumn {
+  width: 35%;
+}
+
+.wechatLightTable button {
+  width: auto;
+  min-height: 30px;
+  border-radius: 4px;
+  padding: 0 12px;
+  box-shadow: none;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .tabSwitch {
   display: grid;
   grid-template-columns: repeat(2, minmax(92px, 1fr));
@@ -1197,6 +1289,88 @@ h2 {
   margin: 0;
 }
 
+.wechatConfigPanel {
+  position: relative;
+  padding: 16px 18px;
+}
+
+.wechatConfigForm {
+  grid-template-columns: minmax(260px, 0.9fr) repeat(2, minmax(220px, 1fr));
+  gap: 12px 18px;
+  align-items: start;
+}
+
+.wechatConfigForm > div:first-child {
+  grid-row: span 2;
+  align-self: start;
+}
+
+.wechatConfigForm h2 {
+  margin-top: 0;
+  font-size: 18px;
+}
+
+.wechatConfigForm .resultHint {
+  max-width: 360px;
+  color: #667085;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.wechatConfigForm label {
+  display: grid;
+  gap: 6px;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.wechatConfigForm input,
+.wechatConfigForm select {
+  min-height: 40px;
+  border-radius: 5px;
+  font-size: 13px;
+}
+
+.wechatConfigForm .secretInputLine {
+  gap: 8px;
+}
+
+.wechatConfigForm .checkLine {
+  min-height: 40px;
+  align-self: end;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.wechatConfigForm .checkLine input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+.wechatConfigActions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.wechatConfigActions button[type="submit"] {
+  width: auto;
+  min-height: 38px;
+  padding: 0 22px;
+  border-radius: 5px;
+  box-shadow: none;
+  font-size: 13px;
+}
+
+.wechatConfigActions .pill {
+  min-height: 26px;
+  padding: 3px 10px;
+}
+
 .userTable {
   min-width: 920px;
 }
@@ -1664,14 +1838,31 @@ button:disabled {
 }
 
 .wechatApproveBox {
-  display: grid;
-  grid-template-columns: minmax(110px, 0.8fr) minmax(120px, 1fr) minmax(110px, 0.8fr) minmax(130px, 1fr);
-  gap: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
   align-items: center;
 }
 
+.wechatApproveBox select,
+.wechatApproveBox input {
+  width: auto;
+  min-width: 112px;
+  max-width: 150px;
+  min-height: 30px;
+  border-radius: 4px;
+  padding: 5px 8px;
+  font-size: 12px;
+}
+
 .wechatApproveBox button {
-  min-height: 36px;
+  min-height: 30px;
+}
+
+.wechatInlineActions {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
 }
 
 .statusBoard {

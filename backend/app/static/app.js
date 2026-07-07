@@ -3094,7 +3094,14 @@ function renderWechatLogin(config, requests = [], identities = []) {
     const pageInfo = pagedItems("wechatRequests", requests);
     requestTarget.innerHTML = requests.length
       ? `
-        <table class="settingsTable">
+        <table class="settingsTable wechatLightTable responsiveTable">
+          <colgroup>
+            <col class="wechatUserColumn" />
+            <col class="wechatStatusColumn" />
+            <col class="wechatOpenidColumn" />
+            <col class="wechatTimeColumn" />
+            <col class="wechatActionColumn" />
+          </colgroup>
           <thead>
             <tr>
               <th>微信用户</th>
@@ -3107,14 +3114,14 @@ function renderWechatLogin(config, requests = [], identities = []) {
           <tbody>
             ${pageInfo.items.map((item) => `
               <tr data-id="${item.id}">
-                <td>
+                <td data-label="微信用户">
                   <strong>${escapeHtml(item.nickname || "微信用户")}</strong>
                   <div class="recordMeta">${item.avatar_url ? "头像已获取" : "无头像"}</div>
                 </td>
-                <td><span class="status">${wechatRequestStatusLabel(item.status)}</span></td>
-                <td>${escapeHtml(item.openid_suffix || "-")}</td>
-                <td>${formatDateTime(item.requested_at)}</td>
-                <td>
+                <td data-label="状态"><span class="status">${wechatRequestStatusLabel(item.status)}</span></td>
+                <td data-label="OpenID"><span class="monoCell">${escapeHtml(item.openid_suffix || "-")}</span></td>
+                <td data-label="申请时间" class="mutedCell">${formatDateTime(item.requested_at)}</td>
+                <td data-label="操作">
                   ${item.status === "pending" ? `
                     <div class="wechatApproveBox">
                       <select data-field="approve_mode">
@@ -3131,10 +3138,12 @@ function renderWechatLogin(config, requests = [], identities = []) {
                         <option value="">选择已有用户</option>
                         ${(state.users || []).map((user) => `<option value="${user.id}">#${user.id} ${escapeHtml(user.username)}</option>`).join("")}
                       </select>
-                      <button type="button" data-action="approve-wechat-request" data-id="${item.id}">批准</button>
-                      <button type="button" class="secondary" data-action="reject-wechat-request" data-id="${item.id}">拒绝</button>
+                      <div class="wechatInlineActions">
+                        <button type="button" data-action="approve-wechat-request" data-id="${item.id}">批准</button>
+                        <button type="button" class="secondary" data-action="reject-wechat-request" data-id="${item.id}">拒绝</button>
+                      </div>
                     </div>
-                  ` : escapeHtml(item.reject_reason || "-")}
+                  ` : `<span class="mutedCell">${escapeHtml(item.reject_reason || "-")}</span>`}
                 </td>
               </tr>
             `).join("")}
@@ -3148,7 +3157,15 @@ function renderWechatLogin(config, requests = [], identities = []) {
     const pageInfo = pagedItems("wechatIdentities", identities);
     identityTarget.innerHTML = identities.length
       ? `
-        <table class="settingsTable">
+        <table class="settingsTable wechatLightTable responsiveTable">
+          <colgroup>
+            <col class="wechatUserColumn" />
+            <col class="wechatNicknameColumn" />
+            <col class="wechatOpenidColumn" />
+            <col class="wechatStatusColumn" />
+            <col class="wechatTimeColumn" />
+            <col class="wechatActionColumn" />
+          </colgroup>
           <thead>
             <tr>
               <th>系统用户</th>
@@ -3162,13 +3179,13 @@ function renderWechatLogin(config, requests = [], identities = []) {
           <tbody>
             ${pageInfo.items.map((item) => `
               <tr>
-                <td><strong>#${item.user_id} ${escapeHtml(item.username || "-")}</strong></td>
-                <td>${escapeHtml(item.nickname || "-")}</td>
-                <td>${escapeHtml(item.openid_suffix || "-")}</td>
-                <td><span class="status">${item.is_active ? "启用" : "停用"}</span></td>
-                <td>${item.last_login_at ? formatDateTime(item.last_login_at) : "-"}</td>
-                <td>
-                  <button type="button" class="secondary" data-action="disable-wechat-identity" data-id="${item.id}" ${item.is_active ? "" : "disabled"}>停用绑定</button>
+                <td data-label="系统用户"><strong>#${item.user_id} ${escapeHtml(item.username || "-")}</strong></td>
+                <td data-label="微信昵称">${escapeHtml(item.nickname || "-")}</td>
+                <td data-label="OpenID"><span class="monoCell">${escapeHtml(item.openid_suffix || "-")}</span></td>
+                <td data-label="状态"><span class="status">${item.is_active ? "启用" : "停用"}</span></td>
+                <td data-label="最近登录" class="mutedCell">${item.last_login_at ? formatDateTime(item.last_login_at) : "-"}</td>
+                <td data-label="操作">
+                  <button type="button" class="secondary compactButton" data-action="disable-wechat-identity" data-id="${item.id}" ${item.is_active ? "" : "disabled"}>停用绑定</button>
                 </td>
               </tr>
             `).join("")}

@@ -938,8 +938,8 @@
         </section>
 
         <section id="settings-tab-wechat" class="settingsPane">
-          <section class="panel settingsAccountCreatePanel">
-            <form id="wechatLoginConfigForm" class="settingsAccountForm">
+          <section class="panel settingsAccountCreatePanel wechatConfigPanel">
+            <form id="wechatLoginConfigForm" class="settingsAccountForm wechatConfigForm">
               <div>
                 <h2>微信开放平台配置</h2>
                 <p class="resultHint">用于网站应用扫码登录。回调地址建议使用当前域名的 /api/auth/wechat/callback。</p>
@@ -960,11 +960,11 @@
                 </select>
               </label>
               <label class="checkLine"><input name="is_active" type="checkbox" /> 启用微信扫码登录</label>
-              <button type="submit">保存微信登录配置</button>
+              <div class="wechatConfigActions">
+                <button type="submit">保存配置</button>
+                <span id="wechatLoginConfigStatus" class="pill subtle">未启用</span>
+              </div>
             </form>
-            <div class="panelInlineStatus">
-              <span id="wechatLoginConfigStatus" class="pill subtle">未启用</span>
-            </div>
           </section>
           <section class="panel">
             <div class="sectionHeader compactSectionHeader">
