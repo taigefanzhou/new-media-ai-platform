@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, Field
-from app.models.entities import CopyrightStatus, MaterialKind, PublishPlatform, TrendingSource, UserRole
+from app.models.entities import CopyrightStatus, MaterialKind, PublishPlatform, TrendingSource, UserRole, WechatLoginStatus
 
 
 class LoginRequest(BaseModel):
@@ -73,6 +73,67 @@ class UserPublic(BaseModel):
     role: UserRole
     is_active: bool
     created_at: datetime
+
+
+class WechatLoginConfigUpdate(BaseModel):
+    app_id: str = Field(..., min_length=1)
+    app_secret: Optional[str] = None
+    redirect_uri: str = Field(..., min_length=8)
+    is_active: bool = True
+    default_role: UserRole = UserRole.operator
+
+
+class WechatLoginConfigPublic(BaseModel):
+    id: Optional[int] = None
+    app_id: str = ""
+    redirect_uri: str = ""
+    is_active: bool = False
+    default_role: UserRole = UserRole.operator
+    has_app_secret: bool = False
+    updated_at: Optional[datetime] = None
+
+
+class WechatLoginPublicConfig(BaseModel):
+    enabled: bool
+    app_id: str = ""
+
+
+class WechatLoginRequestPublic(BaseModel):
+    id: int
+    openid_suffix: str = ""
+    unionid_suffix: str = ""
+    nickname: str = ""
+    avatar_url: str = ""
+    status: WechatLoginStatus
+    requested_at: datetime
+    reviewed_at: Optional[datetime] = None
+    reviewed_by_user_id: Optional[int] = None
+    target_user_id: Optional[int] = None
+    reject_reason: str = ""
+
+
+class WechatLoginApproveRequest(BaseModel):
+    mode: str = Field(default="create_user", pattern="^(create_user|bind_existing)$")
+    user_id: Optional[int] = None
+    username: Optional[str] = None
+    role: UserRole = UserRole.operator
+
+
+class WechatLoginRejectRequest(BaseModel):
+    reason: str = ""
+
+
+class WechatIdentityPublic(BaseModel):
+    id: int
+    user_id: int
+    username: str = ""
+    openid_suffix: str = ""
+    unionid_suffix: str = ""
+    nickname: str = ""
+    avatar_url: str = ""
+    is_active: bool
+    bound_at: datetime
+    last_login_at: Optional[datetime] = None
 
 
 class StorageSettingsUpdate(BaseModel):

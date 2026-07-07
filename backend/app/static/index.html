@@ -35,6 +35,7 @@
           <button class="subNavItem" data-page="settings" data-settings-section="storage">视频存储位置</button>
           <button class="subNavItem" data-page="settings" data-settings-section="collectors">短视频采集接入</button>
           <button class="subNavItem" data-page="settings" data-settings-section="accounts">账号管理</button>
+          <button class="subNavItem" data-page="settings" data-settings-section="wechat">微信登录</button>
         </div>
       </nav>
     </aside>
@@ -933,6 +934,50 @@
               </div>
             </div>
             <div id="userAccountList" class="settingsTableWrap"></div>
+          </section>
+        </section>
+
+        <section id="settings-tab-wechat" class="settingsPane">
+          <section class="panel settingsAccountCreatePanel">
+            <form id="wechatLoginConfigForm" class="settingsAccountForm">
+              <div>
+                <h2>微信开放平台配置</h2>
+                <p class="resultHint">用于网站应用扫码登录。回调地址建议使用当前域名的 /api/auth/wechat/callback。</p>
+              </div>
+              <label>AppID<input name="app_id" placeholder="微信开放平台网站应用 AppID" autocomplete="off" /></label>
+              <label>AppSecret<input name="app_secret" type="password" placeholder="保存后不回显明文" autocomplete="new-password" /></label>
+              <label>回调地址<input name="redirect_uri" placeholder="https://media.tech-ark.com/api/auth/wechat/callback" /></label>
+              <label>默认角色
+                <select name="default_role">
+                  <option value="operator">运营人员</option>
+                  <option value="reviewer">审核人员</option>
+                  <option value="admin">管理员</option>
+                </select>
+              </label>
+              <label class="checkLine"><input name="is_active" type="checkbox" /> 启用微信扫码登录</label>
+              <button type="submit">保存微信登录配置</button>
+            </form>
+            <div class="panelInlineStatus">
+              <span id="wechatLoginConfigStatus" class="pill subtle">未启用</span>
+            </div>
+          </section>
+          <section class="panel">
+            <div class="sectionHeader compactSectionHeader">
+              <div>
+                <h2>微信登录申请</h2>
+                <p>首次扫码会进入待审批列表，批准后该微信以后可以直接扫码登录。</p>
+              </div>
+            </div>
+            <div id="wechatLoginRequestList" class="settingsTableWrap"></div>
+          </section>
+          <section class="panel">
+            <div class="sectionHeader compactSectionHeader">
+              <div>
+                <h2>已绑定微信用户</h2>
+                <p>停用绑定后不会删除系统账号，只会禁止该微信继续扫码登录。</p>
+              </div>
+            </div>
+            <div id="wechatIdentityList" class="settingsTableWrap"></div>
           </section>
         </section>
       </section>

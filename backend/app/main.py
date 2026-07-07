@@ -35,7 +35,14 @@ async def disable_static_cache(request, call_next):
 @app.middleware("http")
 async def require_api_auth(request, call_next):
     path = request.url.path
-    public_api_paths = {"/api/health", "/api/auth/login", "/api/volcengine/portrait-auth/callback"}
+    public_api_paths = {
+        "/api/health",
+        "/api/auth/login",
+        "/api/auth/wechat/config",
+        "/api/auth/wechat/start",
+        "/api/auth/wechat/callback",
+        "/api/volcengine/portrait-auth/callback",
+    }
     if request.method == "OPTIONS" or not path.startswith("/api/") or path in public_api_paths:
         return await call_next(request)
 

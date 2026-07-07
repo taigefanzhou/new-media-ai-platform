@@ -38,6 +38,12 @@ class UserRole(str, Enum):
     reviewer = "reviewer"
 
 
+class WechatLoginStatus(str, Enum):
+    pending = "pending"
+    approved = "approved"
+    rejected = "rejected"
+
+
 class TrendingSource(str, Enum):
     douyin = "douyin"
     wechat_channels = "wechat_channels"
@@ -82,6 +88,44 @@ class AuthSession(SQLModel, table=True):
     user_id: int
     token: str = Field(index=True, unique=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class WechatLoginConfig(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    app_id: str = Field(index=True)
+    app_secret: str
+    redirect_uri: str
+    is_active: bool = False
+    default_role: UserRole = UserRole.operator
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class WechatIdentity(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(index=True)
+    openid: str = Field(index=True, unique=True)
+    unionid: Optional[str] = Field(default=None, index=True, unique=True)
+    nickname: str = ""
+    avatar_url: str = ""
+    is_active: bool = True
+    bound_at: datetime = Field(default_factory=datetime.utcnow)
+    last_login_at: Optional[datetime] = None
+
+
+class WechatLoginRequest(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    openid: str = Field(index=True)
+    unionid: Optional[str] = Field(default=None, index=True)
+    nickname: str = ""
+    avatar_url: str = ""
+    status: WechatLoginStatus = Field(default=WechatLoginStatus.pending, index=True)
+    requested_at: datetime = Field(default_factory=datetime.utcnow)
+    reviewed_at: Optional[datetime] = None
+    reviewed_by_user_id: Optional[int] = None
+    target_user_id: Optional[int] = None
+    reject_reason: str = ""
+    state_nonce: str = ""
 
 
 class AIModelConfig(SQLModel, table=True):

@@ -4,7 +4,7 @@
 
 - 每次修改功能、接口、模型配置、部署方式、关键数据同步方式后，必须更新 `docs/system-status-handoff.md`。
 - 每次新增或调整模型/API 适配方式后，必须同步更新 `docs/integrations.md`。
-- 所有 `/api/*` 业务接口必须登录后才能访问，`/api/health` 和 `/api/auth/login` 除外。
+- 所有 `/api/*` 业务接口必须登录后才能访问；公开接口仅限 `/api/health`、`/api/auth/login`、微信扫码登录入口/回调配置，以及第三方回调入口。
 - 管理员初始密码必须在生产环境替换，`AUTH_SESSION_TTL_HOURS` 应保持为有限时长。
 - 视频任务点击生成后进入后台队列，页面不等待长时间生成请求。
 - 只有已审核通过、有真实成片文件、且不是 `mock://` 占位结果的视频才能进入发布准备。
@@ -17,6 +17,7 @@
 ```bash
 cd backend
 ../.venv/bin/python -m compileall app
+../.venv/bin/python tests/wechat_login_smoke.py
 ../.venv/bin/python tests/release_smoke.py
 ```
 

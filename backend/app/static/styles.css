@@ -1506,6 +1506,42 @@ button:disabled {
   margin-top: 4px;
 }
 
+.loginDivider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.loginDivider::before,
+.loginDivider::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: var(--line);
+}
+
+.wechatLoginBtn {
+  width: 100%;
+  border-color: #d7dce3;
+  background: #ffffff;
+  color: #1f2329;
+}
+
+.wechatLoginBtn:not(:disabled):hover {
+  border-color: #16a34a;
+  color: #047857;
+}
+
+.loginStatusText {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .loginForm .inlineForm {
   grid-template-columns: 1fr;
 }
@@ -1578,6 +1614,44 @@ button:disabled {
   background: #f2f5f9;
   color: #4e5969;
   white-space: nowrap;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #075985;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.pill.ok {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.pill.subtle {
+  background: #f2f5f9;
+  color: #4e5969;
+}
+
+.panelInlineStatus {
+  align-self: start;
+  justify-self: end;
+}
+
+.wechatApproveBox {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.8fr) minmax(120px, 1fr) minmax(110px, 0.8fr) minmax(130px, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.wechatApproveBox button {
+  min-height: 36px;
 }
 
 .statusBoard {

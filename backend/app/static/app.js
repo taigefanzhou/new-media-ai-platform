@@ -71,6 +71,9 @@ const state = {
   modelDiagnostics: null,
   videoStorage: null,
   remoteUpload: null,
+  wechatLoginConfig: null,
+  wechatLoginRequests: [],
+  wechatIdentities: [],
   videoProductionSkills: null,
   productModules: null,
   localSaveDirectoryHandle: null,
@@ -96,6 +99,7 @@ const settingsSections = {
   storage: { title: "视频存储位置", eyebrow: "Settings / Video Storage" },
   collectors: { title: "短视频采集接入", eyebrow: "Settings / Collectors" },
   accounts: { title: "账号管理", eyebrow: "Settings / Accounts" },
+  wechat: { title: "微信登录", eyebrow: "Settings / WeChat Login" },
 };
 
 const linkResolverPresets = {
@@ -533,6 +537,8 @@ function rerenderPagedList(key) {
     videoStorage: () => renderVideoStorage(state.videoStorage),
     users: () => renderSystemUsers(state.users),
     platformCredentials: () => renderPlatformCredentials(state.platformCredentials),
+    wechatRequests: () => renderWechatLogin(state.wechatLoginConfig, state.wechatLoginRequests, state.wechatIdentities),
+    wechatIdentities: () => renderWechatLogin(state.wechatLoginConfig, state.wechatLoginRequests, state.wechatIdentities),
     trendingSearches: () => renderTrending(state.trendingSearches || [], state.trendingVideos || []),
     trendingVideos: () => renderTrending(state.trendingSearches || [], state.trendingVideos || []),
     transcriptions: () => renderTranscriptions(state.transcriptions),
@@ -3062,6 +3068,122 @@ function renderSystemUsers(users) {
   `;
 }
 
+function renderWechatLogin(config, requests = [], identities = []) {
+  const form = document.querySelector("#wechatLoginConfigForm");
+  const status = document.querySelector("#wechatLoginConfigStatus");
+  const requestTarget = document.querySelector("#wechatLoginRequestList");
+  const identityTarget = document.querySelector("#wechatIdentityList");
+  if (form && config) {
+    form.querySelector("[name='app_id']").value = config.app_id || "";
+    form.querySelector("[name='app_secret']").value = "";
+    form.querySelector("[name='app_secret']").placeholder = config.has_app_secret ? "已保存 AppSecret，可留空" : "请输入 AppSecret";
+    form.querySelector("[name='redirect_uri']").value = config.redirect_uri || `${window.location.origin}/api/auth/wechat/callback`;
+    form.querySelector("[name='default_role']").value = config.default_role || "operator";
+    form.querySelector("[name='is_active']").checked = Boolean(config.is_active);
+  }
+  if (status) {
+    const enabled = Boolean(config?.is_active && config?.app_id && config?.has_app_secret && config?.redirect_uri);
+    status.textContent = enabled ? "已启用" : "未启用";
+    status.className = `pill ${enabled ? "ok" : "subtle"}`;
+  }
+  if (requestTarget) {
+    const pageInfo = pagedItems("wechatRequests", requests);
+    requestTarget.innerHTML = requests.length
+      ? `
+        <table class="settingsTable">
+          <thead>
+            <tr>
+              <th>微信用户</th>
+              <th>状态</th>
+              <th>OpenID</th>
+              <th>申请时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${pageInfo.items.map((item) => `
+              <tr data-id="${item.id}">
+                <td>
+                  <strong>${escapeHtml(item.nickname || "微信用户")}</strong>
+                  <div class="recordMeta">${item.avatar_url ? "头像已获取" : "无头像"}</div>
+                </td>
+                <td><span class="status">${wechatRequestStatusLabel(item.status)}</span></td>
+                <td>${escapeHtml(item.openid_suffix || "-")}</td>
+                <td>${formatDateTime(item.requested_at)}</td>
+                <td>
+                  ${item.status === "pending" ? `
+                    <div class="wechatApproveBox">
+                      <select data-field="approve_mode">
+                        <option value="create_user">新建用户</option>
+                        <option value="bind_existing">绑定已有用户</option>
+                      </select>
+                      <input data-field="username" placeholder="新用户名" value="wechat_${item.id}" />
+                      <select data-field="role">
+                        <option value="operator">运营人员</option>
+                        <option value="reviewer">审核人员</option>
+                        <option value="admin">管理员</option>
+                      </select>
+                      <select data-field="user_id">
+                        <option value="">选择已有用户</option>
+                        ${(state.users || []).map((user) => `<option value="${user.id}">#${user.id} ${escapeHtml(user.username)}</option>`).join("")}
+                      </select>
+                      <button type="button" data-action="approve-wechat-request" data-id="${item.id}">批准</button>
+                      <button type="button" class="secondary" data-action="reject-wechat-request" data-id="${item.id}">拒绝</button>
+                    </div>
+                  ` : escapeHtml(item.reject_reason || "-")}
+                </td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+        ${pagerHtml("wechatRequests", pageInfo)}
+      `
+      : `<div class="item">暂无微信登录申请。</div>`;
+  }
+  if (identityTarget) {
+    const pageInfo = pagedItems("wechatIdentities", identities);
+    identityTarget.innerHTML = identities.length
+      ? `
+        <table class="settingsTable">
+          <thead>
+            <tr>
+              <th>系统用户</th>
+              <th>微信昵称</th>
+              <th>OpenID</th>
+              <th>状态</th>
+              <th>最近登录</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${pageInfo.items.map((item) => `
+              <tr>
+                <td><strong>#${item.user_id} ${escapeHtml(item.username || "-")}</strong></td>
+                <td>${escapeHtml(item.nickname || "-")}</td>
+                <td>${escapeHtml(item.openid_suffix || "-")}</td>
+                <td><span class="status">${item.is_active ? "启用" : "停用"}</span></td>
+                <td>${item.last_login_at ? formatDateTime(item.last_login_at) : "-"}</td>
+                <td>
+                  <button type="button" class="secondary" data-action="disable-wechat-identity" data-id="${item.id}" ${item.is_active ? "" : "disabled"}>停用绑定</button>
+                </td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+        ${pagerHtml("wechatIdentities", pageInfo)}
+      `
+      : `<div class="item">暂无已绑定微信用户。</div>`;
+  }
+}
+
+function wechatRequestStatusLabel(status) {
+  return {
+    pending: "待审批",
+    approved: "已批准",
+    rejected: "已拒绝",
+  }[status] || status || "-";
+}
+
 function renderPlatformCredentials(credentials) {
   const target = document.querySelector("#platformCredentialList");
   if (!target) return;
@@ -3534,6 +3656,9 @@ async function refresh() {
       videoStorage,
       remoteUpload,
       users,
+      wechatLoginConfig,
+      wechatLoginRequests,
+      wechatIdentities,
     ] = admin
       ? await Promise.all([
           api.get("/settings/models"),
@@ -3543,8 +3668,11 @@ async function refresh() {
           api.get("/settings/video-storage"),
           api.get("/settings/remote-upload"),
           api.get("/settings/users").catch(() => []),
+          api.get("/settings/wechat-login/config"),
+          api.get("/settings/wechat-login/requests"),
+          api.get("/settings/wechat-login/identities"),
         ])
-      : [[], [], null, null, null, null, []];
+      : [[], [], null, null, null, null, [], null, [], []];
     state.platformCredentials = platformCredentials;
     state.platformAccounts = platformAccounts;
     state.publishRecords = publishRecords;
@@ -3555,6 +3683,9 @@ async function refresh() {
     state.videoStorage = videoStorage;
     state.remoteUpload = remoteUpload;
     state.users = users;
+    state.wechatLoginConfig = wechatLoginConfig;
+    state.wechatLoginRequests = wechatLoginRequests;
+    state.wechatIdentities = wechatIdentities;
     if (admin) {
       renderModels(models);
       renderModelDiagnostics(modelDiagnostics);
@@ -3563,6 +3694,7 @@ async function refresh() {
       renderVideoStorage(videoStorage);
       renderRemoteUpload(remoteUpload);
       renderSystemUsers(users);
+      renderWechatLogin(wechatLoginConfig, wechatLoginRequests, wechatIdentities);
     }
     renderTrending(searches, videos);
     renderTranscriptions(transcriptions);
@@ -4835,6 +4967,59 @@ document.querySelector("#userAccountList").addEventListener("click", async (even
     toast(`已重置密码：${user.username}`);
     await refresh();
   }
+});
+
+document.querySelector("#wechatLoginConfigForm")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const payload = formData(form);
+  payload.is_active = Boolean(form.querySelector("[name='is_active']").checked);
+  if (!payload.app_secret) delete payload.app_secret;
+  const config = await api.post("/settings/wechat-login/config", payload);
+  toast(config.is_active ? "微信扫码登录已启用" : "微信扫码登录配置已保存");
+  await refresh();
+});
+
+document.querySelector("#wechatLoginRequestList")?.addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-action]");
+  if (!button) return;
+  const row = button.closest("tr");
+  const id = button.dataset.id;
+  if (button.dataset.action === "approve-wechat-request") {
+    const mode = row.querySelector("[data-field='approve_mode']").value;
+    const payload = { mode };
+    if (mode === "bind_existing") {
+      payload.user_id = Number(row.querySelector("[data-field='user_id']").value || 0);
+      if (!payload.user_id) {
+        toast("请选择要绑定的系统用户");
+        return;
+      }
+    } else {
+      payload.username = row.querySelector("[data-field='username']").value.trim();
+      payload.role = row.querySelector("[data-field='role']").value;
+      if (!payload.username) {
+        toast("请填写新用户名");
+        return;
+      }
+    }
+    await api.post(`/settings/wechat-login/requests/${id}/approve`, payload);
+    toast("微信登录申请已批准");
+    await refresh();
+  }
+  if (button.dataset.action === "reject-wechat-request") {
+    const reason = window.prompt("请输入拒绝原因，可留空") || "";
+    await api.post(`/settings/wechat-login/requests/${id}/reject`, { reason });
+    toast("微信登录申请已拒绝");
+    await refresh();
+  }
+});
+
+document.querySelector("#wechatIdentityList")?.addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-action='disable-wechat-identity']");
+  if (!button) return;
+  await api.post(`/settings/wechat-login/identities/${button.dataset.id}/disable`);
+  toast("微信绑定已停用");
+  await refresh();
 });
 
 document.querySelector("#modelConfigForm [name='purpose']").addEventListener("change", () => {
