@@ -2234,9 +2234,9 @@ function latestAnalysisForMaterial(materialId) {
 }
 
 function referenceAnalysisActionLabel(analysis) {
-  if (!analysis) return "详情";
+  if (!analysis) return "查看拆解";
   if (analysis.status === "needs_review") return "查看/采纳";
-  if (analysis.status === "approved") return "查看详情";
+  if (analysis.status === "approved") return "查看拆解";
   if (analysis.status === "failed") return "查看失败";
   return "查看进度";
 }
@@ -3671,6 +3671,22 @@ function closeMobileNav() {
   setMobileNavOpen(false);
 }
 
+function setSidebarCollapsed(collapsed) {
+  document.body.classList.toggle("sidebar-collapsed", collapsed);
+  localStorage.setItem("sidebarCollapsed", collapsed ? "1" : "0");
+  const button = document.querySelector("#sidebarCollapseBtn");
+  if (!button) return;
+  const label = collapsed ? "展开侧边栏" : "收起侧边栏";
+  button.textContent = collapsed ? "›" : "‹";
+  button.title = label;
+  button.setAttribute("aria-label", label);
+  button.setAttribute("aria-pressed", String(collapsed));
+}
+
+function initSidebarCollapse() {
+  setSidebarCollapsed(localStorage.getItem("sidebarCollapsed") === "1");
+}
+
 function positionAccountMenu() {
   const menu = document.querySelector("#accountMenu");
   const button = document.querySelector("#accountMenuButton");
@@ -3814,6 +3830,10 @@ document.querySelector("#mobileNavToggle")?.addEventListener("click", () => {
 });
 
 document.querySelector("#mobileNavBackdrop")?.addEventListener("click", closeMobileNav);
+
+document.querySelector("#sidebarCollapseBtn")?.addEventListener("click", () => {
+  setSidebarCollapsed(!document.body.classList.contains("sidebar-collapsed"));
+});
 
 document.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-action='list-page-prev'], button[data-action='list-page-next']");
@@ -5632,6 +5652,7 @@ initLocalSaveDirectory().finally(() => {
 });
 
 const initialRoute = parseRoute(window.location.hash);
+initSidebarCollapse();
 switchPage(initialRoute.page, initialRoute.section, false);
 
 syncProviderOptions();

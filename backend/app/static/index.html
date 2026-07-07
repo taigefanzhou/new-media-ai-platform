@@ -13,6 +13,7 @@
   </head>
   <body class="auth-pending">
     <aside class="sidebar">
+      <button id="sidebarCollapseBtn" class="sidebarCollapseBtn" type="button" aria-label="收起侧边栏" aria-pressed="false">‹</button>
       <div class="brand">
         <div class="mark">AI</div>
         <div>
@@ -21,21 +22,21 @@
         </div>
       </div>
       <nav id="mainNav">
-        <button class="navItem active" data-page="overview">模块总览</button>
-        <button class="navItem" data-page="analysis">参考视频学习</button>
-        <button class="navItem" data-page="creation">脚本方向创作</button>
-        <button class="navItem" data-page="humans">素材库与数字人</button>
-        <button class="navItem" data-page="tasks">视频库</button>
-        <button class="navItem" data-page="trending">主题采集</button>
-        <button class="navItem" data-page="publish">账号发布</button>
-        <button class="navItem" data-page="settings" data-settings-section="usage">系统设置</button>
+        <button class="navItem active" data-page="overview" data-short="总">模块总览</button>
+        <button class="navItem" data-page="analysis" data-short="学">参考视频学习</button>
+        <button class="navItem" data-page="creation" data-short="创">脚本方向创作</button>
+        <button class="navItem" data-page="humans" data-short="材">素材库与数字人</button>
+        <button class="navItem" data-page="tasks" data-short="库">视频库</button>
+        <button class="navItem" data-page="trending" data-short="采">主题采集</button>
+        <button class="navItem" data-page="publish" data-short="发">账号发布</button>
+        <button class="navItem" data-page="settings" data-settings-section="usage" data-short="设">系统设置</button>
         <div class="subNav" aria-label="系统设置二级菜单">
-          <button class="subNavItem" data-page="settings" data-settings-section="usage">模型用量</button>
-          <button class="subNavItem" data-page="settings" data-settings-section="models">AI 模型接入</button>
-          <button class="subNavItem" data-page="settings" data-settings-section="storage">视频存储位置</button>
-          <button class="subNavItem" data-page="settings" data-settings-section="collectors">短视频采集接入</button>
-          <button class="subNavItem" data-page="settings" data-settings-section="accounts">账号管理</button>
-          <button class="subNavItem" data-page="settings" data-settings-section="wechat">微信登录</button>
+          <button class="subNavItem" data-page="settings" data-settings-section="usage" data-short="量">模型用量</button>
+          <button class="subNavItem" data-page="settings" data-settings-section="models" data-short="AI">AI 模型接入</button>
+          <button class="subNavItem" data-page="settings" data-settings-section="storage" data-short="存">视频存储位置</button>
+          <button class="subNavItem" data-page="settings" data-settings-section="collectors" data-short="接">短视频采集接入</button>
+          <button class="subNavItem" data-page="settings" data-settings-section="accounts" data-short="账">账号管理</button>
+          <button class="subNavItem" data-page="settings" data-settings-section="wechat" data-short="微">微信登录</button>
         </div>
       </nav>
     </aside>
