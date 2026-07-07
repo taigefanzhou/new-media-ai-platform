@@ -76,7 +76,7 @@ class UserPublic(BaseModel):
 
 
 class WechatLoginConfigUpdate(BaseModel):
-    app_id: str = Field(..., min_length=1)
+    app_id: str = ""
     app_secret: Optional[str] = None
     redirect_uri: str = ""
     is_active: bool = True

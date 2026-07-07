@@ -4987,6 +4987,15 @@ document.querySelector("#wechatLoginConfigForm")?.addEventListener("submit", asy
     payload.app_id = String(payload.app_id || "").trim();
     payload.redirect_uri = String(payload.redirect_uri || "").trim() || `${window.location.origin}/api/auth/wechat/callback`;
     payload.is_active = Boolean(form.querySelector("[name='is_active']").checked);
+    if (!payload.app_id) {
+      toast("请填写微信开放平台 AppID");
+      return;
+    }
+    const existingHasSecret = Boolean(state.wechatLoginConfig?.has_app_secret);
+    if (!existingHasSecret && !payload.app_secret) {
+      toast("首次保存需要填写 AppSecret");
+      return;
+    }
     if (!payload.app_secret) delete payload.app_secret;
     const config = await api.post("/settings/wechat-login/config", payload);
     toast(config.is_active ? "微信扫码登录已启用" : "微信扫码登录配置已保存");
