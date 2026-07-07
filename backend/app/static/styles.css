@@ -4153,6 +4153,11 @@ button:disabled {
     display: block;
   }
 
+  .navItem,
+  .subNavItem {
+    min-height: 42px;
+  }
+
   main {
     margin-left: 0;
     padding: 70px 14px 18px;
@@ -4311,6 +4316,25 @@ button:disabled {
     max-width: 100%;
   }
 
+  button,
+  .buttonLike {
+    min-height: 40px;
+  }
+
+  .compactButton,
+  .durationPreset,
+  .tableActions button,
+  .tablePager button,
+  .localSaveButton,
+  .wechatLightTable button,
+  .productModuleCard button,
+  .referenceMaterialActions button,
+  .referenceMaterialActions .buttonLike {
+    width: 100%;
+    min-height: 40px;
+    white-space: normal;
+  }
+
   .iconBtn,
   #refreshBtn,
   #closeTaskDetailBtn,
@@ -4364,11 +4388,29 @@ button:disabled {
     border-bottom: 0;
   }
 
+  .responsiveTable .tableActions,
+  .responsiveTable .wechatInlineActions {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
   .responsiveTable td::before {
     content: attr(data-label);
     color: var(--muted);
     font-size: 12px;
     font-weight: 900;
+  }
+
+  .tablePager {
+    display: grid;
+    grid-template-columns: 1fr;
+    justify-content: stretch;
+  }
+
+  .tablePager div {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
   }
 
   .referenceMaterialMedia {
@@ -4377,11 +4419,22 @@ button:disabled {
 
   .detailDrawer {
     width: 100vw;
-    padding: 16px;
+    height: 100dvh;
+    border-left: 0;
+    padding: 14px;
   }
 
   .drawerHeader {
     align-items: center;
+  }
+
+  .modalOverlay {
+    padding: 12px;
+  }
+
+  .modalPanel {
+    max-height: calc(100dvh - 24px);
+    padding: 16px;
   }
 
   .storagePathRow {
