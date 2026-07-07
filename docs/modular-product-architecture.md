@@ -29,6 +29,12 @@
 
 新增 API 时必须先在 `module_registry.py` 明确归属，再放入对应 `api/modules/*.py`。后续迁移旧接口时，按这些模块把 handler 从 `routes.py` 逐步搬进实体 router 文件，保持 URL 不变。
 
+已完成首批迁移：
+
+- `GET /video-export-profiles`
+- `GET /video-production-skills`
+- `GET /product-modules`
+
 ## 新功能接入规则
 
 - 新功能必须归属到一个明确模块，不能只在页面上新增孤立按钮。

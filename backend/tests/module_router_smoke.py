@@ -32,6 +32,10 @@ def route_tag(path: str) -> str:
     raise AssertionError(f"missing route: {path}")
 
 
+def route_count(path: str) -> int:
+    return sum(1 for route in app.routes if isinstance(route, APIRoute) and route.path == f"/api{path}")
+
+
 def main() -> None:
     assert len(API_MODULES) >= 5
     assert len(module_routers) == len(API_MODULES)
@@ -42,6 +46,10 @@ def main() -> None:
     assert route_tag("/digital-humans") == "素材库与数字人"
     assert route_tag("/video-tasks") == "视频库与生成任务"
     assert route_tag("/publish-records") == "账号绑定与自动发布"
+    assert route_tag("/product-modules") == "系统与认证"
+    assert route_count("/product-modules") == 1
+    assert route_count("/video-production-skills") == 1
+    assert route_count("/video-export-profiles") == 1
 
     with TestClient(app) as client:
         login = client.post("/api/auth/login", json={"username": "admin", "password": "admin123456"})
@@ -52,6 +60,12 @@ def main() -> None:
         body = manifest.json()
         assert len(body["modules"]) >= 5
         assert len(body["api_modules"]) >= 5
+        skills = client.get("/api/video-production-skills", headers=headers)
+        assert skills.status_code == 200, skills.text
+        assert skills.json()["mode"] == "built_in"
+        profiles = client.get("/api/video-export-profiles", headers=headers)
+        assert profiles.status_code == 200, profiles.text
+        assert len(profiles.json()) >= 1
 
     print("module router smoke ok")
 

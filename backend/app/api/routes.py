@@ -15,7 +15,6 @@ import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from sqlmodel import Session, func, select
-from app.api.module_registry import api_module_manifest
 from app.core.config import get_settings
 from app.core.auth import current_user
 from app.core.db import engine, get_session
@@ -97,7 +96,7 @@ from app.schemas.requests import (
 )
 from app.services.ai_clients import MediaGenerationClient, ScriptGenerator
 from app.services.asr import ASRClient
-from app.services.export_profiles import export_profile_options, resolve_export_profile
+from app.services.export_profiles import resolve_export_profile
 from app.services.link_resolver import (
     LinkResolverCredential,
     LinkResolution,
@@ -106,11 +105,9 @@ from app.services.link_resolver import (
 )
 from app.services.model_router import choose_model_config, is_model_config_ready
 from app.services.pipeline import VideoPipeline
-from app.services.product_modules import product_module_manifest
 from app.services.trending import TrendingCollector
 from app.services.usage import estimate_text_tokens, record_generated_model_usage, record_model_usage
 from app.services.video_analysis import ReferenceVideoAnalyzer
-from app.services.video_skills import video_skill_manifest
 from app.services.wechat_login import (
     WechatOAuthClient,
     build_wechat_qr_url,
@@ -1889,46 +1886,6 @@ def integrations_status(session: Session = Depends(get_session)) -> dict[str, di
             settings.asr_model,
             settings.asr_provider == "mock" or bool(settings.asr_api_base),
         ),
-    }
-
-
-@router.get("/video-export-profiles")
-def list_video_export_profiles() -> list[dict[str, object]]:
-    return export_profile_options()
-
-
-@router.get("/video-production-skills")
-def list_video_production_skills() -> dict[str, object]:
-    return {
-        "enabled": True,
-        "mode": "built_in",
-        "pipeline": [
-            "参考拆解",
-            "原创脚本",
-            "分镜执行表",
-            "素材匹配",
-            "视频生成",
-            "字幕包装",
-            "质量检查",
-        ],
-        "skills": video_skill_manifest(),
-    }
-
-
-@router.get("/product-modules")
-def list_product_modules() -> dict[str, object]:
-    return {
-        "version": "2026-07-06",
-        "architecture": "modular_video_production",
-        "navigation": [
-            "参考视频学习生成",
-            "输入方向自动创作",
-            "素材库与数字人",
-            "视频库与生成任务",
-            "账号绑定与自动发布",
-        ],
-        "modules": product_module_manifest(),
-        "api_modules": api_module_manifest(),
     }
 
 
