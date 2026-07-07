@@ -2916,6 +2916,65 @@ button:disabled {
   padding-right: 2px;
 }
 
+.referenceMaterialTable {
+  min-width: 980px;
+}
+
+.referenceMaterialTable th:nth-child(1),
+.referenceMaterialTable td:nth-child(1) {
+  width: 30%;
+}
+
+.referenceMaterialTable th:nth-child(2),
+.referenceMaterialTable td:nth-child(2) {
+  width: 20%;
+}
+
+.referenceMaterialTable th:nth-child(3),
+.referenceMaterialTable td:nth-child(3) {
+  width: 20%;
+}
+
+.referenceMaterialTable th:nth-child(4),
+.referenceMaterialTable td:nth-child(4) {
+  width: 90px;
+}
+
+.referenceMaterialTable th:nth-child(5),
+.referenceMaterialTable td:nth-child(5) {
+  width: 260px;
+}
+
+.selectedReferenceRow td {
+  background: #f0fdfa;
+}
+
+.videoAnalysisTable {
+  min-width: 980px;
+}
+
+.videoAnalysisTable th:nth-child(1),
+.videoAnalysisTable td:nth-child(1) {
+  width: 20%;
+}
+
+.videoAnalysisTable th:nth-child(2),
+.videoAnalysisTable td:nth-child(2) {
+  width: 110px;
+}
+
+.videoAnalysisTable th:nth-child(3),
+.videoAnalysisTable td:nth-child(3),
+.videoAnalysisTable th:nth-child(4),
+.videoAnalysisTable td:nth-child(4) {
+  width: 24%;
+}
+
+.videoAnalysisTable th:nth-child(5),
+.videoAnalysisTable td:nth-child(5) {
+  width: 210px;
+}
+
 .referenceMaterialCard {
   display: grid;
   grid-template-columns: 116px minmax(0, 1fr);

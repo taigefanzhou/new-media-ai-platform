@@ -2276,8 +2276,21 @@ function renderReferenceMaterials(materials = state.materials) {
     return;
   }
   const pageInfo = pagedItems("referenceMaterials", references);
-  target.innerHTML = pageInfo.items
-    .map((material) => {
+  target.innerHTML = `
+    <div class="settingsTableWrap">
+      <table class="settingsTable compactTable referenceMaterialTable">
+        <thead>
+          <tr>
+            <th>参考素材</th>
+            <th>类型/标签</th>
+            <th>拆解状态</th>
+            <th>来源</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${pageInfo.items
+            .map((material) => {
       const analysis = latestAnalysisForMaterial(material.id);
       const transcript = latestTranscriptionForMaterial(material.id);
       const canAnalyze = Boolean(material.file_path);
@@ -2287,31 +2300,43 @@ function renderReferenceMaterials(materials = state.materials) {
       const statusLabel = canAnalyze ? "可拆解" : needsUpload ? "需上传源文件" : "仅链接";
       const hasSourceLink = Boolean(material.source_url);
       return `
-        <div class="referenceMaterialCard ${selected ? "selectedReferenceCard" : ""}">
-          ${renderMaterialPreview(material, "referenceMaterialMedia")}
-          <div class="referenceMaterialBody">
-            <div class="itemHeader">
+              <tr class="${selected ? "selectedReferenceRow" : ""}">
+                <td>
               <strong>#${material.id} ${escapeHtml(material.name)}</strong>
-              <span class="status ${canAnalyze ? "successStatus" : "pendingStatus"}">${statusLabel}</span>
-            </div>
-            <div class="recordMeta">${materialKindLabel(material.kind)} · ${escapeHtml(material.tags || "未打标签")}</div>
-            <div class="recordMeta">
+                  <div class="recordMeta">${escapeHtml(material.source_url || "未上传云端地址")}</div>
+                </td>
+                <td>
+                  <span class="status subtle">${materialKindLabel(material.kind)}</span>
+                  <div class="recordMeta">${escapeHtml(material.tags || "未打标签")}</div>
+                </td>
+                <td>
+                  <span class="status ${canAnalyze ? "successStatus" : "pendingStatus"}">${statusLabel}</span>
+                  <div class="recordMeta">
               ${analysis ? `拆解 #${analysis.id} · ${analysisStatusLabel(analysis.status)}` : "未拆解"}
               ${transcript ? ` · 转写 #${transcript.id} · ${transcriptionStatusLabel(transcript.status)}` : ""}
-            </div>
-            <div class="referenceMaterialActions">
+                  </div>
+                </td>
+                <td>${material.source_url ? "链接素材" : material.file_path ? "本地文件" : "未补源"}</td>
+                <td>
+                  <div class="tableActions referenceMaterialActions">
               <button type="button" class="secondary" data-action="select-reference-material" data-id="${material.id}">选择</button>
+                    <button type="button" class="secondary" data-action="view-reference-material" data-id="${material.id}">详情</button>
               ${!canAnalyze && hasSourceLink ? `<button type="button" data-action="resolve-reference-material" data-id="${material.id}">解析下载</button>` : ""}
               <button type="button" data-action="analyze-reference-material" data-id="${material.id}" ${canAnalyze ? "" : "disabled"}>深度拆解</button>
               <button type="button" class="secondary" data-action="view-reference-analysis" data-id="${analysis ? analysis.id : ""}" ${analysis ? "" : "disabled"}>${referenceAnalysisActionLabel(analysis)}</button>
               <button type="button" class="secondary" data-action="script-from-reference-analysis" data-id="${analysis ? analysis.id : ""}" ${canGenerateScript ? "" : "disabled"}>生成脚本</button>
-              ${material.source_url ? `<a class="buttonLike ghostButton" href="${escapeHtml(material.source_url)}" target="_blank" rel="noreferrer">原链接</a>` : ""}
-            </div>
-          </div>
-        </div>
+                    ${material.source_url ? `<button type="button" class="secondary" data-action="open-reference-source" data-url="${escapeHtml(material.source_url)}">原链接</button>` : ""}
+                  </div>
+                </td>
+              </tr>
       `;
     })
-    .join("") + pagerHtml("referenceMaterials", pageInfo);
+            .join("")}
+        </tbody>
+      </table>
+    </div>
+    ${pagerHtml("referenceMaterials", pageInfo)}
+  `;
   syncReferencePlatformHint();
 }
 
@@ -3434,67 +3459,55 @@ function renderVideoAnalyses(analyses) {
   }
   state.latestVideoAnalysisId = state.videoAnalyses[0].id;
   const pageInfo = pagedItems("videoAnalyses", state.videoAnalyses);
-  target.innerHTML = pageInfo.items
-    .map((analysis) => {
-      const timeline = parseAnalysisTimeline(analysis);
-      const canGenerate = analysis.status === "needs_review" || analysis.status === "approved";
-      const canRun = ["queued", "failed", "draft"].includes(analysis.status);
-      return `
-        <div class="videoAnalysisCard">
-          <div class="itemHeader">
-            <strong>深度拆解 #${analysis.id} · 素材 #${analysis.material_id}</strong>
-            <span class="status taskStatus ${taskStatusClass(analysis.status)}">${analysisStatusLabel(analysis.status)}</span>
-          </div>
-          <div class="analysisMetrics">
-            <span>${Number(analysis.duration_seconds || 0).toFixed(1)} 秒</span>
-            <span>${analysis.width || "-"}x${analysis.height || "-"}</span>
-            <span>${analysis.scene_count || 0} 个视觉段落</span>
-            <span>平均 ${Number(analysis.avg_shot_seconds || 0).toFixed(1)} 秒/段</span>
-            <span>${analysis.model_enhanced ? "模型增强" : "本地基础"} · ${Number(analysis.quality_score || 0).toFixed(0)} 分</span>
-          </div>
-          ${analysis.quality_summary ? `<div class="analysisQuality">${escapeHtml(analysis.quality_summary)}</div>` : ""}
-          ${analysis.dense_contact_sheet_path ? `<img class="videoAnalysisSheet" src="${authenticatedMediaUrl(`/api/video-analyses/${analysis.id}/dense-contact-sheet`)}" alt="深度拆解抽帧图" />` : ""}
-          ${analysis.error_message ? `<div class="errorText">${escapeHtml(analysis.error_message)}</div>` : ""}
-          <div class="analysisGrid">
-            <div><h3>脚本方案</h3><pre>${escapeHtml(analysis.script_analysis || "运行后生成")}</pre></div>
-            <div><h3>拍摄方式</h3><pre>${escapeHtml(analysis.shooting_analysis || "运行后生成")}</pre></div>
-            <div><h3>剪辑方式</h3><pre>${escapeHtml(analysis.editing_analysis || "运行后生成")}</pre></div>
-            <div><h3>可复用模板</h3><pre>${escapeHtml(analysis.reusable_template || "运行后生成")}</pre></div>
-          </div>
-          <details class="analysisTimelineDetails">
-            <summary>镜头时间轴</summary>
-            ${timeline.length ? `
-              <table class="compactTable analysisTimelineTable">
-                <thead>
-                  <tr>
-                    <th>时间</th>
-                    <th>画面角色</th>
-                    <th>脚本作用</th>
-                    <th>复用方式</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${timeline.slice(0, 18).map((item) => `
-                    <tr>
-                      <td>${Number(item.start_second || 0).toFixed(1)}-${Number(item.end_second || 0).toFixed(1)}s</td>
-                      <td>${escapeHtml(item.visual_role || "-")}</td>
-                      <td>${escapeHtml(item.script_function || "-")}</td>
-                      <td>${escapeHtml(item.reuse_instruction || "-")}</td>
-                    </tr>
-                  `).join("")}
-                </tbody>
-              </table>
-            ` : `<div class="item">还没有时间轴。</div>`}
-          </details>
-          <pre class="analysisReuseNotes">${escapeHtml(analysis.reuse_notes || "")}</pre>
-          <div class="itemActions">
-            <button type="button" class="secondary" data-action="run-video-analysis" data-id="${analysis.id}" ${canRun ? "" : "disabled"}>运行拆解</button>
-            <button type="button" data-action="script-from-video-analysis" data-id="${analysis.id}" ${canGenerate ? "" : "disabled"}>生成原创脚本</button>
-          </div>
-        </div>
-      `;
-    })
-    .join("") + pagerHtml("videoAnalyses", pageInfo);
+  target.innerHTML = `
+    <div class="settingsTableWrap">
+      <table class="settingsTable compactTable videoAnalysisTable">
+        <thead>
+          <tr>
+            <th>拆解任务</th>
+            <th>状态</th>
+            <th>结构指标</th>
+            <th>质量</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${pageInfo.items
+            .map((analysis) => {
+              const canGenerate = analysis.status === "needs_review" || analysis.status === "approved";
+              const canRun = ["queued", "failed", "draft"].includes(analysis.status);
+              const quality = analysis.quality_summary || analysis.reuse_notes || analysis.error_message || "详情里查看脚本、拍摄、剪辑和抽帧图。";
+              return `
+                <tr>
+                  <td>
+                    <strong>深度拆解 #${analysis.id}</strong>
+                    <div class="recordMeta">素材 #${analysis.material_id}</div>
+                  </td>
+                  <td><span class="status taskStatus ${taskStatusClass(analysis.status)}">${analysisStatusLabel(analysis.status)}</span></td>
+                  <td>
+                    <strong>${Number(analysis.duration_seconds || 0).toFixed(1)} 秒 · ${analysis.scene_count || 0} 段</strong>
+                    <div class="recordMeta">${analysis.width || "-"}x${analysis.height || "-"} · 平均 ${Number(analysis.avg_shot_seconds || 0).toFixed(1)} 秒/段</div>
+                  </td>
+                  <td>
+                    <strong>${analysis.model_enhanced ? "模型增强" : "本地基础"} · ${Number(analysis.quality_score || 0).toFixed(0)} 分</strong>
+                    <div class="recordMeta">${escapeHtml(quality).slice(0, 72)}</div>
+                  </td>
+                  <td>
+                    <div class="tableActions">
+                      <button type="button" class="secondary" data-action="view-video-analysis-detail" data-id="${analysis.id}">详情</button>
+                      <button type="button" class="secondary" data-action="run-video-analysis" data-id="${analysis.id}" ${canRun ? "" : "disabled"}>运行拆解</button>
+                      <button type="button" data-action="script-from-video-analysis" data-id="${analysis.id}" ${canGenerate ? "" : "disabled"}>生成脚本</button>
+                    </div>
+                  </td>
+                </tr>
+              `;
+            })
+            .join("")}
+        </tbody>
+      </table>
+    </div>
+    ${pagerHtml("videoAnalyses", pageInfo)}
+  `;
 }
 
 function renderAccountMenu(user) {
@@ -5389,6 +5402,15 @@ document.querySelector("#referenceMaterialList").addEventListener("click", async
   const button = event.target.closest("button[data-action]");
   if (!button || button.disabled) return;
   const materialId = Number(button.dataset.id);
+  if (button.dataset.action === "view-reference-material") {
+    openAssetDetailDrawer("material", materialId);
+    return;
+  }
+  if (button.dataset.action === "open-reference-source") {
+    const url = button.dataset.url || "";
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
+    return;
+  }
   if (button.dataset.action === "select-reference-material") {
     const select = document.querySelector("#analysisMaterialSelect");
     if (select) {
@@ -5514,6 +5536,10 @@ if (videoAnalysisList) videoAnalysisList.addEventListener("click", async (event)
   const button = event.target.closest("button[data-action]");
   if (!button || button.disabled) return;
   const id = Number(button.dataset.id);
+  if (button.dataset.action === "view-video-analysis-detail") {
+    renderAnalysisDetailDrawer(id);
+    return;
+  }
   if (button.dataset.action === "run-video-analysis") {
     const originalText = button.textContent;
     try {
