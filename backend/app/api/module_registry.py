@@ -88,6 +88,13 @@ def api_module_manifest() -> list[dict[str, object]]:
     return [asdict(module) for module in API_MODULES]
 
 
+def api_module_by_key(key: str) -> ApiModule:
+    for module in API_MODULES:
+        if module.key == key:
+            return module
+    raise KeyError(f"Unknown API module: {key}")
+
+
 def module_for_path(path: str) -> ApiModule:
     for module in API_MODULES:
         if any(path == prefix or path.startswith(f"{prefix}/") for prefix in module.prefixes):
