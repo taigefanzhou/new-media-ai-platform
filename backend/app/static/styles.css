@@ -651,8 +651,8 @@ h2 {
 
 .settingsTableWrap {
   overflow-x: auto;
-  border: 1px solid #e5e8ef;
-  border-radius: 6px;
+  border: 1px solid #e6eaf0;
+  border-radius: 8px;
   background: #ffffff;
 }
 
@@ -666,21 +666,29 @@ h2 {
 .settingsTable th,
 .settingsTable td {
   border-bottom: 1px solid #eef1f5;
-  padding: 10px 12px;
+  padding: 8px 12px;
+  font-size: 13px;
+  line-height: 1.42;
   text-align: left;
   vertical-align: middle;
   color: #1f2937;
 }
 
 .settingsTable th {
-  background: #f7f8fb;
-  color: #5f6b7a;
+  height: 38px;
+  background: #f8fafc;
+  color: #667085;
   font-size: 12px;
   font-weight: 800;
+  white-space: nowrap;
+}
+
+.settingsTable td {
+  min-height: 52px;
 }
 
 .settingsTable tbody tr:hover {
-  background: #fbfdff;
+  background: #fbfcff;
 }
 
 .settingsTable tbody tr:last-child td {
@@ -850,13 +858,24 @@ h2 {
 
 .compactTable th,
 .compactTable td {
-  padding: 10px 12px;
+  padding: 8px 12px;
   font-size: 13px;
-  line-height: 1.45;
+  line-height: 1.42;
 }
 
 .compactTable th {
+  height: 38px;
+  background: #f8fafc;
+  color: #667085;
   white-space: nowrap;
+}
+
+.compactTable .status,
+.compactTable .pill {
+  min-height: 22px;
+  margin-top: 0;
+  padding: 2px 8px;
+  font-size: 12px;
 }
 
 .usageTable td {
@@ -1242,7 +1261,17 @@ h2 {
 
 .settingsTable select {
   min-width: 120px;
-  padding: 8px 9px;
+  min-height: 32px;
+  border-radius: 4px;
+  padding: 5px 8px;
+  font-size: 12px;
+}
+
+.settingsTable button,
+.taskTable button,
+.storyboardPlanTable button,
+.analysisTimelineTable button {
+  box-shadow: none;
 }
 
 .settingsAccountCreatePanel {
@@ -2135,8 +2164,8 @@ button:disabled {
 
 .storyboardPlanTableWrap {
   overflow-x: auto;
-  border: 1px solid #e5e8ef;
-  border-radius: 6px;
+  border: 1px solid #e6eaf0;
+  border-radius: 8px;
   background: #ffffff;
 }
 
@@ -2150,16 +2179,17 @@ button:disabled {
 .storyboardPlanTable th,
 .storyboardPlanTable td {
   border-bottom: 1px solid #eef1f5;
-  padding: 9px 12px;
+  padding: 8px 12px;
   font-size: 12px;
-  line-height: 1.45;
+  line-height: 1.42;
   text-align: left;
   vertical-align: top;
 }
 
 .storyboardPlanTable th {
-  background: #f7f8fb;
-  color: #5f6b7a;
+  height: 36px;
+  background: #f8fafc;
+  color: #667085;
   font-weight: 800;
 }
 
@@ -2395,8 +2425,8 @@ button:disabled {
 
 .taskTableWrap {
   overflow-x: auto;
-  border: 1px solid #e5e8ef;
-  border-radius: 6px;
+  border: 1px solid #e6eaf0;
+  border-radius: 8px;
   background: #ffffff;
 }
 
@@ -2489,7 +2519,9 @@ button:disabled {
 .taskTable th,
 .taskTable td {
   border-bottom: 1px solid #eef1f5;
-  padding: 10px 12px;
+  padding: 8px 12px;
+  font-size: 13px;
+  line-height: 1.42;
   text-align: left;
   vertical-align: middle;
   overflow: hidden;
@@ -2498,14 +2530,16 @@ button:disabled {
 }
 
 .taskTable th {
-  color: #5f6b7a;
+  height: 38px;
+  color: #667085;
   font-size: 12px;
   font-weight: 800;
-  background: #f7f8fb;
+  background: #f8fafc;
+  white-space: nowrap;
 }
 
 .taskTable tbody tr:hover {
-  background: #fbfdff;
+  background: #fbfcff;
 }
 
 .taskTable tbody tr:last-child td {
@@ -2519,10 +2553,10 @@ button:disabled {
 .taskTable .status {
   display: inline-flex;
   align-items: center;
-  min-height: 20px;
-  margin-top: 4px;
-  padding: 1px 7px;
-  font-size: 11px;
+  min-height: 22px;
+  margin-top: 0;
+  padding: 2px 8px;
+  font-size: 12px;
   font-weight: 800;
   white-space: nowrap;
 }
@@ -2671,10 +2705,10 @@ button:disabled {
 .tablePager {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
   justify-content: flex-end;
-  padding-top: 10px;
+  padding-top: 8px;
   color: var(--muted);
   font-size: 12px;
   font-weight: 900;
@@ -2687,9 +2721,11 @@ button:disabled {
 
 .tablePager button {
   width: auto;
-  min-height: 30px;
-  padding: 0 12px;
+  min-height: 28px;
+  border-radius: 4px;
+  padding: 0 10px;
   font-size: 12px;
+  box-shadow: none;
 }
 
 .taskExportPill {
@@ -3225,16 +3261,17 @@ button:disabled {
 .analysisTimelineTable th,
 .analysisTimelineTable td {
   border-bottom: 1px solid #eef1f5;
-  padding: 9px 12px;
+  padding: 8px 12px;
   font-size: 12px;
-  line-height: 1.45;
+  line-height: 1.42;
   text-align: left;
   vertical-align: top;
 }
 
 .analysisTimelineTable th {
-  background: #f7f8fb;
-  color: #5f6b7a;
+  height: 36px;
+  background: #f8fafc;
+  color: #667085;
   font-weight: 800;
 }
 
@@ -3249,7 +3286,7 @@ button:disabled {
 .tableActions {
   display: flex;
   flex-wrap: nowrap;
-  gap: 6px;
+  gap: 5px;
   min-width: 0;
   max-width: 100%;
 }
@@ -3257,9 +3294,12 @@ button:disabled {
 .tableActions button {
   flex: 0 0 auto;
   width: auto;
-  min-height: 28px;
-  padding-inline: 9px;
+  min-height: 30px;
+  border-radius: 4px;
+  padding-inline: 10px;
+  box-shadow: none;
   font-size: 12px;
+  font-weight: 800;
 }
 
 .tableActions button:disabled {
@@ -3338,8 +3378,8 @@ button:disabled {
 
 .humanTableWrap {
   overflow-x: auto;
-  border: 1px solid #e5e8ef;
-  border-radius: 6px;
+  border: 1px solid #e6eaf0;
+  border-radius: 8px;
   background: #ffffff;
 }
 
@@ -3356,6 +3396,12 @@ button:disabled {
 .assetListTable td {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.assetListTable th {
+  height: 38px;
+  background: #f8fafc;
+  color: #667085;
 }
 
 .assetListTable:not(.humanListTable) th:nth-child(1),
@@ -3469,12 +3515,12 @@ button:disabled {
 }
 
 .assetListTable .tableActions button {
-  min-height: 28px;
+  min-height: 30px;
   border: 1px solid #d8e0eb;
   border-radius: 4px;
   background: #ffffff;
   box-shadow: none;
-  font-weight: 700;
+  font-weight: 800;
 }
 
 .assetListTable .tableActions .secondary {

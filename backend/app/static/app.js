@@ -3019,7 +3019,7 @@ function renderSystemUsers(users) {
   }
   const pageInfo = pagedItems("users", users);
   target.innerHTML = `
-    <table class="settingsTable userTable">
+    <table class="settingsTable compactTable userTable">
       <thead>
         <tr>
           <th>账号</th>
