@@ -59,6 +59,20 @@ def main() -> None:
         assert saved_config.json()["has_app_secret"] is True
         assert "app_secret" not in saved_config.json()
 
+        default_redirect_config = client.post(
+            "/api/settings/wechat-login/config",
+            headers=admin_headers,
+            json={
+                "app_id": "wx-smoke-app",
+                "app_secret": "",
+                "redirect_uri": "",
+                "is_active": True,
+                "default_role": "operator",
+            },
+        )
+        assert default_redirect_config.status_code == 200, default_redirect_config.text
+        assert default_redirect_config.json()["redirect_uri"] == "https://media.tech-ark.com/api/auth/wechat/callback"
+
         enabled_config = client.get("/api/auth/wechat/config")
         assert enabled_config.status_code == 200, enabled_config.text
         assert enabled_config.json()["enabled"] is True

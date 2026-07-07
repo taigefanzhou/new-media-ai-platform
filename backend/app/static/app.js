@@ -4972,12 +4972,29 @@ document.querySelector("#userAccountList").addEventListener("click", async (even
 document.querySelector("#wechatLoginConfigForm")?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
-  const payload = formData(form);
-  payload.is_active = Boolean(form.querySelector("[name='is_active']").checked);
-  if (!payload.app_secret) delete payload.app_secret;
-  const config = await api.post("/settings/wechat-login/config", payload);
-  toast(config.is_active ? "微信扫码登录已启用" : "微信扫码登录配置已保存");
-  await refresh();
+  const button = form.querySelector("button[type='submit']");
+  const originalText = button?.textContent || "";
+  if (button) {
+    button.disabled = true;
+    button.textContent = "保存中...";
+  }
+  try {
+    const payload = formData(form);
+    payload.app_id = String(payload.app_id || "").trim();
+    payload.redirect_uri = String(payload.redirect_uri || "").trim() || `${window.location.origin}/api/auth/wechat/callback`;
+    payload.is_active = Boolean(form.querySelector("[name='is_active']").checked);
+    if (!payload.app_secret) delete payload.app_secret;
+    const config = await api.post("/settings/wechat-login/config", payload);
+    toast(config.is_active ? "微信扫码登录已启用" : "微信扫码登录配置已保存");
+    await refresh();
+  } catch (error) {
+    toast(apiErrorMessage(error, "微信登录配置保存失败"));
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  }
 });
 
 document.querySelector("#wechatLoginRequestList")?.addEventListener("click", async (event) => {

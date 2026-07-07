@@ -827,7 +827,11 @@ def save_wechat_login_config(
     admin: User = Depends(require_admin),
 ) -> WechatLoginConfigPublic:
     config = _active_wechat_config(session) or session.exec(select(WechatLoginConfig).order_by(WechatLoginConfig.updated_at.desc())).first()
+    app_id = payload.app_id.strip()
     app_secret = (payload.app_secret or "").strip()
+    redirect_uri = payload.redirect_uri.strip() or "https://media.tech-ark.com/api/auth/wechat/callback"
+    if not app_id:
+        raise HTTPException(status_code=400, detail="请填写微信开放平台 AppID。")
     if config is None and not app_secret:
         raise HTTPException(status_code=400, detail="首次配置微信登录必须填写 AppSecret。")
     if payload.is_active:
@@ -836,17 +840,17 @@ def save_wechat_login_config(
             session.add(item)
     if config is None:
         config = WechatLoginConfig(
-            app_id=payload.app_id.strip(),
+            app_id=app_id,
             app_secret=app_secret,
-            redirect_uri=payload.redirect_uri.strip(),
+            redirect_uri=redirect_uri,
             is_active=payload.is_active,
             default_role=payload.default_role,
         )
     else:
-        config.app_id = payload.app_id.strip()
+        config.app_id = app_id
         if app_secret:
             config.app_secret = app_secret
-        config.redirect_uri = payload.redirect_uri.strip()
+        config.redirect_uri = redirect_uri
         config.is_active = payload.is_active
         config.default_role = payload.default_role
         config.updated_at = datetime.utcnow()
