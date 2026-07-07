@@ -18,10 +18,12 @@ from app.models.entities import (
     User,
     UserRole,
 )
+from app.schemas.requests import MaterialCreate
 
 
 MIGRATED_ROUTES = {
     ("/materials", "GET"),
+    ("/materials", "POST"),
     ("/materials/{material_id}/preview", "GET"),
     ("/materials/{material_id}", "DELETE"),
 }
@@ -36,6 +38,11 @@ def _is_admin(user: User) -> bool:
 def _require_write_user(user: User) -> None:
     if user.role == UserRole.reviewer:
         raise HTTPException(status_code=403, detail="Reviewer accounts cannot create or modify business data")
+
+
+def _assign_owner(record: object, user: User) -> None:
+    if hasattr(record, "owner_user_id") and getattr(record, "owner_user_id", None) is None:
+        setattr(record, "owner_user_id", user.id)
 
 
 def _owned_statement(statement, model: object, user: User):
@@ -81,6 +88,21 @@ def list_materials(
 ) -> list[Material]:
     statement = _owned_statement(select(Material).order_by(Material.created_at.desc()), Material, user)
     return list(session.exec(statement).all())
+
+
+@router.post("/materials", response_model=Material)
+def create_material(
+    payload: MaterialCreate,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> Material:
+    _require_write_user(user)
+    material = Material.model_validate(payload)
+    _assign_owner(material, user)
+    session.add(material)
+    session.commit()
+    session.refresh(material)
+    return material
 
 
 @router.get("/materials/{material_id}/preview")

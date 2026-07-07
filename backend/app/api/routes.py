@@ -56,7 +56,6 @@ from app.schemas.requests import (
     DigitalHumanCreate,
     LinkResolverTestRequest,
     LoginRequest,
-    MaterialCreate,
     PlatformAccountCreate,
     PlatformAccountUpdate,
     PlatformCredentialCreate,
@@ -1887,21 +1886,6 @@ def integrations_status(session: Session = Depends(get_session)) -> dict[str, di
             settings.asr_provider == "mock" or bool(settings.asr_api_base),
         ),
     }
-
-
-@router.post("/materials", response_model=Material)
-def create_material(
-    payload: MaterialCreate,
-    session: Session = Depends(get_session),
-    user: User = Depends(current_user),
-) -> Material:
-    _require_write_user(user)
-    material = Material.model_validate(payload)
-    _assign_owner(material, user)
-    session.add(material)
-    session.commit()
-    session.refresh(material)
-    return material
 
 
 REFERENCE_MEDIA_EXTENSIONS = {
