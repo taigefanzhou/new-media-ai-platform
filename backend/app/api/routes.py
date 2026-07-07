@@ -15,6 +15,7 @@ import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from sqlmodel import Session, func, select
+from app.api.module_registry import api_module_manifest
 from app.core.config import get_settings
 from app.core.auth import current_user
 from app.core.db import engine, get_session
@@ -1927,6 +1928,7 @@ def list_product_modules() -> dict[str, object]:
             "账号绑定与自动发布",
         ],
         "modules": product_module_manifest(),
+        "api_modules": api_module_manifest(),
     }
 
 

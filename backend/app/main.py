@@ -3,7 +3,7 @@ from fastapi import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from app.api.routes import router
+from app.api.router import api_router
 from app.core.auth import user_from_token
 from app.core.config import get_settings
 from app.core.db import engine, init_db
@@ -68,5 +68,5 @@ def on_startup() -> None:
     init_db()
 
 
-app.include_router(router, prefix="/api")
+app.include_router(api_router, prefix="/api")
 app.mount("/", StaticFiles(directory="app/static", html=True), name="static")
