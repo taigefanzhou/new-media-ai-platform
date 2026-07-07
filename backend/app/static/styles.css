@@ -351,6 +351,7 @@ h2 {
 .metric,
 .panel {
   min-width: 0;
+  width: 100%;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -508,10 +509,10 @@ h2 {
 }
 
 .creationParamBar > button {
-  width: min(280px, 100%);
+  width: 100%;
   min-height: 44px;
   align-self: end;
-  justify-self: start;
+  justify-self: stretch;
 }
 
 .creationBatchHint {
@@ -1063,7 +1064,7 @@ h2 {
 
 .storageConfigForm {
   display: grid;
-  grid-template-columns: minmax(240px, 1fr) 180px minmax(220px, 0.55fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   align-items: stretch;
   margin-bottom: 12px;
@@ -1142,7 +1143,7 @@ h2 {
 
 .remoteUploadFields {
   display: grid;
-  grid-template-columns: minmax(220px, 1.2fr) minmax(220px, 1.2fr) minmax(110px, 0.45fr) minmax(180px, 0.8fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
   align-items: end;
 }
@@ -1362,13 +1363,7 @@ h2 {
 
 .settingsAccountForm {
   display: grid;
-  grid-template-columns:
-    minmax(280px, 1.25fr)
-    minmax(180px, 1fr)
-    minmax(180px, 1fr)
-    minmax(160px, 0.8fr)
-    minmax(126px, 0.5fr)
-    minmax(150px, 0.55fr);
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 12px;
   align-items: end;
 }
@@ -1405,7 +1400,7 @@ h2 {
 }
 
 .wechatConfigForm {
-  grid-template-columns: minmax(260px, 0.9fr) repeat(2, minmax(220px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px 18px;
   align-items: start;
 }
@@ -2891,7 +2886,7 @@ button:disabled {
 
 .referenceLinkForm {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.48fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   align-items: end;
   padding: 14px;
@@ -2911,7 +2906,7 @@ button:disabled {
 .referenceActions {
   grid-column: auto;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -3894,7 +3889,7 @@ button:disabled {
 }
 
 .taskPreviewPanel {
-  max-width: 760px;
+  max-width: none;
 }
 
 #closeTaskPreviewBtn {
@@ -3904,7 +3899,7 @@ button:disabled {
 
 .taskPreviewContent {
   display: grid;
-  justify-items: start;
+  justify-items: stretch;
 }
 
 .taskDetailContent {
@@ -3976,14 +3971,13 @@ button:disabled {
 .humanAssetLayout {
   display: grid;
   gap: 14px;
-  justify-items: start;
+  justify-items: stretch;
 }
 
 .humanAssetFormPanel {
   display: grid;
-  grid-template-columns: repeat(2, minmax(260px, 1fr));
-  width: min(860px, 100%);
-  max-width: 860px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: 100%;
   gap: 14px 16px;
 }
 
@@ -4006,9 +4000,8 @@ button:disabled {
 }
 
 .humanSubmitButton {
-  grid-column: 1 / -1;
-  justify-self: start;
-  width: min(360px, 100%);
+  grid-column: 1 / span 1;
+  width: 100%;
   min-height: 44px;
 }
 
