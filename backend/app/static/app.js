@@ -2294,11 +2294,9 @@ function renderReferenceMaterials(materials = state.materials) {
       const analysis = latestAnalysisForMaterial(material.id);
       const transcript = latestTranscriptionForMaterial(material.id);
       const canAnalyze = Boolean(material.file_path);
-      const canGenerateScript = analysis && analysis.status === "approved";
       const selected = String(document.querySelector("#analysisMaterialSelect")?.value || "") === String(material.id);
       const needsUpload = String(material.tags || "").includes("需上传源文件");
       const statusLabel = canAnalyze ? "可拆解" : needsUpload ? "需上传源文件" : "仅链接";
-      const hasSourceLink = Boolean(material.source_url);
       return `
               <tr class="${selected ? "selectedReferenceRow" : ""}">
                 <td>
@@ -2321,11 +2319,6 @@ function renderReferenceMaterials(materials = state.materials) {
                   <div class="tableActions referenceMaterialActions">
               <button type="button" class="secondary" data-action="select-reference-material" data-id="${material.id}">选择</button>
                     <button type="button" class="secondary" data-action="view-reference-material" data-id="${material.id}">详情</button>
-              ${!canAnalyze && hasSourceLink ? `<button type="button" data-action="resolve-reference-material" data-id="${material.id}">解析下载</button>` : ""}
-              <button type="button" data-action="analyze-reference-material" data-id="${material.id}" ${canAnalyze ? "" : "disabled"}>深度拆解</button>
-              <button type="button" class="secondary" data-action="view-reference-analysis" data-id="${analysis ? analysis.id : ""}" ${analysis ? "" : "disabled"}>${referenceAnalysisActionLabel(analysis)}</button>
-              <button type="button" class="secondary" data-action="script-from-reference-analysis" data-id="${analysis ? analysis.id : ""}" ${canGenerateScript ? "" : "disabled"}>生成脚本</button>
-                    ${material.source_url ? `<button type="button" class="secondary" data-action="open-reference-source" data-url="${escapeHtml(material.source_url)}">原链接</button>` : ""}
                   </div>
                 </td>
               </tr>
@@ -2440,6 +2433,60 @@ function findMaterial(id) {
   return state.materials.find((item) => Number(item.id) === Number(id));
 }
 
+function selectReferenceMaterial(materialId) {
+  const select = document.querySelector("#analysisMaterialSelect");
+  if (select) {
+    select.value = String(materialId);
+    renderAnalysisMaterialPreview();
+    renderReferenceMaterials();
+  }
+  setReferenceTab("current");
+  toast(`已选择参考素材 #${materialId}`);
+}
+
+async function resolveReferenceMaterial(materialId, button, options = {}) {
+  const originalText = button?.textContent || "";
+  try {
+    if (button) {
+      button.disabled = true;
+      button.textContent = "解析中...";
+    }
+    const material = await api.post(`/reference-materials/${materialId}/resolve-download`);
+    toast(material.file_path ? "已解析并下载源视频" : "仍未解析出视频文件，请检查解析服务配置");
+    await refresh();
+    const select = document.querySelector("#analysisMaterialSelect");
+    if (select) {
+      select.value = String(material.id);
+      renderAnalysisMaterialPreview();
+    }
+    if (options.reopenDetail) openAssetDetailDrawer("material", material.id);
+  } catch (error) {
+    toast(error.message || "解析下载失败");
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  }
+}
+
+async function analyzeReferenceMaterial(materialId, button) {
+  const language = document.querySelector("#transcriptionForm [name='language']").value || "zh-CN";
+  const material = state.materials.find((item) => Number(item.id) === materialId);
+  if (!material || !material.file_path) {
+    toast("这个素材还没有本地视频文件，不能深度拆解");
+    return;
+  }
+  try {
+    const task = await createAndRunVideoAnalysis(materialId, language, button);
+    toast(`深度拆解完成：${analysisStatusLabel(task.status)}`);
+    await refresh();
+    renderAnalysisDetailDrawer(task.id);
+  } catch (error) {
+    toast(error.message || "深度拆解失败");
+  }
+}
+
 function openAssetDetailDrawer(kind, id) {
   const drawer = document.querySelector("#assetDetailDrawer");
   const title = document.querySelector("#assetDetailTitle");
@@ -2521,6 +2568,11 @@ function openAssetDetailDrawer(kind, id) {
   if (kind === "material") {
     const material = findMaterial(id);
     if (!material) return;
+    const isReference = isReferenceMaterial(material);
+    const analysis = latestAnalysisForMaterial(material.id);
+    const canAnalyze = Boolean(material.file_path);
+    const canGenerateScript = analysis && analysis.status === "approved";
+    const needsResolve = isReference && !canAnalyze && Boolean(material.source_url);
     title.textContent = `#${material.id} ${material.name}`;
     eyebrow.textContent = "Material";
     content.innerHTML = `
@@ -2542,6 +2594,12 @@ function openAssetDetailDrawer(kind, id) {
       </div>
       ${renderMaterialPreview(material, "assetDrawerMedia full")}
       <div class="drawerActions">
+        ${isReference ? `<button type="button" data-action="select-reference-material" data-id="${material.id}">选择为当前参考</button>` : ""}
+        ${needsResolve ? `<button type="button" data-action="resolve-reference-material" data-id="${material.id}">解析下载源文件</button>` : ""}
+        ${isReference ? `<button type="button" data-action="analyze-reference-material" data-id="${material.id}" ${canAnalyze ? "" : "disabled"}>深度拆解</button>` : ""}
+        ${isReference ? `<button type="button" class="secondary" data-action="view-reference-analysis" data-id="${analysis ? analysis.id : ""}" ${analysis ? "" : "disabled"}>${referenceAnalysisActionLabel(analysis)}</button>` : ""}
+        ${isReference ? `<button type="button" class="secondary" data-action="script-from-reference-analysis" data-id="${analysis ? analysis.id : ""}" ${canGenerateScript ? "" : "disabled"}>生成脚本</button>` : ""}
+        ${isReference && material.source_url ? `<button type="button" class="secondary" data-action="open-reference-source" data-url="${escapeHtml(material.source_url)}">打开原链接</button>` : ""}
         ${material.source_url ? `<button type="button" class="secondary" data-action="copy-material-url" data-url="${escapeHtml(material.source_url)}">复制云端地址</button>` : `<button type="button" class="secondary" data-action="remote-upload-material" data-id="${material.id}">补传服务器</button>`}
         <button type="button" class="danger" data-action="delete-material" data-id="${material.id}">删除素材</button>
       </div>
@@ -4527,6 +4585,37 @@ document.querySelector("#assetDetailDrawer").addEventListener("click", async (ev
     closeAssetDetailDrawer();
     return;
   }
+  const selectReferenceButton = event.target.closest("button[data-action='select-reference-material']");
+  if (selectReferenceButton) {
+    selectReferenceMaterial(Number(selectReferenceButton.dataset.id));
+    return;
+  }
+  const openReferenceSourceButton = event.target.closest("button[data-action='open-reference-source']");
+  if (openReferenceSourceButton) {
+    const url = openReferenceSourceButton.dataset.url || "";
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
+    return;
+  }
+  const viewReferenceAnalysisButton = event.target.closest("button[data-action='view-reference-analysis']");
+  if (viewReferenceAnalysisButton) {
+    renderAnalysisDetailDrawer(Number(viewReferenceAnalysisButton.dataset.id));
+    return;
+  }
+  const resolveReferenceButton = event.target.closest("button[data-action='resolve-reference-material']");
+  if (resolveReferenceButton) {
+    await resolveReferenceMaterial(Number(resolveReferenceButton.dataset.id), resolveReferenceButton, { reopenDetail: true });
+    return;
+  }
+  const analyzeReferenceButton = event.target.closest("button[data-action='analyze-reference-material']");
+  if (analyzeReferenceButton) {
+    await analyzeReferenceMaterial(Number(analyzeReferenceButton.dataset.id), analyzeReferenceButton);
+    return;
+  }
+  const scriptFromReferenceButton = event.target.closest("button[data-action='script-from-reference-analysis']");
+  if (scriptFromReferenceButton) {
+    await generateScriptFromAnalysis(Number(scriptFromReferenceButton.dataset.id), scriptFromReferenceButton);
+    return;
+  }
   const copyButton = event.target.closest("button[data-action='copy-material-url']");
   if (copyButton) {
     try {
@@ -5412,14 +5501,7 @@ document.querySelector("#referenceMaterialList").addEventListener("click", async
     return;
   }
   if (button.dataset.action === "select-reference-material") {
-    const select = document.querySelector("#analysisMaterialSelect");
-    if (select) {
-      select.value = String(materialId);
-      renderAnalysisMaterialPreview();
-      renderReferenceMaterials();
-    }
-    setReferenceTab("current");
-    toast(`已选择参考素材 #${materialId}`);
+    selectReferenceMaterial(materialId);
     return;
   }
   if (button.dataset.action === "view-reference-analysis") {
@@ -5427,41 +5509,11 @@ document.querySelector("#referenceMaterialList").addEventListener("click", async
     return;
   }
   if (button.dataset.action === "resolve-reference-material") {
-    const originalText = button.textContent;
-    try {
-      button.disabled = true;
-      button.textContent = "解析中...";
-      const material = await api.post(`/reference-materials/${materialId}/resolve-download`);
-      toast(material.file_path ? "已解析并下载源视频" : "仍未解析出视频文件，请检查解析服务配置");
-      await refresh();
-      const select = document.querySelector("#analysisMaterialSelect");
-      if (select) {
-        select.value = String(material.id);
-        renderAnalysisMaterialPreview();
-      }
-    } catch (error) {
-      toast(error.message || "解析下载失败");
-    } finally {
-      button.disabled = false;
-      button.textContent = originalText;
-    }
+    await resolveReferenceMaterial(materialId, button);
     return;
   }
   if (button.dataset.action === "analyze-reference-material") {
-    const language = document.querySelector("#transcriptionForm [name='language']").value || "zh-CN";
-    const material = state.materials.find((item) => Number(item.id) === materialId);
-    if (!material || !material.file_path) {
-      toast("这个素材还没有本地视频文件，不能深度拆解");
-      return;
-    }
-    try {
-      const task = await createAndRunVideoAnalysis(materialId, language, button);
-      toast(`深度拆解完成：${analysisStatusLabel(task.status)}`);
-      await refresh();
-      renderAnalysisDetailDrawer(task.id);
-    } catch (error) {
-      toast(error.message || "深度拆解失败");
-    }
+    await analyzeReferenceMaterial(materialId, button);
     return;
   }
   if (button.dataset.action === "script-from-reference-analysis") {

@@ -2922,7 +2922,7 @@ button:disabled {
 
 .referenceMaterialTable th:nth-child(1),
 .referenceMaterialTable td:nth-child(1) {
-  width: 30%;
+  width: 34%;
 }
 
 .referenceMaterialTable th:nth-child(2),
@@ -2942,7 +2942,7 @@ button:disabled {
 
 .referenceMaterialTable th:nth-child(5),
 .referenceMaterialTable td:nth-child(5) {
-  width: 260px;
+  width: 142px;
 }
 
 .selectedReferenceRow td {
