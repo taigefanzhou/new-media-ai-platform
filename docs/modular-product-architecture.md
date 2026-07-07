@@ -34,6 +34,7 @@
 - `GET /video-export-profiles`
 - `GET /video-production-skills`
 - `GET /product-modules`
+- `GET /materials`、`GET /materials/{material_id}/preview`、`DELETE /materials/{material_id}`
 
 ## 新功能接入规则
 

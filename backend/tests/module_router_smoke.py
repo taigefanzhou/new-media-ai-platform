@@ -32,8 +32,15 @@ def route_tag(path: str) -> str:
     raise AssertionError(f"missing route: {path}")
 
 
-def route_count(path: str) -> int:
-    return sum(1 for route in app.routes if isinstance(route, APIRoute) and route.path == f"/api{path}")
+def route_count(path: str, method: str | None = None) -> int:
+    expected_method = method.upper() if method else None
+    return sum(
+        1
+        for route in app.routes
+        if isinstance(route, APIRoute)
+        and route.path == f"/api{path}"
+        and (expected_method is None or expected_method in route.methods)
+    )
 
 
 def main() -> None:
@@ -50,6 +57,10 @@ def main() -> None:
     assert route_count("/product-modules") == 1
     assert route_count("/video-production-skills") == 1
     assert route_count("/video-export-profiles") == 1
+    assert route_count("/materials", "GET") == 1
+    assert route_count("/materials", "POST") == 1
+    assert route_count("/materials/{material_id}/preview", "GET") == 1
+    assert route_count("/materials/{material_id}", "DELETE") == 1
 
     with TestClient(app) as client:
         login = client.post("/api/auth/login", json={"username": "admin", "password": "admin123456"})
@@ -66,6 +77,19 @@ def main() -> None:
         profiles = client.get("/api/video-export-profiles", headers=headers)
         assert profiles.status_code == 200, profiles.text
         assert len(profiles.json()) >= 1
+        created = client.post(
+            "/api/materials",
+            headers=headers,
+            json={"name": "模块路由素材", "kind": "image", "copyright_status": "owned"},
+        )
+        assert created.status_code == 200, created.text
+        material_id = created.json()["id"]
+        materials = client.get("/api/materials", headers=headers)
+        assert materials.status_code == 200, materials.text
+        assert any(item["id"] == material_id for item in materials.json())
+        deleted = client.delete(f"/api/materials/{material_id}", headers=headers)
+        assert deleted.status_code == 200, deleted.text
+        assert deleted.json()["deleted"] is True
 
     print("module router smoke ok")
 
