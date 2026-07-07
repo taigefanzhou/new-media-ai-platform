@@ -945,7 +945,12 @@
                 <p class="resultHint">用于网站应用扫码登录。回调地址建议使用当前域名的 /api/auth/wechat/callback。</p>
               </div>
               <label>AppID<input name="app_id" placeholder="微信开放平台网站应用 AppID" autocomplete="off" /></label>
-              <label>AppSecret<input name="app_secret" type="password" placeholder="保存后不回显明文" autocomplete="new-password" /></label>
+              <label>AppSecret
+                <span class="secretInputLine">
+                  <input name="app_secret" type="password" placeholder="保存后不回显明文" autocomplete="new-password" />
+                  <button id="wechatSecretEditBtn" type="button" class="secondary compactButton hiddenPanel">更换密钥</button>
+                </span>
+              </label>
               <label>回调地址<input name="redirect_uri" placeholder="https://media.tech-ark.com/api/auth/wechat/callback" /></label>
               <label>默认角色
                 <select name="default_role">

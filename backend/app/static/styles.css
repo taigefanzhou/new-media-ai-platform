@@ -1352,6 +1352,26 @@ select {
   background: white;
 }
 
+input:disabled,
+textarea:disabled,
+select:disabled {
+  background: #f3f4f6;
+  color: #8a94a6;
+  cursor: not-allowed;
+}
+
+.secretInputLine {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.secretInputLine button {
+  width: auto;
+  white-space: nowrap;
+}
+
 strong,
 span,
 div,

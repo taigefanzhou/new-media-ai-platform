@@ -3074,9 +3074,13 @@ function renderWechatLogin(config, requests = [], identities = []) {
   const requestTarget = document.querySelector("#wechatLoginRequestList");
   const identityTarget = document.querySelector("#wechatIdentityList");
   if (form && config) {
+    const secretInput = form.querySelector("[name='app_secret']");
+    const secretEditButton = form.querySelector("#wechatSecretEditBtn");
     form.querySelector("[name='app_id']").value = config.app_id || "";
-    form.querySelector("[name='app_secret']").value = "";
-    form.querySelector("[name='app_secret']").placeholder = config.has_app_secret ? "已保存 AppSecret，可留空" : "请输入 AppSecret";
+    secretInput.value = "";
+    secretInput.disabled = Boolean(config.has_app_secret);
+    secretInput.placeholder = config.has_app_secret ? "已保存 AppSecret，无需重复填写" : "请输入 AppSecret";
+    secretEditButton?.classList.toggle("hiddenPanel", !config.has_app_secret);
     form.querySelector("[name='redirect_uri']").value = config.redirect_uri || `${window.location.origin}/api/auth/wechat/callback`;
     form.querySelector("[name='default_role']").value = config.default_role || "operator";
     form.querySelector("[name='is_active']").checked = Boolean(config.is_active);
@@ -4995,6 +4999,14 @@ document.querySelector("#wechatLoginConfigForm")?.addEventListener("submit", asy
       button.textContent = originalText;
     }
   }
+});
+
+document.querySelector("#wechatSecretEditBtn")?.addEventListener("click", () => {
+  const input = document.querySelector("#wechatLoginConfigForm [name='app_secret']");
+  if (!input) return;
+  input.disabled = false;
+  input.placeholder = "请输入新的 AppSecret，保存后会覆盖旧密钥";
+  input.focus();
 });
 
 document.querySelector("#wechatLoginRequestList")?.addEventListener("click", async (event) => {
