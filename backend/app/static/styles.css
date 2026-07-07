@@ -1167,10 +1167,12 @@ h2 {
 
 .remoteUploadActions {
   padding-top: 2px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .remoteUploadActions button {
-  width: 180px;
+  width: 100%;
 }
 
 .modelMaintenancePanel {
@@ -1456,14 +1458,14 @@ h2 {
 }
 
 .wechatConfigActions {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
-  justify-content: flex-start;
 }
 
 .wechatConfigActions button[type="submit"] {
-  width: auto;
+  width: 100%;
   min-height: 38px;
   padding: 0 22px;
   border-radius: 5px;
