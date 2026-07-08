@@ -679,6 +679,16 @@ function focusWhenVisible(selector) {
   window.setTimeout(() => document.querySelector(selector)?.focus(), 80);
 }
 
+function selectPreferredCreationHuman(preferredText = "黄丽") {
+  const select = document.querySelector("#creationHumanSelect");
+  if (!select || select.value) return Boolean(select?.value);
+  const candidates = Array.from(select.options).filter((option) => option.value);
+  const preferred = candidates.find((option) => option.textContent.includes(preferredText)) || candidates[0];
+  if (!preferred) return false;
+  select.value = preferred.value;
+  return true;
+}
+
 function openWorkbenchAction(action) {
   closeMobileNav();
   if (action === "link-reference") {
@@ -694,8 +704,12 @@ function openWorkbenchAction(action) {
   }
   if (action === "digital-human") {
     switchPage("creation");
+    selectPreferredCreationHuman();
     const modeSelect = document.querySelector("#creationProductionModeSelect");
-    if (modeSelect) modeSelect.value = "talking_head_template";
+    if (modeSelect) {
+      modeSelect.value = recommendedCreationProductionMode(true);
+      syncProductionModeHint();
+    }
     document.querySelector("#creationHumanSelect")?.focus();
     return;
   }
