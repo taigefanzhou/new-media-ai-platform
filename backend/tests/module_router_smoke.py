@@ -44,10 +44,26 @@ def route_count(path: str, method: str | None = None) -> int:
 
 
 def main() -> None:
+    routes_source = Path("app/api/routes.py").read_text()
+    assert "@router." not in routes_source
+    assert "router = APIRouter" not in routes_source
+
     assert len(API_MODULES) >= 5
     assert len(module_routers) == len(API_MODULES)
     for module_router in module_routers:
         assert any(isinstance(route, APIRoute) for route in module_router.routes)
+    seen: dict[tuple[str, str], int] = {}
+    for route in app.routes:
+        if not isinstance(route, APIRoute) or not route.path.startswith("/api/"):
+            continue
+        for method in route.methods:
+            if method in {"HEAD", "OPTIONS"}:
+                continue
+            key = (method, route.path)
+            seen[key] = seen.get(key, 0) + 1
+    duplicates = {key: count for key, count in seen.items() if count > 1}
+    assert not duplicates
+
     assert route_tag("/materials") == "参考视频学习"
     assert route_tag("/scripts/generate") == "脚本方向创作"
     assert route_tag("/digital-humans") == "素材库与数字人"

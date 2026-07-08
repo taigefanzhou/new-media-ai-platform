@@ -12,7 +12,7 @@ from typing import Optional
 from urllib.parse import parse_qsl, quote, urlencode, urlparse, urlunparse
 from uuid import uuid4
 import httpx
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Header, HTTPException, Request, UploadFile
+from fastapi import BackgroundTasks, Depends, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from sqlmodel import Session, func, select
 from app.core.config import get_settings
@@ -117,7 +117,6 @@ from app.services.wechat_login import (
 )
 
 
-router = APIRouter()
 
 REMOTE_UPLOAD_ENABLED_KEY = "remote_upload_enabled"
 REMOTE_UPLOAD_URL_KEY = "remote_upload_url"
@@ -604,12 +603,10 @@ def _bearer_token(authorization: Optional[str]) -> str:
     return authorization.removeprefix("Bearer ").strip()
 
 
-@router.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@router.post("/auth/login")
 def login(payload: LoginRequest, session: Session = Depends(get_session)) -> dict[str, object]:
     user = session.exec(select(User).where(User.username == payload.username)).first()
     if user is None or not verify_password(payload.password, user.password_hash) or not user.is_active:
@@ -624,12 +621,10 @@ def login(payload: LoginRequest, session: Session = Depends(get_session)) -> dic
     return {"token": token, "user": _user_public(user)}
 
 
-@router.get("/auth/me")
 def me(user: User = Depends(current_user)) -> UserPublic:
     return _user_public(user)
 
 
-@router.post("/auth/logout")
 def logout(
     authorization: Optional[str] = Header(default=None),
     session: Session = Depends(get_session),
@@ -642,7 +637,6 @@ def logout(
     return {"ok": True}
 
 
-@router.post("/auth/change-password")
 def change_password(
     payload: ChangePasswordRequest,
     authorization: Optional[str] = Header(default=None),
@@ -754,14 +748,12 @@ def _create_auth_session_for_user(session: Session, user: User) -> str:
     return token
 
 
-@router.get("/auth/wechat/config", response_model=WechatLoginPublicConfig)
 def wechat_login_public_config(session: Session = Depends(get_session)) -> WechatLoginPublicConfig:
     config = _active_wechat_config(session)
     enabled = bool(config and config.app_id and config.app_secret and config.redirect_uri)
     return WechatLoginPublicConfig(enabled=enabled, app_id=config.app_id if enabled and config else "")
 
 
-@router.get("/auth/wechat/start")
 def start_wechat_login(session: Session = Depends(get_session)) -> RedirectResponse:
     config = _active_wechat_config(session)
     if config is None or not config.app_id or not config.app_secret or not config.redirect_uri:
@@ -770,7 +762,6 @@ def start_wechat_login(session: Session = Depends(get_session)) -> RedirectRespo
     return RedirectResponse(url=build_wechat_qr_url(config, state))
 
 
-@router.get("/auth/wechat/callback")
 async def wechat_login_callback(
     code: str,
     state: str,
@@ -809,7 +800,6 @@ async def wechat_login_callback(
     return _frontend_wechat_redirect("pending", request_id=existing_request.id)
 
 
-@router.get("/settings/wechat-login/config", response_model=WechatLoginConfigPublic)
 def get_wechat_login_config(
     session: Session = Depends(get_session),
     admin: User = Depends(require_admin),
@@ -817,7 +807,6 @@ def get_wechat_login_config(
     return _wechat_config_public(_active_wechat_config(session))
 
 
-@router.post("/settings/wechat-login/config", response_model=WechatLoginConfigPublic)
 def save_wechat_login_config(
     payload: WechatLoginConfigUpdate,
     session: Session = Depends(get_session),
@@ -857,7 +846,6 @@ def save_wechat_login_config(
     return _wechat_config_public(config)
 
 
-@router.get("/settings/wechat-login/requests", response_model=list[WechatLoginRequestPublic])
 def list_wechat_login_requests(
     session: Session = Depends(get_session),
     admin: User = Depends(require_admin),
@@ -872,7 +860,6 @@ def list_wechat_login_requests(
     return [_wechat_request_public(item) for item in rows]
 
 
-@router.post("/settings/wechat-login/requests/{request_id}/approve", response_model=WechatLoginRequestPublic)
 def approve_wechat_login_request(
     request_id: int,
     payload: WechatLoginApproveRequest,
@@ -927,7 +914,6 @@ def approve_wechat_login_request(
     return _wechat_request_public(item)
 
 
-@router.post("/settings/wechat-login/requests/{request_id}/reject", response_model=WechatLoginRequestPublic)
 def reject_wechat_login_request(
     request_id: int,
     payload: WechatLoginRejectRequest,
@@ -947,7 +933,6 @@ def reject_wechat_login_request(
     return _wechat_request_public(item)
 
 
-@router.get("/settings/wechat-login/identities", response_model=list[WechatIdentityPublic])
 def list_wechat_identities(
     session: Session = Depends(get_session),
     admin: User = Depends(require_admin),
@@ -956,7 +941,6 @@ def list_wechat_identities(
     return [_wechat_identity_public(item, session) for item in rows]
 
 
-@router.post("/settings/wechat-login/identities/{identity_id}/disable", response_model=WechatIdentityPublic)
 def disable_wechat_identity(
     identity_id: int,
     session: Session = Depends(get_session),
@@ -1022,7 +1006,6 @@ def _user_public(user: User) -> UserPublic:
     )
 
 
-@router.get("/settings/users", response_model=list[UserPublic])
 def list_users(
     session: Session = Depends(get_session),
     admin: User = Depends(require_admin),
@@ -1031,7 +1014,6 @@ def list_users(
     return [_user_public(item) for item in users]
 
 
-@router.post("/settings/users", response_model=UserPublic)
 def create_user(
     payload: UserCreate,
     session: Session = Depends(get_session),
@@ -1055,7 +1037,6 @@ def create_user(
     return _user_public(user)
 
 
-@router.patch("/settings/users/{user_id}", response_model=UserPublic)
 def update_user(
     user_id: int,
     payload: UserUpdate,
@@ -1078,7 +1059,6 @@ def update_user(
     return _user_public(user)
 
 
-@router.post("/settings/users/{user_id}/reset-password", response_model=UserPublic)
 def reset_user_password(
     user_id: int,
     payload: UserPasswordReset,
@@ -1095,7 +1075,6 @@ def reset_user_password(
     return _user_public(user)
 
 
-@router.get("/dashboard")
 def dashboard(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
@@ -1120,7 +1099,6 @@ def dashboard(
     return {"counts": counts, "recent_tasks": recent_tasks, "recent_scripts": recent_scripts}
 
 
-@router.get("/settings/models", response_model=list[AIModelConfigPublic])
 def list_model_configs(
     session: Session = Depends(get_session),
     admin: User = Depends(require_admin),
@@ -1129,7 +1107,6 @@ def list_model_configs(
     return [_model_config_public(config) for config in configs]
 
 
-@router.get("/settings/model-diagnostics")
 def model_diagnostics(
     session: Session = Depends(get_session),
     admin: User = Depends(require_admin),
@@ -1146,7 +1123,6 @@ def model_diagnostics(
     }
 
 
-@router.get("/settings/model-usage")
 def model_usage_summary(
     session: Session = Depends(get_session),
     admin: User = Depends(require_admin),
@@ -1290,7 +1266,6 @@ def model_usage_summary(
     }
 
 
-@router.get("/settings/video-storage")
 def video_storage_summary(
     session: Session = Depends(get_session),
     admin: User = Depends(require_admin),
@@ -1417,7 +1392,6 @@ def video_storage_summary(
     }
 
 
-@router.patch("/settings/video-storage")
 def update_video_storage(
     payload: StorageSettingsUpdate,
     session: Session = Depends(get_session),
@@ -1432,7 +1406,6 @@ def update_video_storage(
     return video_storage_summary(session=session, admin=admin)
 
 
-@router.get("/settings/remote-upload")
 def remote_upload_settings(
     session: Session = Depends(get_session),
     admin: User = Depends(require_admin),
@@ -1448,7 +1421,6 @@ def remote_upload_settings(
     }
 
 
-@router.patch("/settings/remote-upload")
 def update_remote_upload_settings(
     payload: RemoteUploadSettingsUpdate,
     session: Session = Depends(get_session),
@@ -1475,7 +1447,6 @@ def update_remote_upload_settings(
     return remote_upload_settings(session=session, admin=admin)
 
 
-@router.post("/materials/{material_id}/remote-upload", response_model=Material)
 async def upload_material_to_remote(
     material_id: int,
     session: Session = Depends(get_session),
@@ -1488,7 +1459,6 @@ async def upload_material_to_remote(
     return material
 
 
-@router.post("/settings/models", response_model=AIModelConfigPublic)
 def create_model_config(
     payload: AIModelConfigCreate,
     session: Session = Depends(get_session),
@@ -1503,7 +1473,6 @@ def create_model_config(
     return _model_config_public(config)
 
 
-@router.patch("/settings/models/{model_id}", response_model=AIModelConfigPublic)
 def update_model_config(
     model_id: int,
     payload: AIModelConfigUpdate,
@@ -1524,7 +1493,6 @@ def update_model_config(
     return _model_config_public(config)
 
 
-@router.post("/settings/models/{model_id}/activate", response_model=AIModelConfigPublic)
 def activate_model_config(
     model_id: int,
     session: Session = Depends(get_session),
@@ -1541,7 +1509,6 @@ def activate_model_config(
     return _model_config_public(config)
 
 
-@router.post("/settings/models/{model_id}/test")
 async def test_model_config(
     model_id: int,
     session: Session = Depends(get_session),
@@ -1609,7 +1576,6 @@ def _deactivate_models(session: Session, purpose: str) -> None:
         session.add(item)
 
 
-@router.get("/settings/platform-credentials", response_model=list[PlatformCredentialPublic])
 def list_platform_credentials(
     session: Session = Depends(get_session),
     admin: User = Depends(require_admin),
@@ -1623,7 +1589,6 @@ def list_platform_credentials(
     return [_platform_credential_public(item) for item in credentials]
 
 
-@router.post("/settings/platform-credentials", response_model=PlatformCredentialPublic)
 def create_platform_credential(
     payload: PlatformCredentialCreate,
     session: Session = Depends(get_session),
@@ -1639,7 +1604,6 @@ def create_platform_credential(
     return _platform_credential_public(credential)
 
 
-@router.patch("/settings/platform-credentials/{credential_id}", response_model=PlatformCredentialPublic)
 def update_platform_credential(
     credential_id: int,
     payload: PlatformCredentialUpdate,
@@ -1663,7 +1627,6 @@ def update_platform_credential(
     return _platform_credential_public(credential)
 
 
-@router.post("/settings/platform-credentials/{credential_id}/activate", response_model=PlatformCredentialPublic)
 def activate_platform_credential(
     credential_id: int,
     session: Session = Depends(get_session),
@@ -1753,7 +1716,6 @@ async def _probe_reference_media_url(source_url: str) -> dict[str, object]:
         return {"ok": False, "content_type": "", "message": f"视频地址访问失败：{exc}"}
 
 
-@router.post("/settings/link-resolver/test")
 async def test_link_resolver(
     payload: LinkResolverTestRequest,
     session: Session = Depends(get_session),
@@ -1794,7 +1756,6 @@ async def test_link_resolver(
     }
 
 
-@router.get("/integrations/status")
 def integrations_status(session: Session = Depends(get_session)) -> dict[str, dict[str, object]]:
     settings = get_settings()
     trending_credentials = [
@@ -2086,7 +2047,6 @@ async def _resolve_and_download_reference_media(
     return file_path, resolution
 
 
-@router.post("/reference-materials/from-link", response_model=Material)
 async def create_reference_material_from_link(
     payload: ReferenceMaterialLinkCreate,
     session: Session = Depends(get_session),
@@ -2128,7 +2088,6 @@ async def create_reference_material_from_link(
     return material
 
 
-@router.post("/reference-materials/{material_id}/resolve-download", response_model=Material)
 async def resolve_download_reference_material(
     material_id: int,
     session: Session = Depends(get_session),
@@ -2163,7 +2122,6 @@ async def resolve_download_reference_material(
     return material
 
 
-@router.post("/materials/upload", response_model=Material)
 async def upload_material(
     file: UploadFile = File(...),
     name: Optional[str] = Form(default=None),
@@ -2328,7 +2286,6 @@ def _join_public_base_url(base_url: str, filename: str) -> str:
     return f"{base_url.rstrip('/')}/{filename.lstrip('/')}"
 
 
-@router.post("/transcriptions", response_model=TranscriptionTask)
 def create_transcription_task(
     payload: TranscriptionTaskCreate,
     session: Session = Depends(get_session),
@@ -2350,7 +2307,6 @@ def create_transcription_task(
     return task
 
 
-@router.post("/transcriptions/{task_id}/run", response_model=TranscriptionTask)
 async def run_transcription_task(
     task_id: int,
     session: Session = Depends(get_session),
@@ -2397,7 +2353,6 @@ async def run_transcription_task(
     return task
 
 
-@router.get("/transcriptions", response_model=list[TranscriptionTask])
 def list_transcription_tasks(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
@@ -2410,7 +2365,6 @@ def list_transcription_tasks(
     return list(session.exec(statement).all())
 
 
-@router.post("/transcriptions/{task_id}/create-topic", response_model=Topic)
 def create_topic_from_transcription(
     task_id: int,
     session: Session = Depends(get_session),
@@ -2440,7 +2394,6 @@ def create_topic_from_transcription(
     return topic
 
 
-@router.post("/transcriptions/{task_id}/generate-script", response_model=Script)
 async def generate_script_from_transcription(
     task_id: int,
     session: Session = Depends(get_session),
@@ -2500,7 +2453,6 @@ def _latest_transcript_for_material(session: Session, material_id: int) -> str:
     return task.transcript if task else ""
 
 
-@router.post("/video-analyses", response_model=ReferenceVideoAnalysis)
 def create_reference_video_analysis(
     payload: ReferenceVideoAnalysisCreate,
     session: Session = Depends(get_session),
@@ -2524,7 +2476,6 @@ def create_reference_video_analysis(
     return task
 
 
-@router.post("/video-analyses/{analysis_id}/run", response_model=ReferenceVideoAnalysis)
 async def run_reference_video_analysis(
     analysis_id: int,
     session: Session = Depends(get_session),
@@ -2603,7 +2554,6 @@ async def run_reference_video_analysis(
     return task
 
 
-@router.get("/video-analyses", response_model=list[ReferenceVideoAnalysis])
 def list_reference_video_analyses(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
@@ -2616,7 +2566,6 @@ def list_reference_video_analyses(
     return list(session.exec(statement).all())
 
 
-@router.post("/video-analyses/{analysis_id}/approve", response_model=ReferenceVideoAnalysis)
 def approve_reference_video_analysis(
     analysis_id: int,
     session: Session = Depends(get_session),
@@ -2634,7 +2583,6 @@ def approve_reference_video_analysis(
     return task
 
 
-@router.post("/video-analyses/{analysis_id}/reject", response_model=ReferenceVideoAnalysis)
 def reject_reference_video_analysis(
     analysis_id: int,
     session: Session = Depends(get_session),
@@ -2650,7 +2598,6 @@ def reject_reference_video_analysis(
     return task
 
 
-@router.get("/video-analyses/{analysis_id}/contact-sheet")
 def reference_video_analysis_contact_sheet(
     analysis_id: int,
     session: Session = Depends(get_session),
@@ -2666,7 +2613,6 @@ def reference_video_analysis_contact_sheet(
     return FileResponse(path, media_type="image/jpeg")
 
 
-@router.get("/video-analyses/{analysis_id}/dense-contact-sheet")
 def reference_video_analysis_dense_contact_sheet(
     analysis_id: int,
     session: Session = Depends(get_session),
@@ -2682,7 +2628,6 @@ def reference_video_analysis_dense_contact_sheet(
     return FileResponse(path, media_type="image/jpeg")
 
 
-@router.post("/video-analyses/{analysis_id}/generate-script", response_model=Script)
 async def generate_script_from_reference_video_analysis(
     analysis_id: int,
     session: Session = Depends(get_session),
@@ -2734,7 +2679,6 @@ def _topic_title_from_text(text: str) -> str:
     return cleaned[:48]
 
 
-@router.post("/topics", response_model=Topic)
 def create_topic(
     payload: TopicCreate,
     session: Session = Depends(get_session),
@@ -2752,7 +2696,6 @@ def create_topic(
     return topic
 
 
-@router.get("/topics", response_model=list[Topic])
 def list_topics(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
@@ -2798,7 +2741,6 @@ def _create_script_record(
     return script
 
 
-@router.post("/scripts/generate", response_model=Script)
 async def generate_script(
     payload: ScriptGenerateRequest,
     session: Session = Depends(get_session),
@@ -2819,7 +2761,6 @@ async def generate_script(
     return _create_script_record(session, payload, generated, active_model, owner=user)
 
 
-@router.post("/scripts/batch-generate", response_model=list[Script])
 async def batch_generate_scripts(
     payload: ScriptBatchGenerateRequest,
     session: Session = Depends(get_session),
@@ -2863,7 +2804,6 @@ async def batch_generate_scripts(
     return scripts
 
 
-@router.get("/scripts", response_model=list[Script])
 def list_scripts(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
@@ -2872,7 +2812,6 @@ def list_scripts(
     return list(session.exec(statement).all())
 
 
-@router.patch("/scripts/{script_id}", response_model=Script)
 def update_script(
     script_id: int,
     payload: ScriptUpdate,
@@ -3024,7 +2963,6 @@ def _ensure_video_task_can_run(task: VideoTask) -> None:
         raise HTTPException(status_code=400, detail="Video task is not ready to generate")
 
 
-@router.post("/scripts/{script_id}/video-task", response_model=VideoTask)
 def create_video_task_from_script(
     script_id: int,
     payload: ScriptVideoTaskCreate,
@@ -3052,7 +2990,6 @@ def create_video_task_from_script(
     return task
 
 
-@router.post("/scripts/{script_id}/auto-video-task", response_model=VideoTask)
 async def approve_script_and_run_video_task(
     script_id: int,
     payload: ScriptVideoTaskCreate,
@@ -3083,7 +3020,6 @@ async def approve_script_and_run_video_task(
     return task
 
 
-@router.post("/scripts/{script_id}/voice-preview")
 async def generate_script_voice_preview(
     script_id: int,
     payload: ScriptVideoTaskCreate,
@@ -3125,7 +3061,6 @@ async def generate_script_voice_preview(
     return FileResponse(audio_path, media_type=media_type, filename=f"script-{script_id}-voice-preview.wav")
 
 
-@router.post("/digital-humans", response_model=DigitalHuman)
 def create_digital_human(
     payload: DigitalHumanCreate,
     session: Session = Depends(get_session),
@@ -3148,7 +3083,6 @@ def create_digital_human(
     return human
 
 
-@router.post("/digital-humans/create-with-assets", response_model=DigitalHuman)
 async def create_digital_human_with_assets(
     name: str = Form(...),
     role: Optional[str] = Form(default=None),
@@ -3206,7 +3140,6 @@ async def create_digital_human_with_assets(
     return create_digital_human(payload, session, user)
 
 
-@router.get("/digital-humans", response_model=list[DigitalHuman])
 def list_digital_humans(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
@@ -3215,7 +3148,6 @@ def list_digital_humans(
     return list(session.exec(statement).all())
 
 
-@router.post("/digital-humans/{human_id}/volcengine-auth/session")
 async def create_volcengine_portrait_auth_session(
     human_id: int,
     payload: VolcenginePortraitAuthSessionCreate,
@@ -3269,7 +3201,6 @@ async def create_volcengine_portrait_auth_session(
     return _human_portrait_auth_state(human)
 
 
-@router.post("/digital-humans/{human_id}/volcengine-auth/sync")
 async def sync_volcengine_portrait_auth_session(
     human_id: int,
     session: Session = Depends(get_session),
@@ -3280,7 +3211,6 @@ async def sync_volcengine_portrait_auth_session(
     return await _sync_volcengine_portrait_auth_result(session, human)
 
 
-@router.get("/digital-humans/{human_id}/volcengine-auth/status")
 def get_volcengine_portrait_auth_status(
     human_id: int,
     session: Session = Depends(get_session),
@@ -3291,7 +3221,6 @@ def get_volcengine_portrait_auth_status(
     return _human_portrait_auth_state(human)
 
 
-@router.get("/volcengine/portrait-auth/callback", name="volcengine_portrait_auth_callback")
 async def volcengine_portrait_auth_callback(
     request: Request,
     session: Session = Depends(get_session),
@@ -3351,7 +3280,6 @@ async def volcengine_portrait_auth_callback(
     return HTMLResponse(html)
 
 
-@router.delete("/digital-humans/{human_id}")
 def delete_digital_human(
     human_id: int,
     session: Session = Depends(get_session),
@@ -3368,7 +3296,6 @@ def delete_digital_human(
     return {"deleted": True, "id": human_id}
 
 
-@router.post("/video-tasks", response_model=VideoTask)
 def create_video_task(
     payload: VideoTaskCreate,
     session: Session = Depends(get_session),
@@ -3394,7 +3321,6 @@ def create_video_task(
     return task
 
 
-@router.post("/video-tasks/batch-create", response_model=list[VideoTask])
 def batch_create_video_tasks(
     payload: VideoTaskBatchCreateRequest,
     session: Session = Depends(get_session),
@@ -3427,7 +3353,6 @@ def batch_create_video_tasks(
     return tasks
 
 
-@router.post("/video-tasks/batch-run", response_model=list[VideoTask])
 async def batch_run_video_tasks(
     payload: VideoTaskBatchRunRequest,
     background_tasks: BackgroundTasks,
@@ -3445,7 +3370,6 @@ async def batch_run_video_tasks(
     return results
 
 
-@router.post("/video-tasks/{task_id}/run", response_model=VideoTask)
 async def run_video_task(
     task_id: int,
     background_tasks: BackgroundTasks,
@@ -3460,7 +3384,6 @@ async def run_video_task(
     return queued_task
 
 
-@router.post("/video-tasks/{task_id}/approve", response_model=VideoTask)
 def approve_video_task(
     task_id: int,
     session: Session = Depends(get_session),
@@ -3477,7 +3400,6 @@ def approve_video_task(
     return task
 
 
-@router.get("/video-tasks", response_model=list[VideoTask])
 def list_video_tasks(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
@@ -3486,7 +3408,6 @@ def list_video_tasks(
     return list(session.exec(statement).all())
 
 
-@router.get("/video-tasks/{task_id}/segments", response_model=list[VideoSegment])
 def list_video_task_segments(
     task_id: int,
     session: Session = Depends(get_session),
@@ -3503,7 +3424,6 @@ def list_video_task_segments(
     )
 
 
-@router.patch("/video-tasks/{task_id}/segments/{segment_id}/material", response_model=VideoSegment)
 def update_video_segment_material(
     task_id: int,
     segment_id: int,
@@ -3558,7 +3478,6 @@ def update_video_segment_material(
     return segment
 
 
-@router.get("/video-tasks/{task_id}/output")
 def preview_video_task_output(
     task_id: int,
     session: Session = Depends(get_session),
@@ -3575,7 +3494,6 @@ def preview_video_task_output(
     return FileResponse(path, media_type="video/mp4")
 
 
-@router.delete("/video-tasks/{task_id}/output")
 def delete_video_task_output(
     task_id: int,
     session: Session = Depends(get_session),
@@ -3612,7 +3530,6 @@ def delete_video_task_output(
     return {"deleted": True, "id": task_id, "target": "output"}
 
 
-@router.delete("/video-tasks/{task_id}")
 def delete_video_task(
     task_id: int,
     session: Session = Depends(get_session),
@@ -3638,7 +3555,6 @@ def delete_video_task(
     return {"deleted": True, "id": task_id}
 
 
-@router.post("/video-tasks/{task_id}/publish-record", response_model=PublishRecord)
 def prepare_publish_record_from_video_task(
     task_id: int,
     payload: VideoTaskPublishPrepareRequest,
@@ -3788,7 +3704,6 @@ def _clear_default_account(session: Session, platform: str, user: User | None = 
         session.add(account)
 
 
-@router.post("/trending/searches", response_model=TrendingSearch)
 def create_trending_search(
     payload: TrendingSearchCreate,
     session: Session = Depends(get_session),
@@ -3803,7 +3718,6 @@ def create_trending_search(
     return search
 
 
-@router.post("/trending/searches/{search_id}/run", response_model=TrendingSearch)
 async def run_trending_search(
     search_id: int,
     session: Session = Depends(get_session),
@@ -3839,7 +3753,6 @@ async def run_trending_search(
     return search
 
 
-@router.get("/trending/searches", response_model=list[TrendingSearch])
 def list_trending_searches(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
@@ -3848,7 +3761,6 @@ def list_trending_searches(
     return list(session.exec(statement).all())
 
 
-@router.get("/trending/videos", response_model=list[TrendingVideo])
 def list_trending_videos(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
@@ -3857,7 +3769,6 @@ def list_trending_videos(
     return list(session.exec(statement).all())
 
 
-@router.post("/trending/videos", response_model=TrendingVideo)
 def create_trending_video(
     payload: TrendingVideoCreate,
     session: Session = Depends(get_session),
@@ -3872,7 +3783,6 @@ def create_trending_video(
     return video
 
 
-@router.post("/publish-records", response_model=PublishRecord)
 def prepare_publish_record(
     payload: PublishPrepareRequest,
     session: Session = Depends(get_session),
@@ -3901,7 +3811,6 @@ def prepare_publish_record(
     return record
 
 
-@router.get("/publish-records", response_model=list[PublishRecord])
 def list_publish_records(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
@@ -3910,7 +3819,6 @@ def list_publish_records(
     return list(session.exec(statement).all())
 
 
-@router.patch("/publish-records/{record_id}", response_model=PublishRecord)
 def update_publish_record(
     record_id: int,
     payload: PublishRecordUpdate,
@@ -3943,7 +3851,6 @@ def update_publish_record(
     return record
 
 
-@router.post("/publish-records/{record_id}/mark-published", response_model=PublishRecord)
 def mark_publish_record_published(
     record_id: int,
     session: Session = Depends(get_session),
@@ -3959,7 +3866,6 @@ def mark_publish_record_published(
     return _set_publish_status(session, record_id, "published", datetime.utcnow(), user=user)
 
 
-@router.post("/publish-records/{record_id}/fail", response_model=PublishRecord)
 def mark_publish_record_failed(
     record_id: int,
     session: Session = Depends(get_session),
@@ -3968,7 +3874,6 @@ def mark_publish_record_failed(
     return _set_publish_status(session, record_id, "failed", user=user)
 
 
-@router.post("/publish-records/{record_id}/cancel", response_model=PublishRecord)
 def cancel_publish_record(
     record_id: int,
     session: Session = Depends(get_session),
@@ -4012,7 +3917,6 @@ def _active_platform_credential(
     ).first()
 
 
-@router.post("/platform-accounts", response_model=PlatformAccount)
 def create_platform_account(
     payload: PlatformAccountCreate,
     session: Session = Depends(get_session),
@@ -4029,7 +3933,6 @@ def create_platform_account(
     return account
 
 
-@router.get("/platform-accounts", response_model=list[PlatformAccount])
 def list_platform_accounts(
     session: Session = Depends(get_session),
     user: User = Depends(current_user),
@@ -4045,7 +3948,6 @@ def list_platform_accounts(
     return list(session.exec(statement).all())
 
 
-@router.patch("/platform-accounts/{account_id}", response_model=PlatformAccount)
 def update_platform_account(
     account_id: int,
     payload: PlatformAccountUpdate,
@@ -4066,7 +3968,6 @@ def update_platform_account(
     return account
 
 
-@router.post("/platform-accounts/{account_id}/set-default", response_model=PlatformAccount)
 def set_default_platform_account(
     account_id: int,
     session: Session = Depends(get_session),

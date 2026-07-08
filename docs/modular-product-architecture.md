@@ -16,8 +16,8 @@
 
 后端 API 入口已通过 `backend/app/api/router.py` 组合挂载，并由
 `backend/app/api/module_registry.py` 统一维护模块归属。每个模块在
-`backend/app/api/modules/` 下都有独立 router 文件。现阶段为了保持线上接口稳定，
-模块 router 仍复用 `backend/app/api/routes.py` 中的旧 handler，并按路径前缀把接口分配到模块：
+`backend/app/api/modules/` 下都有独立 router 文件，所有 API 路由注册都在模块文件内完成。
+`backend/app/api/routes.py` 不再注册路由，只保留仍待进一步下沉的业务 handler 实现。
 
 - `system`：认证、微信登录、系统设置、模型配置、总览和集成状态。
 - `reference_learning`：素材、参考链接、转写和视频拆解。
@@ -27,14 +27,15 @@
 - `trending`：主题采集和爆款参考。
 - `publishing`：平台账号和发布记录。
 
-新增 API 时必须先在 `module_registry.py` 明确归属，再放入对应 `api/modules/*.py`。后续迁移旧接口时，按这些模块把 handler 从 `routes.py` 逐步搬进实体 router 文件，保持 URL 不变。
+新增 API 时必须先在 `module_registry.py` 明确归属，再放入对应 `api/modules/*.py`。禁止在 `routes.py` 重新新增 `@router.*` 注册。后续如果继续精细化，可把 handler 函数体从 `routes.py` 逐步下沉到各模块的 service 或 handler 文件，保持 URL 不变。
 
-已完成首批迁移：
+已完成路由注册层模块化：
 
 - `GET /video-export-profiles`
 - `GET /video-production-skills`
 - `GET /product-modules`
 - `GET /materials`、`POST /materials`、`GET /materials/{material_id}/preview`、`DELETE /materials/{material_id}`
+- 其余 API 已全部在 `api/modules/*.py` 中按模块显式注册。
 
 ## 新功能接入规则
 

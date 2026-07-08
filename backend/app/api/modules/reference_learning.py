@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from sqlmodel import Session, select
 
+from app.api.routes import *  # noqa: F403
 from app.core.auth import current_user
 from app.core.db import get_session
-from app.api.modules._legacy import legacy_module_router
 from app.models.entities import (
     DigitalHuman,
     Material,
@@ -21,14 +21,7 @@ from app.models.entities import (
 from app.schemas.requests import MaterialCreate
 
 
-MIGRATED_ROUTES = {
-    ("/materials", "GET"),
-    ("/materials", "POST"),
-    ("/materials/{material_id}/preview", "GET"),
-    ("/materials/{material_id}", "DELETE"),
-}
-
-router = legacy_module_router("reference_learning", exclude_routes=MIGRATED_ROUTES)
+router = APIRouter(tags=["参考视频学习"])
 
 
 def _is_admin(user: User) -> bool:
@@ -161,3 +154,22 @@ def delete_material(
     session.delete(material)
     session.commit()
     return {"deleted": True, "id": material_id}
+
+
+router.post("/materials/{material_id}/remote-upload", response_model=Material)(upload_material_to_remote)
+router.post("/reference-materials/from-link", response_model=Material)(create_reference_material_from_link)
+router.post("/reference-materials/{material_id}/resolve-download", response_model=Material)(resolve_download_reference_material)
+router.post("/materials/upload", response_model=Material)(upload_material)
+router.post("/transcriptions", response_model=TranscriptionTask)(create_transcription_task)
+router.post("/transcriptions/{task_id}/run", response_model=TranscriptionTask)(run_transcription_task)
+router.get("/transcriptions", response_model=list[TranscriptionTask])(list_transcription_tasks)
+router.post("/transcriptions/{task_id}/create-topic", response_model=Topic)(create_topic_from_transcription)
+router.post("/transcriptions/{task_id}/generate-script", response_model=Script)(generate_script_from_transcription)
+router.post("/video-analyses", response_model=ReferenceVideoAnalysis)(create_reference_video_analysis)
+router.post("/video-analyses/{analysis_id}/run", response_model=ReferenceVideoAnalysis)(run_reference_video_analysis)
+router.get("/video-analyses", response_model=list[ReferenceVideoAnalysis])(list_reference_video_analyses)
+router.post("/video-analyses/{analysis_id}/approve", response_model=ReferenceVideoAnalysis)(approve_reference_video_analysis)
+router.post("/video-analyses/{analysis_id}/reject", response_model=ReferenceVideoAnalysis)(reject_reference_video_analysis)
+router.get("/video-analyses/{analysis_id}/contact-sheet")(reference_video_analysis_contact_sheet)
+router.get("/video-analyses/{analysis_id}/dense-contact-sheet")(reference_video_analysis_dense_contact_sheet)
+router.post("/video-analyses/{analysis_id}/generate-script", response_model=Script)(generate_script_from_reference_video_analysis)
