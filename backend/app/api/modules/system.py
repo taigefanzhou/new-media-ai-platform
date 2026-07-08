@@ -2,8 +2,51 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api.routes import *  # noqa: F403
 from app.api.module_registry import api_module_manifest
+from app.api.routes import (
+    activate_model_config,
+    activate_platform_credential,
+    create_model_config,
+    create_platform_credential,
+    create_user,
+    dashboard,
+    disable_wechat_identity,
+    get_wechat_login_config,
+    integrations_status,
+    list_model_configs,
+    list_platform_credentials,
+    list_users,
+    list_wechat_identities,
+    list_wechat_login_requests,
+    model_diagnostics,
+    model_usage_summary,
+    remote_upload_settings,
+    reset_user_password,
+    save_wechat_login_config,
+    start_wechat_login,
+    test_link_resolver,
+    test_model_config,
+    update_model_config,
+    update_platform_credential,
+    update_remote_upload_settings,
+    update_user,
+    update_video_storage,
+    video_storage_summary,
+    wechat_login_callback,
+    wechat_login_public_config,
+    approve_wechat_login_request,
+    reject_wechat_login_request,
+)
+from app.api.system_auth import change_password, health, login, logout, me
+from app.schemas.requests import (
+    AIModelConfigPublic,
+    PlatformCredentialPublic,
+    UserPublic,
+    WechatIdentityPublic,
+    WechatLoginConfigPublic,
+    WechatLoginPublicConfig,
+    WechatLoginRequestPublic,
+)
 from app.services.export_profiles import export_profile_options
 from app.services.product_modules import product_module_manifest
 from app.services.video_skills import video_skill_manifest

@@ -11,7 +11,7 @@ from typing import Optional
 from urllib.parse import parse_qsl, quote, urlencode, urlparse, urlunparse
 from uuid import uuid4
 import httpx
-from fastapi import BackgroundTasks, Depends, File, Form, Header, HTTPException, Request, UploadFile
+from fastapi import BackgroundTasks, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from sqlmodel import Session, select
 from app.api.access import (
@@ -34,6 +34,16 @@ from app.api.publishing_support import (
     _resolve_publish_account,
     _set_publish_status,
 )
+from app.api.system_auth import (
+    _bearer_token,
+    _user_public,
+    change_password,
+    health,
+    login,
+    logout,
+    me,
+    require_admin,
+)
 from app.api.video_tasks_support import (
     PRODUCTION_MODES,
     _build_video_task,
@@ -43,7 +53,7 @@ from app.api.video_tasks_support import (
 from app.core.config import get_settings
 from app.core.auth import current_user
 from app.core.db import engine, get_session
-from app.core.security import create_token, hash_password, password_hash_needs_upgrade, verify_password
+from app.core.security import create_token, hash_password
 from app.core.storage import STORAGE_ROOT_KEY, get_storage_root, save_storage_root
 from app.models.entities import (
     AIModelConfig,
@@ -77,10 +87,8 @@ from app.schemas.requests import (
     AIModelConfigCreate,
     AIModelConfigPublic,
     AIModelConfigUpdate,
-    ChangePasswordRequest,
     DigitalHumanCreate,
     LinkResolverTestRequest,
-    LoginRequest,
     PlatformCredentialCreate,
     PlatformCredentialPublic,
     PlatformCredentialUpdate,
@@ -604,72 +612,6 @@ def _queue_video_task(session: Session, task: VideoTask, note: str | None = None
     return task
 
 
-def _bearer_token(authorization: Optional[str]) -> str:
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing authorization token")
-    return authorization.removeprefix("Bearer ").strip()
-
-
-def health() -> dict[str, str]:
-    return {"status": "ok"}
-
-
-def login(payload: LoginRequest, session: Session = Depends(get_session)) -> dict[str, object]:
-    user = session.exec(select(User).where(User.username == payload.username)).first()
-    if user is None or not verify_password(payload.password, user.password_hash) or not user.is_active:
-        raise HTTPException(status_code=401, detail="Invalid username or password")
-    if password_hash_needs_upgrade(user.password_hash):
-        user.password_hash = hash_password(payload.password)
-        session.add(user)
-    token = create_token()
-    auth_session = AuthSession(user_id=user.id, token=token)
-    session.add(auth_session)
-    session.commit()
-    return {"token": token, "user": _user_public(user)}
-
-
-def me(user: User = Depends(current_user)) -> UserPublic:
-    return _user_public(user)
-
-
-def logout(
-    authorization: Optional[str] = Header(default=None),
-    session: Session = Depends(get_session),
-) -> dict[str, bool]:
-    token = _bearer_token(authorization)
-    auth_session = session.exec(select(AuthSession).where(AuthSession.token == token)).first()
-    if auth_session is not None:
-        session.delete(auth_session)
-        session.commit()
-    return {"ok": True}
-
-
-def change_password(
-    payload: ChangePasswordRequest,
-    authorization: Optional[str] = Header(default=None),
-    session: Session = Depends(get_session),
-    user: User = Depends(current_user),
-) -> dict[str, bool]:
-    if not verify_password(payload.current_password, user.password_hash):
-        raise HTTPException(status_code=400, detail="Current password is incorrect")
-    user.password_hash = hash_password(payload.new_password)
-    session.add(user)
-    current_token = _bearer_token(authorization)
-    other_sessions = session.exec(
-        select(AuthSession).where(AuthSession.user_id == user.id, AuthSession.token != current_token)
-    ).all()
-    for auth_session in other_sessions:
-        session.delete(auth_session)
-    session.commit()
-    return {"ok": True}
-
-
-def require_admin(user: User = Depends(current_user)) -> User:
-    if user.role != UserRole.admin:
-        raise HTTPException(status_code=403, detail="Admin account required")
-    return user
-
-
 def _active_wechat_config(session: Session) -> WechatLoginConfig | None:
     return session.exec(
         select(WechatLoginConfig)
@@ -961,16 +903,6 @@ def disable_wechat_identity(
     session.commit()
     session.refresh(identity)
     return _wechat_identity_public(identity, session)
-
-def _user_public(user: User) -> UserPublic:
-    return UserPublic(
-        id=user.id or 0,
-        username=user.username,
-        role=user.role,
-        is_active=user.is_active,
-        created_at=user.created_at,
-    )
-
 
 def list_users(
     session: Session = Depends(get_session),

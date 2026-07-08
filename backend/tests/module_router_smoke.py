@@ -53,9 +53,13 @@ def main() -> None:
         "def _build_video_task",
         "def _prepare_material_mix_segments",
         "def _ensure_video_task_can_run",
+        "def login(",
+        "def logout(",
+        "def change_password(",
+        "def require_admin(",
     ):
         assert helper_name not in routes_source
-    for module_path in ("app/api/modules/script_creation.py", "app/api/modules/video_library.py"):
+    for module_path in ("app/api/modules/script_creation.py", "app/api/modules/video_library.py", "app/api/modules/system.py"):
         module_source = Path(module_path).read_text()
         assert "from app.api.routes import *" not in module_source
 
