@@ -87,9 +87,22 @@ def main() -> None:
         "def remote_upload_settings(",
         "def update_remote_upload_settings(",
         "async def upload_material_to_remote(",
+        "def create_digital_human(",
+        "async def create_digital_human_with_assets(",
+        "def list_digital_humans(",
+        "async def create_volcengine_portrait_auth_session(",
+        "async def sync_volcengine_portrait_auth_session(",
+        "def get_volcengine_portrait_auth_status(",
+        "async def volcengine_portrait_auth_callback(",
+        "def delete_digital_human(",
     ):
         assert helper_name not in routes_source
-    for module_path in ("app/api/modules/script_creation.py", "app/api/modules/video_library.py", "app/api/modules/system.py"):
+    for module_path in (
+        "app/api/modules/script_creation.py",
+        "app/api/modules/video_library.py",
+        "app/api/modules/system.py",
+        "app/api/modules/digital_humans.py",
+    ):
         module_source = Path(module_path).read_text()
         assert "from app.api.routes import *" not in module_source
 

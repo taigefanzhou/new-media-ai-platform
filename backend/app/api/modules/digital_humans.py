@@ -2,7 +2,17 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api.routes import *  # noqa: F403
+from app.api.digital_humans import (
+    create_digital_human,
+    create_digital_human_with_assets,
+    create_volcengine_portrait_auth_session,
+    delete_digital_human,
+    get_volcengine_portrait_auth_status,
+    list_digital_humans,
+    sync_volcengine_portrait_auth_session,
+    volcengine_portrait_auth_callback,
+)
+from app.models.entities import DigitalHuman
 
 
 router = APIRouter(tags=["素材库与数字人"])
