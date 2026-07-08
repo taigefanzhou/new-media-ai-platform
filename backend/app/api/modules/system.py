@@ -6,11 +6,7 @@ from app.api.module_registry import api_module_manifest
 from app.api.routes import (
     dashboard,
     integrations_status,
-    remote_upload_settings,
     test_link_resolver,
-    update_remote_upload_settings,
-    update_video_storage,
-    video_storage_summary,
 )
 from app.api.system_models import (
     activate_model_config,
@@ -26,6 +22,12 @@ from app.api.system_models import (
     update_platform_credential,
 )
 from app.api.system_auth import change_password, health, login, logout, me
+from app.api.system_storage import (
+    remote_upload_settings,
+    update_remote_upload_settings,
+    update_video_storage,
+    video_storage_summary,
+)
 from app.api.system_users import create_user, list_users, reset_user_password, update_user
 from app.api.system_wechat import (
     approve_wechat_login_request,

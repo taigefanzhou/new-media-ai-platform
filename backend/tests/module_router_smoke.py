@@ -82,6 +82,11 @@ def main() -> None:
         "def create_platform_credential(",
         "def update_platform_credential(",
         "def activate_platform_credential(",
+        "def video_storage_summary(",
+        "def update_video_storage(",
+        "def remote_upload_settings(",
+        "def update_remote_upload_settings(",
+        "async def upload_material_to_remote(",
     ):
         assert helper_name not in routes_source
     for module_path in ("app/api/modules/script_creation.py", "app/api/modules/video_library.py", "app/api/modules/system.py"):
