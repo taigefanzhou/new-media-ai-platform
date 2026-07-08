@@ -8,26 +8,23 @@ from app.api.routes import (
     activate_platform_credential,
     create_model_config,
     create_platform_credential,
-    create_user,
     dashboard,
     integrations_status,
     list_model_configs,
     list_platform_credentials,
-    list_users,
     model_diagnostics,
     model_usage_summary,
     remote_upload_settings,
-    reset_user_password,
     test_link_resolver,
     test_model_config,
     update_model_config,
     update_platform_credential,
     update_remote_upload_settings,
-    update_user,
     update_video_storage,
     video_storage_summary,
 )
 from app.api.system_auth import change_password, health, login, logout, me
+from app.api.system_users import create_user, list_users, reset_user_password, update_user
 from app.api.system_wechat import (
     approve_wechat_login_request,
     disable_wechat_identity,
