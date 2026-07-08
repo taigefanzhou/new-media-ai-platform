@@ -46,11 +46,15 @@ body.auth-pending main > .page {
 .sidebar {
   position: fixed;
   inset: 0 auto 0 0;
+  display: flex;
+  flex-direction: column;
   width: var(--sidebar-width);
+  height: 100vh;
   background: #ffffff;
   color: var(--ink);
   padding: 18px 14px;
   border-right: 1px solid var(--line);
+  overflow: hidden;
   transition: width 0.18s ease, padding 0.18s ease;
 }
 
@@ -119,19 +123,37 @@ body.auth-pending main > .page {
 
 nav {
   display: grid;
-  gap: 8px;
+  flex: 1;
+  min-height: 0;
+  gap: 6px;
   margin-top: 22px;
+  overflow-y: auto;
+  padding-right: 4px;
+  overscroll-behavior: contain;
+}
+
+nav::-webkit-scrollbar {
+  width: 6px;
+}
+
+nav::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #d8dee8;
+}
+
+nav::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .navItem {
   width: 100%;
-  min-height: 46px;
+  min-height: 42px;
   border: 0;
   border-radius: 6px;
   background: transparent;
   color: #4b5563;
-  padding: 12px 14px;
-  font-size: var(--text-lg);
+  padding: 10px 12px;
+  font-size: var(--text-md);
   text-align: left;
   font-weight: 800;
   cursor: pointer;
@@ -145,22 +167,22 @@ nav {
 
 .subNav {
   display: grid;
-  gap: 5px;
-  margin: 2px 0 10px 16px;
+  gap: 4px;
+  margin: 0 0 8px 16px;
   padding-left: 10px;
   border-left: 1px solid var(--line);
 }
 
 .subNavItem {
   width: 100%;
-  min-height: 38px;
+  min-height: 34px;
   border: 0;
   border-radius: 6px;
   background: transparent;
   color: #667085;
-  padding: 8px 12px;
+  padding: 7px 10px;
   text-align: left;
-  font-size: var(--text-md);
+  font-size: var(--text-base);
   font-weight: 800;
   cursor: pointer;
 }
@@ -4441,6 +4463,10 @@ button:disabled {
     width: min(82vw, 296px);
     transform: translateX(-100%);
     transition: transform 0.2s ease;
+    overflow: hidden;
+  }
+
+  .sidebar nav {
     overflow-y: auto;
   }
 
@@ -4465,15 +4491,15 @@ button:disabled {
   body.sidebar-collapsed .navItem,
   body.sidebar-collapsed .subNavItem {
     display: block;
-    min-height: 42px;
-    padding: 10px 12px;
+    min-height: 40px;
+    padding: 9px 12px;
     font-size: inherit;
     text-align: left;
   }
 
   body.sidebar-collapsed .subNavItem {
-    padding: 7px 10px;
-    font-size: 13px;
+    padding: 6px 10px;
+    font-size: var(--text-base);
   }
 
   body.sidebar-collapsed .navItem::before,
@@ -4523,7 +4549,7 @@ button:disabled {
 
   .navItem,
   .subNavItem {
-    min-height: 42px;
+    min-height: 40px;
   }
 
   main {
