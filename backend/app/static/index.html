@@ -9,7 +9,7 @@
         window.location.replace("/login.html");
       }
     </script>
-    <link rel="stylesheet" href="/styles.css?v=20260707-layout-polish-2" />
+    <link rel="stylesheet" href="/styles.css?v=20260708-creation-workbench" />
   </head>
   <body class="auth-pending">
     <aside class="sidebar">
@@ -22,13 +22,13 @@
         </div>
       </div>
       <nav id="mainNav">
-        <button class="navItem active" data-page="overview" data-short="总">模块总览</button>
-        <button class="navItem" data-page="analysis" data-short="学">参考视频学习</button>
-        <button class="navItem" data-page="creation" data-short="创">脚本方向创作</button>
-        <button class="navItem" data-page="humans" data-short="材">素材库与数字人</button>
-        <button class="navItem" data-page="tasks" data-short="库">视频库</button>
+        <button class="navItem active" data-page="overview" data-short="台">创作工作台</button>
+        <button class="navItem" data-page="analysis" data-short="链">链接参考解析</button>
+        <button class="navItem" data-page="creation" data-short="创">新建视频</button>
+        <button class="navItem" data-page="humans" data-short="资">资产库</button>
+        <button class="navItem" data-page="tasks" data-short="任">视频任务</button>
         <button class="navItem" data-page="trending" data-short="采">主题采集</button>
-        <button class="navItem" data-page="publish" data-short="发">账号发布</button>
+        <button class="navItem" data-page="publish" data-short="发">发布中心</button>
         <button class="navItem" data-page="settings" data-settings-section="usage" data-short="设">系统设置</button>
         <div class="subNav" aria-label="系统设置二级菜单">
           <button class="subNavItem" data-page="settings" data-settings-section="usage" data-short="量">模型用量</button>
@@ -46,8 +46,8 @@
     <main>
       <header>
         <div>
-          <p id="pageEyebrow" class="eyebrow">Overview</p>
-          <h1 id="pageTitle">运营总览</h1>
+          <p id="pageEyebrow" class="eyebrow">Creation Workbench</p>
+          <h1 id="pageTitle">创作工作台</h1>
         </div>
         <div class="headerActions">
           <div id="accountMenuWrap" class="accountMenuWrap">
@@ -68,12 +68,55 @@
       </header>
 
       <section id="page-overview" class="page activePage">
+        <section class="panel workbenchPanel">
+          <div class="workbenchTopline">
+            <div>
+              <p class="eyebrow">Create Video</p>
+              <h2>新建视频生产流</h2>
+              <p>从选题、参考拆解、脚本分镜到数字人或素材混剪，统一在这里发起，再进入视频任务审核。</p>
+            </div>
+            <button type="button" data-workbench-action="direct-script">新建视频</button>
+          </div>
+          <div class="workflowRail" aria-label="AI 视频生产流程">
+            <span><strong>01</strong>选来源</span>
+            <span><strong>02</strong>脚本方案</span>
+            <span><strong>03</strong>分镜素材</span>
+            <span><strong>04</strong>生成成片</span>
+            <span><strong>05</strong>审核发布</span>
+          </div>
+          <div class="quickStartGrid" aria-label="常用创作入口">
+            <article class="quickStartCard primary">
+              <div><strong>链接参考生成</strong><span>粘贴抖音/视频号链接，拆解脚本、拍摄和剪辑方式。</span></div>
+              <button type="button" class="secondary" data-workbench-action="link-reference">解析链接</button>
+            </article>
+            <article class="quickStartCard">
+              <div><strong>主题采集生成</strong><span>按标题或主题采集爆款参考，筛选后保存到参考素材。</span></div>
+              <button type="button" class="secondary" data-workbench-action="topic-collect">采集主题</button>
+            </article>
+            <article class="quickStartCard">
+              <div><strong>直接写脚本</strong><span>输入方向后生成候选脚本，选择一版继续生成视频。</span></div>
+              <button type="button" class="secondary" data-workbench-action="direct-script">写脚本</button>
+            </article>
+            <article class="quickStartCard">
+              <div><strong>数字人口播</strong><span>选择黄丽等数字人和声音方案，生成 30 秒到 1 分钟口播视频。</span></div>
+              <button type="button" class="secondary" data-workbench-action="digital-human">选数字人</button>
+            </article>
+            <article class="quickStartCard">
+              <div><strong>素材库混剪</strong><span>用已有素材指定分镜画面，系统负责脚本、字幕和剪辑。</span></div>
+              <button type="button" class="secondary" data-workbench-action="material-mix">排素材</button>
+            </article>
+            <article class="quickStartCard">
+              <div><strong>查看生成进度</strong><span>视频任务里查看生成、预览、审核和发布状态。</span></div>
+              <button type="button" class="secondary" data-workbench-action="video-tasks">看任务</button>
+            </article>
+          </div>
+        </section>
         <section id="overview" class="metrics"></section>
         <section class="panel productModulePanel">
           <div class="sectionHeader compactSectionHeader">
             <div>
-              <h2>系统模块</h2>
-              <p>围绕两条主生产路径组织：参考视频学习生成，或输入方向自动创作，最终进入视频库和账号发布。</p>
+              <h2>能力地图</h2>
+              <p>平台能力仍按模块维护；日常使用建议从上方新建视频生产流进入。</p>
             </div>
             <span class="status">Modular</span>
           </div>
@@ -1027,6 +1070,6 @@
     </div>
 
     <div id="toast"></div>
-    <script src="/app.js?v=20260706-product-modules"></script>
+    <script src="/app.js?v=20260708-creation-workbench"></script>
   </body>
 </html>

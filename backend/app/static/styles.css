@@ -373,6 +373,113 @@ h2 {
   font-size: 13px;
 }
 
+.workbenchPanel {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding: 18px;
+}
+
+.workbenchTopline {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: start;
+}
+
+.workbenchTopline h2 {
+  margin-bottom: 8px;
+  font-size: 22px;
+}
+
+.workbenchTopline p:last-child {
+  max-width: 760px;
+  margin: 0;
+  color: #536170;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.workbenchTopline > button {
+  min-width: 132px;
+}
+
+.workflowRail {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.workflowRail span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  min-height: 58px;
+  align-content: center;
+  border: 1px solid #e5e8ef;
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: #f8fafc;
+  color: #253041;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.workflowRail strong {
+  color: #0f766e;
+  font-size: 12px;
+  letter-spacing: 0;
+}
+
+.quickStartGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.quickStartCard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  min-width: 0;
+  min-height: 112px;
+  border: 1px solid #e5e8ef;
+  border-radius: 6px;
+  padding: 14px;
+  background: #ffffff;
+}
+
+.quickStartCard.primary {
+  border-color: #b8d8d2;
+  background: #f3fbf9;
+}
+
+.quickStartCard strong,
+.quickStartCard span {
+  display: block;
+}
+
+.quickStartCard strong {
+  margin-bottom: 6px;
+  color: #111827;
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.quickStartCard span {
+  color: #5f6b7a;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.quickStartCard button {
+  min-width: 88px;
+  border-radius: 4px;
+  box-shadow: none;
+  white-space: nowrap;
+}
+
 .productModulePanel {
   margin-bottom: 18px;
   padding: 16px;
@@ -4187,8 +4294,13 @@ button:disabled {
 @media (max-width: 1100px) {
   .metrics,
   .grid,
-  .productModuleList {
+  .productModuleList,
+  .quickStartGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .workflowRail {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .split {
@@ -4348,8 +4460,20 @@ button:disabled {
 
   .metrics,
   .grid,
-  .productModuleList {
+  .productModuleList,
+  .quickStartGrid,
+  .workflowRail {
     grid-template-columns: 1fr;
+  }
+
+  .workbenchTopline,
+  .quickStartCard {
+    grid-template-columns: 1fr;
+  }
+
+  .workbenchTopline > button,
+  .quickStartCard button {
+    width: 100%;
   }
 
   header {

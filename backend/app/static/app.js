@@ -166,14 +166,14 @@ const linkResolverPresets = {
 };
 
 const pages = {
-  overview: { title: "模块总览", eyebrow: "Modular Console" },
+  overview: { title: "创作工作台", eyebrow: "Creation Workbench" },
   materials: { title: "素材库与数字人", eyebrow: "Assets" },
-  creation: { title: "脚本方向创作", eyebrow: "Script Direction" },
-  analysis: { title: "参考视频学习", eyebrow: "Reference Learning" },
-  humans: { title: "素材库与数字人", eyebrow: "Assets & Avatars" },
-  tasks: { title: "视频库", eyebrow: "Video Library" },
-  trending: { title: "主题自动采集", eyebrow: "Trending" },
-  publish: { title: "账号发布", eyebrow: "Publishing" },
+  creation: { title: "新建视频", eyebrow: "Create Video" },
+  analysis: { title: "链接参考解析", eyebrow: "Reference Learning" },
+  humans: { title: "资产库", eyebrow: "Assets & Avatars" },
+  tasks: { title: "视频任务", eyebrow: "Video Tasks" },
+  trending: { title: "主题采集", eyebrow: "Trending" },
+  publish: { title: "发布中心", eyebrow: "Publishing" },
   settings: { title: "系统设置", eyebrow: "Settings" },
 };
 
@@ -673,6 +673,45 @@ function switchPage(page, section = null, updateHash = true) {
       refresh().catch((err) => toast(err.message));
     }
   }
+}
+
+function focusWhenVisible(selector) {
+  window.setTimeout(() => document.querySelector(selector)?.focus(), 80);
+}
+
+function openWorkbenchAction(action) {
+  closeMobileNav();
+  if (action === "link-reference") {
+    switchPage("analysis");
+    setReferenceTab("import");
+    focusWhenVisible("#referenceLinkForm [name='source_url']");
+    return;
+  }
+  if (action === "topic-collect") {
+    switchPage("trending");
+    focusWhenVisible("#trendingSearchForm [name='keyword']");
+    return;
+  }
+  if (action === "digital-human") {
+    switchPage("creation");
+    const modeSelect = document.querySelector("#creationProductionModeSelect");
+    if (modeSelect) modeSelect.value = "talking_head_template";
+    document.querySelector("#creationHumanSelect")?.focus();
+    return;
+  }
+  if (action === "material-mix") {
+    switchPage("creation");
+    const modeSelect = document.querySelector("#creationProductionModeSelect");
+    if (modeSelect) modeSelect.value = "material_mix";
+    focusWhenVisible("#scriptForm [name='topic']");
+    return;
+  }
+  if (action === "video-tasks") {
+    switchPage("tasks");
+    return;
+  }
+  switchPage("creation");
+  focusWhenVisible("#scriptForm [name='topic']");
 }
 
 window.addEventListener("hashchange", () => {
@@ -3823,6 +3862,12 @@ document.querySelector("#productModuleList")?.addEventListener("click", (event) 
   const button = event.target.closest("button[data-module-page]");
   if (!button) return;
   switchPage(button.dataset.modulePage || "overview");
+});
+
+document.querySelector(".workbenchPanel")?.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-workbench-action]");
+  if (!button) return;
+  openWorkbenchAction(button.dataset.workbenchAction || "direct-script");
 });
 
 document.querySelector("#mobileNavToggle")?.addEventListener("click", () => {
