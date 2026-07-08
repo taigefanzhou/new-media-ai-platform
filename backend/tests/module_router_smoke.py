@@ -102,6 +102,7 @@ def main() -> None:
         "app/api/modules/video_library.py",
         "app/api/modules/system.py",
         "app/api/modules/digital_humans.py",
+        "app/api/modules/reference_learning.py",
     ):
         module_source = Path(module_path).read_text()
         assert "from app.api.routes import *" not in module_source

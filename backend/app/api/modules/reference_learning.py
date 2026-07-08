@@ -7,13 +7,32 @@ from fastapi.responses import FileResponse
 from sqlmodel import Session, select
 
 from app.api.access import _assign_owner, _ensure_record_access, _owned_statement, _require_write_user
-from app.api.routes import *  # noqa: F403
+from app.api.routes import (
+    approve_reference_video_analysis,
+    create_reference_material_from_link,
+    create_reference_video_analysis,
+    create_topic_from_transcription,
+    create_transcription_task,
+    generate_script_from_reference_video_analysis,
+    generate_script_from_transcription,
+    list_reference_video_analyses,
+    list_transcription_tasks,
+    reference_video_analysis_contact_sheet,
+    reference_video_analysis_dense_contact_sheet,
+    reject_reference_video_analysis,
+    resolve_download_reference_material,
+    run_reference_video_analysis,
+    run_transcription_task,
+    upload_material,
+)
+from app.api.system_storage import upload_material_to_remote
 from app.core.auth import current_user
 from app.core.db import get_session
 from app.models.entities import (
     DigitalHuman,
     Material,
     ReferenceVideoAnalysis,
+    Script,
     Topic,
     TranscriptionTask,
     User,
