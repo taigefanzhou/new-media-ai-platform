@@ -14,7 +14,27 @@ from uuid import uuid4
 import httpx
 from fastapi import BackgroundTasks, Depends, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
-from sqlmodel import Session, func, select
+from sqlmodel import Session, select
+from app.api.access import (
+    _assign_owner,
+    _ensure_record_access,
+    _is_admin,
+    _owned_count,
+    _owned_statement,
+    _require_write_user,
+)
+from app.api.publishing_support import (
+    _active_platform_credential,
+    _caption_from_script,
+    _clear_default_account,
+    _effective_video_output_path,
+    _ensure_publish_ready,
+    _hashtags_from_script,
+    _parse_optional_datetime,
+    _publish_title_from_script,
+    _resolve_publish_account,
+    _set_publish_status,
+)
 from app.core.config import get_settings
 from app.core.auth import current_user
 from app.core.db import engine, get_session
@@ -56,24 +76,18 @@ from app.schemas.requests import (
     DigitalHumanCreate,
     LinkResolverTestRequest,
     LoginRequest,
-    PlatformAccountCreate,
-    PlatformAccountUpdate,
     PlatformCredentialCreate,
     PlatformCredentialPublic,
     PlatformCredentialUpdate,
-    PublishPrepareRequest,
     ReferenceMaterialLinkCreate,
     ReferenceVideoAnalysisCreate,
     RemoteUploadSettingsUpdate,
-    PublishRecordUpdate,
     ScriptBatchGenerateRequest,
     ScriptGenerateRequest,
     ScriptUpdate,
     ScriptVideoTaskCreate,
     StorageSettingsUpdate,
     TopicCreate,
-    TrendingSearchCreate,
-    TrendingVideoCreate,
     VideoSegmentMaterialUpdate,
     TranscriptionTaskCreate,
     UserCreate,
@@ -104,7 +118,6 @@ from app.services.link_resolver import (
 )
 from app.services.model_router import choose_model_config, is_model_config_ready
 from app.services.pipeline import VideoPipeline
-from app.services.trending import TrendingCollector
 from app.services.usage import estimate_text_tokens, record_generated_model_usage, record_model_usage
 from app.services.video_analysis import ReferenceVideoAnalyzer
 from app.services.wechat_login import (
@@ -589,14 +602,6 @@ def _queue_video_task(session: Session, task: VideoTask, note: str | None = None
     return task
 
 
-def _effective_video_output_path(task: VideoTask) -> Optional[str]:
-    if task.captioned_output_path:
-        path = Path(task.captioned_output_path)
-        if path.exists() and path.is_file():
-            return task.captioned_output_path
-    return task.output_path
-
-
 def _bearer_token(authorization: Optional[str]) -> str:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing authorization token")
@@ -954,47 +959,6 @@ def disable_wechat_identity(
     session.commit()
     session.refresh(identity)
     return _wechat_identity_public(identity, session)
-
-def _is_admin(user: User) -> bool:
-    return user.role == UserRole.admin
-
-
-def _require_write_user(user: User) -> None:
-    if user.role == UserRole.reviewer:
-        raise HTTPException(status_code=403, detail="Reviewer accounts cannot create or modify business data")
-
-
-def _assign_owner(record: object, user: User) -> None:
-    if hasattr(record, "owner_user_id") and getattr(record, "owner_user_id", None) is None:
-        setattr(record, "owner_user_id", user.id)
-
-
-def _owned_statement(statement, model: object, user: User):
-    if _is_admin(user):
-        return statement
-    owner_field = getattr(model, "owner_user_id", None)
-    if owner_field is None:
-        return statement
-    return statement.where(owner_field == user.id)
-
-
-def _ensure_record_access(record: object | None, user: User, label: str, *, write: bool = False):
-    if record is None:
-        raise HTTPException(status_code=404, detail=f"{label} not found")
-    if write:
-        _require_write_user(user)
-    if _is_admin(user):
-        return record
-    owner_id = getattr(record, "owner_user_id", None)
-    if owner_id != user.id:
-        raise HTTPException(status_code=403, detail=f"No permission to access this {label}")
-    return record
-
-
-def _owned_count(session: Session, model: object, user: User) -> int:
-    statement = _owned_statement(select(func.count()).select_from(model), model, user)
-    return session.exec(statement).one()
-
 
 def _user_public(user: User) -> UserPublic:
     return UserPublic(
@@ -3587,400 +3551,6 @@ def prepare_publish_record_from_video_task(
     session.commit()
     session.refresh(record)
     return record
-
-
-def _publish_title_from_script(script: Optional[Script]) -> str:
-    if script is None:
-        return "待发布视频"
-    first_line = script.title_options.splitlines()[0] if script.title_options else ""
-    return first_line.replace("1.", "").strip() or script.hook[:40] or "待发布视频"
-
-
-def _hashtags_from_script(script: Optional[Script]) -> str:
-    return script.hashtags if script else ""
-
-
-def _caption_from_script(script: Optional[Script]) -> str:
-    if script is None:
-        return ""
-    return f"{script.hook}\n\n{script.hashtags}".strip()
-
-
-def _publish_validation_blockers(
-    session: Session,
-    task: VideoTask,
-    script: Optional[Script],
-    title: str | None,
-    account: Optional[PlatformAccount] = None,
-) -> list[str]:
-    blockers: list[str] = []
-    if task.status != TaskStatus.approved:
-        blockers.append("视频任务必须先审核通过")
-    output_path_value = _effective_video_output_path(task)
-    if not output_path_value:
-        blockers.append("视频任务还没有成片文件")
-    elif output_path_value.startswith("mock://"):
-        blockers.append("当前成片仍是占位结果，不能发布")
-    elif not output_path_value.startswith("http"):
-        output_path = Path(output_path_value)
-        if not output_path.exists() or not output_path.is_file():
-            blockers.append("本地成片文件不存在")
-    if not (title or "").strip():
-        blockers.append("发布标题不能为空")
-    if account is not None and account.status != "active":
-        blockers.append("发布账号不是启用状态")
-
-    if script is not None:
-        notes = (script.compliance_notes or "").lower()
-        blocked_markers = ("不可发布", "禁止发布", "侵权", "未授权", "blocked", "do not publish")
-        if any(marker in notes for marker in blocked_markers):
-            blockers.append("脚本合规备注包含不可发布风险")
-
-    if task.digital_human_id:
-        human = session.get(DigitalHuman, task.digital_human_id)
-        for material_id, label in (
-            (human.portrait_material_id if human else None, "数字人头像"),
-            (human.source_video_material_id if human else None, "数字人口播源视频"),
-        ):
-            if material_id is None:
-                continue
-            material = session.get(Material, material_id)
-            if material is None:
-                blockers.append(f"{label}素材不存在")
-            elif material.copyright_status in {CopyrightStatus.blocked, CopyrightStatus.reference_only}:
-                blockers.append(f"{label}素材未获得发布授权")
-    return blockers
-
-
-def _ensure_publish_ready(
-    session: Session,
-    task: VideoTask,
-    script: Optional[Script],
-    title: str | None,
-    account: Optional[PlatformAccount] = None,
-) -> None:
-    blockers = _publish_validation_blockers(session, task, script, title, account)
-    if blockers:
-        raise HTTPException(status_code=400, detail="发布前校验未通过：" + "；".join(blockers))
-
-
-def _parse_optional_datetime(value: Optional[str]):
-    if not value:
-        return None
-    return datetime.fromisoformat(value)
-
-
-def _resolve_publish_account(
-    session: Session,
-    account_id: Optional[int],
-    platform: Optional[str],
-    user: User | None = None,
-) -> Optional[PlatformAccount]:
-    if account_id is not None:
-        account = session.get(PlatformAccount, account_id)
-        if user is not None:
-            _ensure_record_access(account, user, "Platform account")
-        elif account is None:
-            raise HTTPException(status_code=404, detail="Platform account not found")
-        return account
-    if platform is None:
-        return None
-    statement = select(PlatformAccount).where(
-            PlatformAccount.platform == platform,
-            PlatformAccount.is_default == True,
-    )
-    if user is not None:
-        statement = _owned_statement(statement, PlatformAccount, user)
-    return session.exec(statement).first()
-
-
-def _clear_default_account(session: Session, platform: str, user: User | None = None) -> None:
-    statement = select(PlatformAccount).where(PlatformAccount.platform == platform)
-    if user is not None:
-        statement = _owned_statement(statement, PlatformAccount, user)
-    accounts = session.exec(statement).all()
-    for account in accounts:
-        account.is_default = False
-        session.add(account)
-
-
-def create_trending_search(
-    payload: TrendingSearchCreate,
-    session: Session = Depends(get_session),
-    user: User = Depends(current_user),
-) -> TrendingSearch:
-    _require_write_user(user)
-    search = TrendingSearch.model_validate(payload)
-    _assign_owner(search, user)
-    session.add(search)
-    session.commit()
-    session.refresh(search)
-    return search
-
-
-async def run_trending_search(
-    search_id: int,
-    session: Session = Depends(get_session),
-    user: User = Depends(current_user),
-) -> TrendingSearch:
-    search = session.get(TrendingSearch, search_id)
-    _ensure_record_access(search, user, "Trending search", write=True)
-    search.status = TaskStatus.running
-    session.add(search)
-    session.commit()
-
-    credential = _active_platform_credential(session, search.platform, "trending")
-    try:
-        videos = await TrendingCollector(credential).collect(search)
-    except Exception as exc:
-        search.status = TaskStatus.failed
-        search.notes = f"采集失败：{str(exc)[:400]}"
-        session.add(search)
-        session.commit()
-        session.refresh(search)
-        return search
-    existing_videos = session.exec(select(TrendingVideo).where(TrendingVideo.search_id == search.id)).all()
-    for existing_video in existing_videos:
-        session.delete(existing_video)
-    for video in videos:
-        _assign_owner(video, user)
-        session.add(video)
-    search.status = TaskStatus.needs_review
-    search.result_count = len(videos)
-    session.add(search)
-    session.commit()
-    session.refresh(search)
-    return search
-
-
-def list_trending_searches(
-    session: Session = Depends(get_session),
-    user: User = Depends(current_user),
-) -> list[TrendingSearch]:
-    statement = _owned_statement(select(TrendingSearch).order_by(TrendingSearch.created_at.desc()), TrendingSearch, user)
-    return list(session.exec(statement).all())
-
-
-def list_trending_videos(
-    session: Session = Depends(get_session),
-    user: User = Depends(current_user),
-) -> list[TrendingVideo]:
-    statement = _owned_statement(select(TrendingVideo).order_by(TrendingVideo.created_at.desc()), TrendingVideo, user)
-    return list(session.exec(statement).all())
-
-
-def create_trending_video(
-    payload: TrendingVideoCreate,
-    session: Session = Depends(get_session),
-    user: User = Depends(current_user),
-) -> TrendingVideo:
-    _require_write_user(user)
-    video = TrendingVideo.model_validate(payload)
-    _assign_owner(video, user)
-    session.add(video)
-    session.commit()
-    session.refresh(video)
-    return video
-
-
-def prepare_publish_record(
-    payload: PublishPrepareRequest,
-    session: Session = Depends(get_session),
-    user: User = Depends(current_user),
-) -> PublishRecord:
-    task = session.get(VideoTask, payload.video_task_id)
-    _ensure_record_access(task, user, "Video task")
-    script = session.get(Script, task.script_id)
-    account = _resolve_publish_account(session, payload.platform_account_id, payload.platform, user=user)
-    _ensure_publish_ready(session, task, script, payload.title, account)
-    record = PublishRecord(
-        video_task_id=payload.video_task_id,
-        platform=account.platform if account else payload.platform,
-        platform_account_id=account.id if account else payload.platform_account_id,
-        account_name=account.account_name if account else payload.account_name,
-        title=payload.title,
-        hashtags=payload.hashtags,
-        caption=payload.caption,
-        scheduled_at=_parse_optional_datetime(payload.scheduled_at),
-        publish_status="prepared",
-    )
-    _assign_owner(record, user)
-    session.add(record)
-    session.commit()
-    session.refresh(record)
-    return record
-
-
-def list_publish_records(
-    session: Session = Depends(get_session),
-    user: User = Depends(current_user),
-) -> list[PublishRecord]:
-    statement = _owned_statement(select(PublishRecord).order_by(PublishRecord.created_at.desc()), PublishRecord, user)
-    return list(session.exec(statement).all())
-
-
-def update_publish_record(
-    record_id: int,
-    payload: PublishRecordUpdate,
-    session: Session = Depends(get_session),
-    user: User = Depends(current_user),
-) -> PublishRecord:
-    record = session.get(PublishRecord, record_id)
-    _ensure_record_access(record, user, "Publish record", write=True)
-    update_data = payload.model_dump(exclude_unset=True)
-    if "platform_account_id" in update_data:
-        account_id = update_data.pop("platform_account_id")
-        if account_id is None:
-            record.platform_account_id = None
-            if "account_name" not in update_data:
-                record.account_name = None
-        else:
-            account = _resolve_publish_account(session, account_id, update_data.get("platform"), user=user)
-            if account is not None:
-                record.platform = account.platform
-                record.platform_account_id = account.id
-                record.account_name = account.account_name
-    for key in ("scheduled_at", "published_at"):
-        if key in update_data:
-            update_data[key] = _parse_optional_datetime(update_data[key])
-    for key, value in update_data.items():
-        setattr(record, key, value)
-    session.add(record)
-    session.commit()
-    session.refresh(record)
-    return record
-
-
-def mark_publish_record_published(
-    record_id: int,
-    session: Session = Depends(get_session),
-    user: User = Depends(current_user),
-) -> PublishRecord:
-    record = session.get(PublishRecord, record_id)
-    _ensure_record_access(record, user, "Publish record")
-    task = session.get(VideoTask, record.video_task_id)
-    _ensure_record_access(task, user, "Video task")
-    script = session.get(Script, task.script_id)
-    account = session.get(PlatformAccount, record.platform_account_id) if record.platform_account_id else None
-    _ensure_publish_ready(session, task, script, record.title, account)
-    return _set_publish_status(session, record_id, "published", datetime.utcnow(), user=user)
-
-
-def mark_publish_record_failed(
-    record_id: int,
-    session: Session = Depends(get_session),
-    user: User = Depends(current_user),
-) -> PublishRecord:
-    return _set_publish_status(session, record_id, "failed", user=user)
-
-
-def cancel_publish_record(
-    record_id: int,
-    session: Session = Depends(get_session),
-    user: User = Depends(current_user),
-) -> PublishRecord:
-    return _set_publish_status(session, record_id, "canceled", user=user)
-
-
-def _set_publish_status(
-    session: Session,
-    record_id: int,
-    status: str,
-    published_at: Optional[datetime] = None,
-    user: User | None = None,
-) -> PublishRecord:
-    record = session.get(PublishRecord, record_id)
-    if user is not None:
-        _ensure_record_access(record, user, "Publish record", write=True)
-    elif record is None:
-        raise HTTPException(status_code=404, detail="Publish record not found")
-    record.publish_status = status
-    if published_at is not None:
-        record.published_at = published_at
-    session.add(record)
-    session.commit()
-    session.refresh(record)
-    return record
-
-
-def _active_platform_credential(
-    session: Session,
-    platform: str,
-    purpose: str,
-) -> Optional[PlatformCredential]:
-    return session.exec(
-        select(PlatformCredential).where(
-            PlatformCredential.platform == platform,
-            PlatformCredential.purpose == purpose,
-            PlatformCredential.is_active == True,
-        )
-    ).first()
-
-
-def create_platform_account(
-    payload: PlatformAccountCreate,
-    session: Session = Depends(get_session),
-    user: User = Depends(current_user),
-) -> PlatformAccount:
-    _require_write_user(user)
-    if payload.is_default:
-        _clear_default_account(session, payload.platform, user=user)
-    account = PlatformAccount.model_validate(payload)
-    _assign_owner(account, user)
-    session.add(account)
-    session.commit()
-    session.refresh(account)
-    return account
-
-
-def list_platform_accounts(
-    session: Session = Depends(get_session),
-    user: User = Depends(current_user),
-) -> list[PlatformAccount]:
-    statement = _owned_statement(
-        select(PlatformAccount).order_by(
-            PlatformAccount.is_default.desc(),
-            PlatformAccount.created_at.desc(),
-        ),
-        PlatformAccount,
-        user,
-    )
-    return list(session.exec(statement).all())
-
-
-def update_platform_account(
-    account_id: int,
-    payload: PlatformAccountUpdate,
-    session: Session = Depends(get_session),
-    user: User = Depends(current_user),
-) -> PlatformAccount:
-    account = session.get(PlatformAccount, account_id)
-    _ensure_record_access(account, user, "Platform account", write=True)
-    update_data = payload.model_dump(exclude_unset=True)
-    next_platform = update_data.get("platform", account.platform)
-    if update_data.get("is_default") is True:
-        _clear_default_account(session, next_platform, user=user)
-    for key, value in update_data.items():
-        setattr(account, key, value)
-    session.add(account)
-    session.commit()
-    session.refresh(account)
-    return account
-
-
-def set_default_platform_account(
-    account_id: int,
-    session: Session = Depends(get_session),
-    user: User = Depends(current_user),
-) -> PlatformAccount:
-    account = session.get(PlatformAccount, account_id)
-    _ensure_record_access(account, user, "Platform account", write=True)
-    _clear_default_account(session, account.platform, user=user)
-    account.is_default = True
-    session.add(account)
-    session.commit()
-    session.refresh(account)
-    return account
 
 
 def _delete_local_file(path_value: Optional[str]) -> None:
