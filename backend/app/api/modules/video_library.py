@@ -2,7 +2,21 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api.routes import *  # noqa: F403
+from app.api.routes import (
+    approve_video_task,
+    batch_create_video_tasks,
+    batch_run_video_tasks,
+    create_video_task,
+    delete_video_task,
+    delete_video_task_output,
+    list_video_task_segments,
+    list_video_tasks,
+    prepare_publish_record_from_video_task,
+    preview_video_task_output,
+    run_video_task,
+    update_video_segment_material,
+)
+from app.models.entities import PublishRecord, VideoSegment, VideoTask
 
 
 router = APIRouter(tags=["视频库与生成任务"])
