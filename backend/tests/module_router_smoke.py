@@ -57,6 +57,16 @@ def main() -> None:
         "def logout(",
         "def change_password(",
         "def require_admin(",
+        "def wechat_login_public_config(",
+        "def start_wechat_login(",
+        "async def wechat_login_callback(",
+        "def get_wechat_login_config(",
+        "def save_wechat_login_config(",
+        "def list_wechat_login_requests(",
+        "def approve_wechat_login_request(",
+        "def reject_wechat_login_request(",
+        "def list_wechat_identities(",
+        "def disable_wechat_identity(",
     ):
         assert helper_name not in routes_source
     for module_path in ("app/api/modules/script_creation.py", "app/api/modules/video_library.py", "app/api/modules/system.py"):
