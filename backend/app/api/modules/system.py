@@ -4,24 +4,26 @@ from fastapi import APIRouter
 
 from app.api.module_registry import api_module_manifest
 from app.api.routes import (
+    dashboard,
+    integrations_status,
+    remote_upload_settings,
+    test_link_resolver,
+    update_remote_upload_settings,
+    update_video_storage,
+    video_storage_summary,
+)
+from app.api.system_models import (
     activate_model_config,
     activate_platform_credential,
     create_model_config,
     create_platform_credential,
-    dashboard,
-    integrations_status,
     list_model_configs,
     list_platform_credentials,
     model_diagnostics,
     model_usage_summary,
-    remote_upload_settings,
-    test_link_resolver,
     test_model_config,
     update_model_config,
     update_platform_credential,
-    update_remote_upload_settings,
-    update_video_storage,
-    video_storage_summary,
 )
 from app.api.system_auth import change_password, health, login, logout, me
 from app.api.system_users import create_user, list_users, reset_user_password, update_user

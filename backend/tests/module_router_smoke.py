@@ -71,6 +71,17 @@ def main() -> None:
         "def create_user(",
         "def update_user(",
         "def reset_user_password(",
+        "def list_model_configs(",
+        "def model_diagnostics(",
+        "def model_usage_summary(",
+        "def create_model_config(",
+        "def update_model_config(",
+        "def activate_model_config(",
+        "async def test_model_config(",
+        "def list_platform_credentials(",
+        "def create_platform_credential(",
+        "def update_platform_credential(",
+        "def activate_platform_credential(",
     ):
         assert helper_name not in routes_source
     for module_path in ("app/api/modules/script_creation.py", "app/api/modules/video_library.py", "app/api/modules/system.py"):
