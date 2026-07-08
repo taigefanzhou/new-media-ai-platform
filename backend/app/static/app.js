@@ -99,7 +99,7 @@ const settingsSections = {
   storage: { title: "视频存储位置", eyebrow: "Settings / Video Storage" },
   collectors: { title: "短视频采集接入", eyebrow: "Settings / Collectors" },
   accounts: { title: "账号管理", eyebrow: "Settings / Accounts" },
-  wechat: { title: "微信登录", eyebrow: "Settings / WeChat Login" },
+  wechat: { title: "微信登录审批", eyebrow: "Settings / WeChat Approval" },
 };
 
 const linkResolverPresets = {
