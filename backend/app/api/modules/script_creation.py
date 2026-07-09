@@ -3,16 +3,15 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from app.api.routes import (
-    approve_script_and_run_video_task,
     batch_generate_scripts,
     create_topic,
-    create_video_task_from_script,
     generate_script,
     generate_script_voice_preview,
     list_scripts,
     list_topics,
     update_script,
 )
+from app.api.video_library import approve_script_and_run_video_task, create_video_task_from_script
 from app.models.entities import Script, Topic, VideoTask
 
 
