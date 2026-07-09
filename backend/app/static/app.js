@@ -508,8 +508,8 @@ function pagedItems(key, items, pageSize = listPageSize) {
   };
 }
 
-function pagerHtml(key, pageInfo) {
-  if (!pageInfo || pageInfo.total <= listPageSize) return "";
+function pagerHtml(key, pageInfo, options = {}) {
+  if (!pageInfo || (!options.always && pageInfo.total <= listPageSize)) return "";
   return `
     <div class="tablePager">
       <span>第 ${pageInfo.page} / ${pageInfo.totalPages} 页，共 ${pageInfo.total} 条</span>
@@ -1907,68 +1907,71 @@ function renderTaskCompact(tasks) {
 function renderTaskTable(tasks) {
   const target = document.querySelector("#taskListTasks");
   if (!target) return;
+  target.classList.add("taskTableWrapWithPager");
   if (!tasks.length) {
     target.innerHTML = `<div class="item">还没有视频任务</div>`;
     return;
   }
   const pageInfo = pagedItems("taskTable", tasks);
   target.innerHTML = `
-    <table class="taskTable compactTable">
-      <thead>
-        <tr>
-          <th>选择</th>
-          <th>任务</th>
-          <th>脚本</th>
-          <th>数字人</th>
-          <th>方式</th>
-          <th>规格</th>
-          <th>字幕</th>
-          <th>进度</th>
-          <th>操作</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${pageInfo.items
-          .map((task) => {
-            const progress = taskProgress(task);
-            const videoSrc = taskVideoSrc(task);
-            const actions = taskActionState(task);
-            return `
-              <tr>
-                <td><input type="checkbox" class="taskSelectCheckbox" value="${task.id}" ${actions.canSelectForRun ? "" : "disabled"} /></td>
-                <td>
-                  <strong>#${task.id}</strong>
-                  <span class="status taskStatus ${taskStatusClass(task.status)}">${taskStatusLabel(task.status)}</span>
-                </td>
-                <td>${escapeHtml(scriptName(task.script_id)).slice(0, 72)}</td>
-                <td>${escapeHtml(humanName(task.digital_human_id))}</td>
-                <td>${productionModeLabel(task.production_mode)}</td>
-                <td>
-                  <strong class="taskExportPill">${escapeHtml(taskTargetPlatformLabel(task))}</strong>
-                  <div class="recordMeta">${escapeHtml(exportProfileMeta(task))}</div>
-                </td>
-                <td>
-                  <strong>${escapeHtml(subtitleStyleLabel(task.subtitle_style))}</strong>
-                  <div class="recordMeta">${escapeHtml(subtitleStatusLabel(task.subtitle_status))}</div>
-                </td>
-                <td>
-                  <div class="progressBar"><span style="width:${progress}%"></span></div>
-                  <div class="recordMeta">${progress}% · ${taskStatusLabel(task.status)}</div>
-                  <div class="recordMeta">${taskSegmentMeta(task)}</div>
-                  ${task.error_message ? `<div class="errorText">${escapeHtml(task.error_message)}</div>` : ""}
-                </td>
-                <td>
-                  <div class="tableActions">
-                    ${taskActionButtons(task)}
-                  </div>
-                </td>
-              </tr>
-            `;
-          })
-          .join("")}
-      </tbody>
-    </table>
-    ${pagerHtml("taskTable", pageInfo)}
+    <div class="taskTableScroll">
+      <table class="taskTable compactTable">
+        <thead>
+          <tr>
+            <th>选择</th>
+            <th>任务</th>
+            <th>脚本</th>
+            <th>数字人</th>
+            <th>方式</th>
+            <th>规格</th>
+            <th>字幕</th>
+            <th>进度</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${pageInfo.items
+            .map((task) => {
+              const progress = taskProgress(task);
+              const videoSrc = taskVideoSrc(task);
+              const actions = taskActionState(task);
+              return `
+                <tr>
+                  <td><input type="checkbox" class="taskSelectCheckbox" value="${task.id}" ${actions.canSelectForRun ? "" : "disabled"} /></td>
+                  <td>
+                    <strong>#${task.id}</strong>
+                    <span class="status taskStatus ${taskStatusClass(task.status)}">${taskStatusLabel(task.status)}</span>
+                  </td>
+                  <td>${escapeHtml(scriptName(task.script_id)).slice(0, 72)}</td>
+                  <td>${escapeHtml(humanName(task.digital_human_id))}</td>
+                  <td>${productionModeLabel(task.production_mode)}</td>
+                  <td>
+                    <strong class="taskExportPill">${escapeHtml(taskTargetPlatformLabel(task))}</strong>
+                    <div class="recordMeta">${escapeHtml(exportProfileMeta(task))}</div>
+                  </td>
+                  <td>
+                    <strong>${escapeHtml(subtitleStyleLabel(task.subtitle_style))}</strong>
+                    <div class="recordMeta">${escapeHtml(subtitleStatusLabel(task.subtitle_status))}</div>
+                  </td>
+                  <td>
+                    <div class="progressBar"><span style="width:${progress}%"></span></div>
+                    <div class="recordMeta">${progress}% · ${taskStatusLabel(task.status)}</div>
+                    <div class="recordMeta">${taskSegmentMeta(task)}</div>
+                    ${task.error_message ? `<div class="errorText">${escapeHtml(task.error_message)}</div>` : ""}
+                  </td>
+                  <td>
+                    <div class="tableActions">
+                      ${taskActionButtons(task)}
+                    </div>
+                  </td>
+                </tr>
+              `;
+            })
+            .join("")}
+        </tbody>
+      </table>
+    </div>
+    ${pagerHtml("taskTable", pageInfo, { always: true })}
   `;
 }
 
