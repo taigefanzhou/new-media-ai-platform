@@ -661,7 +661,9 @@ function switchPage(page, section = null, updateHash = true) {
     switchSettingsSection(section || state.currentSettingsSection, updateHash);
     return;
   }
-  document.querySelectorAll(".subNavItem").forEach((item) => item.classList.remove("active"));
+  document.querySelectorAll(".subNavItem").forEach((item) => {
+    item.classList.toggle("active", item.dataset.page === page && !item.dataset.settingsSection);
+  });
   document.querySelector("#pageTitle").textContent = pages[page].title;
   document.querySelector("#pageEyebrow").textContent = pages[page].eyebrow;
   if (updateHash) {
