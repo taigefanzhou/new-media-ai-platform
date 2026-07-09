@@ -55,6 +55,7 @@ from app.schemas.requests import (
     VideoTaskCreate,
     VideoTaskPublishPrepareRequest,
 )
+from app.services.file_cleanup import delete_local_file
 from app.services.model_router import is_model_config_ready
 from app.services.pipeline import VideoPipeline
 
@@ -456,13 +457,13 @@ def delete_video_task_output(
         raise HTTPException(status_code=409, detail="Cannot delete output while video is generating")
     if not _effective_video_output_path(task):
         raise HTTPException(status_code=400, detail="Video task has no generated output")
-    _delete_local_file(task.output_path)
-    _delete_local_file(task.captioned_output_path)
-    _delete_local_file(task.subtitle_srt_path)
-    _delete_local_file(task.subtitle_ass_path)
+    delete_local_file(task.output_path)
+    delete_local_file(task.captioned_output_path)
+    delete_local_file(task.subtitle_srt_path)
+    delete_local_file(task.subtitle_ass_path)
     segments = session.exec(select(VideoSegment).where(VideoSegment.video_task_id == task_id)).all()
     for segment in segments:
-        _delete_local_file(segment.output_path)
+        delete_local_file(segment.output_path)
         segment.output_path = None
         segment.status = TaskStatus.queued
         segment.error_message = None
@@ -495,12 +496,12 @@ def delete_video_task(
         session.delete(record)
     segments = session.exec(select(VideoSegment).where(VideoSegment.video_task_id == task_id)).all()
     for segment in segments:
-        _delete_local_file(segment.output_path)
+        delete_local_file(segment.output_path)
         session.delete(segment)
-    _delete_local_file(task.output_path)
-    _delete_local_file(task.captioned_output_path)
-    _delete_local_file(task.subtitle_srt_path)
-    _delete_local_file(task.subtitle_ass_path)
+    delete_local_file(task.output_path)
+    delete_local_file(task.captioned_output_path)
+    delete_local_file(task.subtitle_srt_path)
+    delete_local_file(task.subtitle_ass_path)
     session.delete(task)
     session.commit()
     return {"deleted": True, "id": task_id}
@@ -538,17 +539,3 @@ def prepare_publish_record_from_video_task(
     session.commit()
     session.refresh(record)
     return record
-
-
-def _delete_local_file(path_value: Optional[str]) -> None:
-    if not path_value or path_value.startswith("mock://") or path_value.startswith("http"):
-        return
-    path = Path(path_value)
-    if path.exists() and path.is_file():
-        path.unlink()
-    parent = path.parent
-    try:
-        if parent.exists() and not any(parent.iterdir()):
-            parent.rmdir()
-    except OSError:
-        return

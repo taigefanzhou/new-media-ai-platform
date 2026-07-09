@@ -193,6 +193,33 @@ nav::-webkit-scrollbar-track {
   color: var(--accent);
 }
 
+.navMore {
+  display: grid;
+  gap: 4px;
+  margin: 2px 0 8px;
+}
+
+.navMore summary {
+  min-height: 38px;
+  border-radius: 6px;
+  padding: 9px 12px;
+  color: #667085;
+  font-size: var(--text-base);
+  font-weight: 900;
+  cursor: pointer;
+  list-style-position: inside;
+}
+
+.navMore summary:hover {
+  background: #f4f7fb;
+  color: var(--accent);
+}
+
+.navMore .subNavItem {
+  margin-left: 16px;
+  width: calc(100% - 16px);
+}
+
 body.sidebar-collapsed .sidebar {
   width: var(--sidebar-collapsed-width);
   padding: 18px 10px;
@@ -414,9 +441,9 @@ h2 {
 
 .workbenchPanel {
   display: grid;
-  gap: 16px;
+  gap: 18px;
   margin-bottom: 18px;
-  padding: 18px;
+  padding: 22px;
 }
 
 .workbenchTopline {
@@ -428,7 +455,7 @@ h2 {
 
 .workbenchTopline h2 {
   margin-bottom: 8px;
-  font-size: 20px;
+  font-size: 24px;
 }
 
 .workbenchTopline p:last-child {
@@ -445,7 +472,7 @@ h2 {
 
 .workflowRail {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -472,7 +499,7 @@ h2 {
 
 .quickStartGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -522,6 +549,45 @@ h2 {
 .productModulePanel {
   margin-bottom: 18px;
   padding: 16px;
+}
+
+.compactOverviewMetrics {
+  margin-top: 18px;
+}
+
+.advancedOverview {
+  display: block;
+  margin-top: 18px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.advancedOverview > summary {
+  padding: 16px 18px;
+  color: #175cd3;
+  font-size: var(--text-lg);
+  font-weight: 900;
+  cursor: pointer;
+  list-style-position: inside;
+}
+
+.advancedOverview > summary:hover {
+  background: #f8fafc;
+}
+
+.advancedOverviewBody {
+  display: grid;
+  gap: 18px;
+  padding: 0 18px 18px;
+}
+
+.advancedOverview .productModulePanel,
+.advancedOverview .integrationPanel {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
 }
 
 .productModuleList {
@@ -790,6 +856,75 @@ h2 {
   color: #1664ff;
   font-size: 12px;
   font-weight: 800;
+}
+
+.videoPlanWorkbench {
+  display: grid;
+  gap: 12px;
+  border: 1px solid #dce4ee;
+  border-radius: 8px;
+  padding: 14px;
+  background: #fbfdff;
+}
+
+.compactPlanWorkbench {
+  margin-top: 14px;
+}
+
+.skillFlowGrid,
+.generationDecisionGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.skillFlowCard,
+.generationDecisionGrid > div {
+  min-width: 0;
+  border: 1px solid #e4eaf2;
+  border-radius: 6px;
+  padding: 10px;
+  background: #ffffff;
+}
+
+.skillFlowCard {
+  display: grid;
+  gap: 5px;
+}
+
+.skillFlowCard span {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: #e8f1ff;
+  color: #175cd3;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.skillFlowCard strong,
+.generationDecisionGrid strong {
+  color: #111827;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.skillFlowCard em,
+.generationDecisionGrid span {
+  color: #175cd3;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.skillFlowCard p,
+.generationDecisionGrid p {
+  margin: 0;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .scriptDetailPanel {
@@ -2473,7 +2608,7 @@ button:disabled {
 }
 
 .storyboardPlanTable {
-  min-width: 780px;
+  min-width: 1040px;
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
@@ -2506,16 +2641,53 @@ button:disabled {
 }
 
 .storyboardPlanTable th:nth-child(2),
-.storyboardPlanTable td:nth-child(2),
-.storyboardPlanTable th:nth-child(5),
-.storyboardPlanTable td:nth-child(5) {
+.storyboardPlanTable td:nth-child(2) {
   width: 104px;
 }
 
+.storyboardPlanTable th:nth-child(4),
+.storyboardPlanTable td:nth-child(4),
+.storyboardPlanTable th:nth-child(6),
+.storyboardPlanTable td:nth-child(6) {
+  width: 150px;
+}
+
 .storyboardPlanTable td:nth-child(1),
-.storyboardPlanTable td:nth-child(2),
-.storyboardPlanTable td:nth-child(5) {
+.storyboardPlanTable td:nth-child(2) {
   white-space: nowrap;
+}
+
+.storyboardPlanTable strong {
+  display: block;
+  color: #111827;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.storyboardPlanTable p,
+.storyboardPlanTable em {
+  display: block;
+  margin: 4px 0 0;
+  color: #667085;
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1.45;
+}
+
+.storyboardPlanTable details summary {
+  cursor: pointer;
+  color: #175cd3;
+  font-weight: 900;
+}
+
+.storyboardPlanTable pre {
+  max-height: 140px;
+  margin: 8px 0 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: #344054;
+  font-size: 11px;
+  line-height: 1.45;
 }
 
 .scriptAdvancedEdit {
@@ -5014,6 +5186,15 @@ button:disabled {
 
   .storagePathRow {
     grid-template-columns: 1fr;
+  }
+
+  .skillFlowGrid,
+  .generationDecisionGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .videoPlanWorkbench {
+    padding: 10px;
   }
 
   .humanSubmitButton {

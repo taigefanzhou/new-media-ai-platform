@@ -50,6 +50,7 @@ from app.services.link_resolver import (
     ShortVideoLinkResolver,
     detect_short_video_platform,
 )
+from app.services.file_cleanup import delete_local_file
 from app.services.usage import estimate_text_tokens, record_generated_model_usage, record_model_usage
 from app.services.video_analysis import ReferenceVideoAnalyzer
 
@@ -66,20 +67,6 @@ REFERENCE_MEDIA_EXTENSIONS = {
     ".aac",
     ".wav",
 }
-
-
-def _delete_local_file(path_value: str | None) -> None:
-    if not path_value or path_value.startswith("mock://") or path_value.startswith("http"):
-        return
-    path = Path(path_value)
-    if path.exists() and path.is_file():
-        path.unlink()
-    parent = path.parent
-    try:
-        if parent.exists() and not any(parent.iterdir()):
-            parent.rmdir()
-    except OSError:
-        return
 
 
 def _url_preview(value: str | None, max_length: int = 110) -> str:
@@ -234,11 +221,11 @@ async def _download_reference_media(source_url: str, storage_dir: Path) -> Path 
                     total += len(chunk)
                     if total > max_bytes:
                         output.close()
-                        _delete_local_file(str(file_path))
+                        delete_local_file(str(file_path))
                         raise HTTPException(status_code=400, detail="参考视频文件超过 800MB，请先下载后上传。")
                     output.write(chunk)
             if total == 0:
-                _delete_local_file(str(file_path))
+                delete_local_file(str(file_path))
                 return None
             return file_path
 
@@ -382,11 +369,11 @@ def delete_material(
         session.delete(task)
     analyses = session.exec(select(ReferenceVideoAnalysis).where(ReferenceVideoAnalysis.material_id == material_id)).all()
     for analysis in analyses:
-        _delete_local_file(analysis.contact_sheet_path)
-        _delete_local_file(analysis.dense_contact_sheet_path)
+        delete_local_file(analysis.contact_sheet_path)
+        delete_local_file(analysis.dense_contact_sheet_path)
         session.delete(analysis)
 
-    _delete_local_file(material.file_path)
+    delete_local_file(material.file_path)
     session.delete(material)
     session.commit()
     return {"deleted": True, "id": material_id}
