@@ -47,6 +47,7 @@ def main() -> None:
     routes_source = Path("app/api/routes.py").read_text()
     assert "@router." not in routes_source
     assert "router = APIRouter" not in routes_source
+    assert "def " not in routes_source
     for helper_name in (
         "PRODUCTION_MODES =",
         "def _estimated_video_segment_count",
@@ -144,6 +145,7 @@ def main() -> None:
     ):
         module_source = Path(module_path).read_text()
         assert "from app.api.routes import *" not in module_source
+        assert "from app.api.routes import" not in module_source
 
     assert len(API_MODULES) >= 5
     assert len(module_routers) == len(API_MODULES)

@@ -628,7 +628,27 @@ h2 {
 
 .creationFlow {
   display: grid;
+  grid-template-columns: minmax(320px, 0.42fr) minmax(0, 1fr);
   gap: 14px;
+  align-items: start;
+}
+
+.creationBrief {
+  grid-column: 1 / -1;
+}
+
+.creationResultPanel {
+  grid-column: 1 / -1;
+}
+
+.creationFlow:has(.scriptDetailPanel:not(.hiddenPanel)) .creationResultPanel {
+  grid-column: 1;
+  position: sticky;
+  top: 18px;
+}
+
+.creationFlow:has(.scriptDetailPanel:not(.hiddenPanel)) .scriptDetailPanel {
+  grid-column: 2;
 }
 
 .creationBrief textarea[name="topic"] {
@@ -643,7 +663,7 @@ h2 {
 
 .creationParamBar {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  grid-template-columns: minmax(150px, 0.8fr) minmax(150px, 0.8fr) minmax(280px, 1.15fr) minmax(220px, 1fr) minmax(220px, 0.9fr) minmax(160px, 0.7fr);
   gap: 10px;
   align-items: start;
   margin-top: 12px;
@@ -659,6 +679,53 @@ h2 {
   min-height: 44px;
   align-self: end;
   justify-self: stretch;
+}
+
+.candidateCountField {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 0;
+}
+
+.candidateCountField > span {
+  color: #344054;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.candidateCountField em {
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.candidateCountControl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px;
+  background: #f8fafc;
+}
+
+.candidateCountOption {
+  min-height: 32px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #475467;
+  font-size: 13px;
+  font-weight: 900;
+  box-shadow: none;
+}
+
+.candidateCountOption.active {
+  background: #ffffff;
+  color: var(--accent);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
 }
 
 .creationBatchHint {
@@ -2210,7 +2277,15 @@ button:disabled {
 
 .scriptCandidateList {
   display: grid;
+  gap: 10px;
+}
+
+.resultHeaderActions {
+  display: inline-flex;
+  flex-wrap: wrap;
   gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .candidateHeader {
@@ -2227,18 +2302,16 @@ button:disabled {
 
 .candidateRows {
   display: grid;
-  gap: 6px;
+  gap: 8px;
 }
 
 .candidateRow {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: center;
-  min-height: 72px;
+  gap: 10px;
+  min-height: 92px;
   border: 1px solid var(--line);
   border-radius: 6px;
-  padding: 9px 10px;
+  padding: 11px;
   background: #fbfcfd;
 }
 
@@ -2271,12 +2344,12 @@ button:disabled {
 
 .candidateActions {
   display: grid;
-  grid-template-columns: repeat(2, auto);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
 }
 
 .candidateActions button {
-  width: auto;
+  width: 100%;
   min-height: 34px;
   padding: 0 11px;
   white-space: nowrap;
@@ -3366,6 +3439,43 @@ button:disabled {
   margin-top: 0;
 }
 
+.drawerPrimaryAction {
+  display: flex;
+  margin-top: 2px;
+}
+
+.drawerPrimaryAction button {
+  width: min(360px, 100%);
+  min-height: 42px;
+}
+
+.drawerMoreActions {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fbfcfd;
+}
+
+.drawerMoreActions summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.drawerMoreActions .drawerActions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.drawerMoreActions button {
+  min-height: 34px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
 .drawerSheet {
   max-height: none;
   object-fit: contain;
@@ -4437,6 +4547,17 @@ button:disabled {
 
   .split {
     grid-template-columns: 1fr;
+  }
+
+  .creationFlow,
+  .creationFlow:has(.scriptDetailPanel:not(.hiddenPanel)) .creationResultPanel,
+  .creationFlow:has(.scriptDetailPanel:not(.hiddenPanel)) .scriptDetailPanel {
+    grid-template-columns: 1fr;
+    grid-column: 1 / -1;
+  }
+
+  .creationFlow:has(.scriptDetailPanel:not(.hiddenPanel)) .creationResultPanel {
+    position: static;
   }
 
   .creationFooterActions,

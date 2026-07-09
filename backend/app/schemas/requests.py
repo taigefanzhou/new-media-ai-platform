@@ -216,7 +216,7 @@ class ScriptGenerateRequest(BaseModel):
 
 
 class ScriptBatchGenerateRequest(ScriptGenerateRequest):
-    count: int = Field(default=3, ge=1, le=20)
+    count: int = Field(default=1, ge=1, le=5)
     topics: list[str] = Field(default_factory=list)
 
 

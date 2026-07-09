@@ -14,7 +14,7 @@ from fastapi.responses import HTMLResponse
 from sqlmodel import Session, select
 
 from app.api.access import _assign_owner, _ensure_record_access, _owned_statement, _require_write_user
-from app.api.reference_learning import _optional_form_id, _save_uploaded_material
+from app.api.material_support import _optional_form_id, _save_uploaded_material
 from app.api.system_models import _active_volcengine_jimeng_credential
 from app.core.auth import current_user
 from app.core.db import get_session

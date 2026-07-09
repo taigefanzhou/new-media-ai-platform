@@ -3,11 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from app.api.module_registry import api_module_manifest
-from app.api.routes import (
-    dashboard,
-    integrations_status,
-    test_link_resolver,
-)
+from app.api.system_status import dashboard, integrations_status, test_link_resolver
 from app.api.system_models import (
     activate_model_config,
     activate_platform_credential,

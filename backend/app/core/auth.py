@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from typing import Optional
-from fastapi import Depends, Header, HTTPException
+from fastapi import Depends, Header, HTTPException, Query
 from sqlmodel import Session, select
 from app.core.config import get_settings
 from app.core.db import get_session
@@ -26,9 +26,12 @@ def user_from_token(token: str, session: Session) -> User:
 
 def current_user(
     authorization: Optional[str] = Header(default=None),
+    access_token: Optional[str] = Query(default=None),
     session: Session = Depends(get_session),
 ) -> User:
-    if not authorization or not authorization.startswith("Bearer "):
+    token = access_token
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.removeprefix("Bearer ").strip()
+    if not token:
         raise HTTPException(status_code=401, detail="Missing authorization token")
-    token = authorization.removeprefix("Bearer ").strip()
     return user_from_token(token, session)

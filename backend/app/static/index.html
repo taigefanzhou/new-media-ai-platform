@@ -227,8 +227,17 @@
                   <option value="">不使用数字人露脸</option>
                 </select>
               </label>
-              <label>候选数<input id="batchScriptCount" type="number" min="2" max="20" value="3" /></label>
-              <button id="scriptSubmitBtn" type="submit">AI 生成候选方案</button>
+              <div class="candidateCountField">
+                <span>候选数</span>
+                <input id="batchScriptCount" type="hidden" value="1" />
+                <div class="candidateCountControl" aria-label="候选脚本数量">
+                  <button type="button" class="candidateCountOption active" data-count="1">1条</button>
+                  <button type="button" class="candidateCountOption" data-count="3">3条</button>
+                  <button type="button" class="candidateCountOption" data-count="5">5条</button>
+                </div>
+                <em>默认先生成 1 条，不满意再继续生成。</em>
+              </div>
+              <button id="scriptSubmitBtn" type="submit">生成脚本</button>
             </div>
             <div id="creationExportProfileHint" class="creationProfileHint">输出规格会按目标平台自动匹配。</div>
             <div id="videoProductionSkillPanel" class="videoProductionSkillPanel"></div>
@@ -240,7 +249,10 @@
                 <h2>候选脚本</h2>
                 <p>选择满意的一版，可直接生成视频，也可以打开详情修改脚本。</p>
               </div>
-              <span id="scriptResultStatus" class="resultHint">生成后先选择方案</span>
+              <div class="resultHeaderActions">
+                <span id="scriptResultStatus" class="resultHint">生成后先选择方案</span>
+                <button id="continueGenerateScriptBtn" type="button" class="secondary compactButton">继续生成一条</button>
+              </div>
             </div>
             <div id="scriptCandidateList" class="scriptCandidateList"></div>
           </section>
@@ -280,7 +292,7 @@
                 <span id="productionModeHint">会生成参考视频那种口播模板：顶部标题、底部身份条、字幕和解释页。</span>
               </div>
               <div class="itemActions creationActions">
-                <button id="regenerateScriptBtn" type="button" class="secondary">重新生成</button>
+                <button id="regenerateScriptBtn" type="button" class="secondary">继续生成一条</button>
                 <button id="createTaskFromScriptBtn" type="button">审核通过并自动生成视频</button>
                 <button id="goTaskPageBtn" type="button" class="secondary">查看生成进度</button>
               </div>

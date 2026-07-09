@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api.routes import (
+from app.api.script_creation import (
     batch_generate_scripts,
     create_topic,
     generate_script,

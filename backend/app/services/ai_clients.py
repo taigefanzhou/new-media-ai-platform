@@ -2319,6 +2319,7 @@ class MediaGenerationClient:
                 preset="medium",
                 bitrate="5200k" if profile.width >= 1080 else "3500k",
                 threads=4,
+                ffmpeg_params=["-movflags", "+faststart"],
                 verbose=False,
                 logger=None,
             )

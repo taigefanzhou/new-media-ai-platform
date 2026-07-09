@@ -1173,6 +1173,84 @@ function storyboardPlanJson(script) {
   return JSON.stringify(rows, null, 2);
 }
 
+function skillReport() {
+  return state.videoProductionSkills || { pipeline: [], skills: [] };
+}
+
+function skillByKey(key) {
+  return (skillReport().skills || []).find((skill) => skill.key === key) || {};
+}
+
+function rowTimeLabel(row) {
+  return `${Number(row.start_second || 0)}-${Number(row.end_second || 0)}s`;
+}
+
+function renderSkillFlowCards(script, task = null, segments = []) {
+  const rows = parseStoryboardPlan(script);
+  const matchedCount = segments.filter((segment) => segment.material_id).length;
+  const generatedCount = segments.filter((segment) => segment.output_path).length;
+  const cards = [
+    {
+      skill: skillByKey("reference_video_analysis"),
+      status: script?.topic_id ? "已进入选题上下文" : "未绑定参考视频",
+      result: "只学习结构和节奏，不搬运原文或画面。",
+    },
+    {
+      skill: skillByKey("storyboard_generation"),
+      status: `${rows.length} 段分镜`,
+      result: "输出口播、画面、动作、素材需求和 Seedance prompt。",
+    },
+    {
+      skill: skillByKey("asset_selection"),
+      status: segments.length ? `${matchedCount}/${segments.length} 段绑定素材` : "生成前按分镜匹配素材",
+      result: "优先 owned/licensed 素材；缺素材时用 AI 补镜头。",
+    },
+    {
+      skill: skillByKey("video_quality_guard"),
+      status: task ? `${taskStatusLabel(task.status)} · ${Number(task.completed_segments || 0)}/${Number(task.segment_count || rows.length || 0)} 段` : "生成后检查",
+      result: task?.subtitle_status ? `字幕：${subtitleStatusLabel(task.subtitle_status)}` : "检查画面、脚本、字幕和水印。",
+    },
+  ];
+  return `
+    <div class="skillFlowGrid">
+      ${cards.map((card, index) => `
+        <div class="skillFlowCard">
+          <span>${index + 1}</span>
+          <strong>${escapeHtml(card.skill.label || "视频生产 Skill")}</strong>
+          <em>${escapeHtml(card.status)}</em>
+          <p>${escapeHtml(card.result)}</p>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderGenerationDecision(script, task = null) {
+  const mode = task?.production_mode || selectedCreationProductionMode();
+  const profileKey = task?.export_profile || defaultExportProfileForPlatform(script?.target_platform || "douyin");
+  const profile = state.exportProfiles.find((item) => item.key === profileKey);
+  const rows = parseStoryboardPlan(script);
+  const totalPromptChars = rows.reduce((sum, row) => sum + String(row.ai_prompt || row.visual || "").length, 0);
+  return `
+    <div class="generationDecisionGrid">
+      <div><span>生成方式</span><strong>${productionModeLabel(mode)}</strong><p>${escapeHtml(syncProductionModeDecisionText(mode))}</p></div>
+      <div><span>输出规格</span><strong>${escapeHtml(profile?.label || profileKey)}</strong><p>${profile ? `${profile.width}x${profile.height} · ${profile.notes}` : "按目标平台默认规格输出。"}</p></div>
+      <div><span>分段策略</span><strong>${rows.length || 0} 段</strong><p>每段单独生成，再拼接成片；Seedance 单段按模型限制控制时长。</p></div>
+      <div><span>提示词来源</span><strong>${totalPromptChars ? "分镜 prompt" : "基础视频 prompt"}</strong><p>优先使用每段 ai_prompt；缺失时回退到总视频提示词。</p></div>
+    </div>
+  `;
+}
+
+function syncProductionModeDecisionText(mode) {
+  return {
+    dynamic_explainer: "本地图文讲解，不依赖外部视频模型。",
+    digital_human: "使用数字人驱动接口生成真人口播。",
+    material_mix: "先匹配素材库，缺口由视频模型补镜头。",
+    seedance_scene: "按分镜调用 Seedance 生成 AI 实景片段。",
+    talking_head_template: "用数字人视频叠加标题、身份条和解释页。",
+  }[mode] || "按当前系统配置自动选择。";
+}
+
 function renderStoryboardPlanTable(script) {
   const rows = parseStoryboardPlan(script);
   if (!rows.length) return `<div class="item">还没有结构化分镜，保存脚本时可在高级项里补充。</div>`;
@@ -1180,28 +1258,39 @@ function renderStoryboardPlanTable(script) {
     <div class="storyboardPlanBlock">
       <div class="candidateHeader">
         <strong>分镜执行表</strong>
-        <span>用于决定画面怎么动，不只是口播文字。</span>
+        <span>每一段都会进入素材匹配、视频模型和质检，不再是黑盒。</span>
       </div>
       <div class="storyboardPlanTableWrap">
         <table class="storyboardPlanTable compactTable">
           <thead>
             <tr>
               <th>时间</th>
-              <th>画面类型</th>
-              <th>画面动作</th>
-              <th>屏幕文字</th>
-              <th>数字人</th>
+              <th>镜头角色</th>
+              <th>画面设计</th>
+              <th>素材/背景</th>
+              <th>模型提示词</th>
+              <th>检查点</th>
             </tr>
           </thead>
           <tbody>
             ${rows
               .map((row) => `
                 <tr>
-                  <td>${Number(row.start_second || 0)}-${Number(row.end_second || 0)}s</td>
+                  <td>${rowTimeLabel(row)}</td>
                   <td>${escapeHtml(row.shot_type || "-")}</td>
-                  <td>${escapeHtml(row.visual || row.person_action || "-")}</td>
-                  <td>${escapeHtml(row.screen_text || "-")}</td>
-                  <td>${row.needs_lip_sync ? "需口型" : "不需要"}</td>
+                  <td>
+                    <strong>${escapeHtml(row.visual || "-")}</strong>
+                    <p>${escapeHtml(row.person_action || "")}</p>
+                    ${row.screen_text ? `<em>字幕/屏幕文字：${escapeHtml(row.screen_text)}</em>` : ""}
+                  </td>
+                  <td>${escapeHtml(row.asset_or_background || "未指定，生成时用 AI 补镜头")}</td>
+                  <td>
+                    <details>
+                      <summary>查看 prompt</summary>
+                      <pre>${escapeHtml(row.ai_prompt || script.seedance_prompt || "-")}</pre>
+                    </details>
+                  </td>
+                  <td>${row.needs_lip_sync ? "人物口型/动作一致" : "画面与口播一致"}；无水印；无内嵌大字</td>
                 </tr>
               `)
               .join("")}
@@ -1209,6 +1298,20 @@ function renderStoryboardPlanTable(script) {
         </table>
       </div>
     </div>
+  `;
+}
+
+function renderVideoPlanWorkbench(script, task = null, segments = []) {
+  return `
+    <section class="videoPlanWorkbench">
+      <div class="candidateHeader">
+        <strong>视频方案工作台</strong>
+        <span>先看清规则、分镜、素材和 prompt，再决定是否生成。</span>
+      </div>
+      ${renderSkillFlowCards(script, task, segments)}
+      ${renderGenerationDecision(script, task)}
+      ${renderStoryboardPlanTable(script)}
+    </section>
   `;
 }
 
@@ -1227,7 +1330,7 @@ function renderScriptDetail(script, isFresh = false) {
       </div>
       <label>口播稿<textarea name="voiceover" rows="8">${escapeHtml(script.voiceover)}</textarea></label>
       <label>分镜/画面<textarea name="storyboard" rows="5">${escapeHtml(script.storyboard)}</textarea></label>
-      ${renderStoryboardPlanTable(script)}
+      ${renderVideoPlanWorkbench(script)}
       <details class="scriptAdvancedEdit">
         <summary>视频提示词、标题和合规提醒</summary>
         <label>分镜执行表 JSON<textarea name="storyboard_plan" rows="8">${escapeHtml(storyboardPlanJson(script))}</textarea></label>
@@ -1284,6 +1387,25 @@ function renderScriptLoading(message = "AI 正在生成标题、口播稿、分�
   }
 }
 
+function scriptGenerationWaitHint(count, durationSeconds) {
+  const perScript = durationSeconds >= 120 ? "1-2 分钟" : "40-70 秒";
+  if (count <= 1) return `AI 正在生成 1 条候选方案，通常需要 ${perScript}，请稍等。`;
+  return `AI 正在生成 ${count} 条候选方案，会按条生成，预计需要 ${count}-${count * 2} 分钟，请勿重复点击。`;
+}
+
+function selectedScriptCandidateCount() {
+  return Math.max(1, Math.min(5, Number(document.querySelector("#batchScriptCount")?.value || 1)));
+}
+
+function setScriptCandidateCount(count) {
+  const nextCount = Math.max(1, Math.min(5, Number(count || 1)));
+  const input = document.querySelector("#batchScriptCount");
+  if (input) input.value = String(nextCount);
+  document.querySelectorAll(".candidateCountOption").forEach((button) => {
+    button.classList.toggle("active", Number(button.dataset.count) === nextCount);
+  });
+}
+
 function applyGeneratedScript(script, options = {}) {
   state.latestScriptId = script.id;
   state.highlightedScriptId = script.id;
@@ -1329,7 +1451,7 @@ function renderScriptCandidates(scripts) {
                 <em>${escapeHtml((script.voiceover || "").slice(0, 78))}</em>
               </div>
               <div class="candidateActions">
-                <button type="button" class="secondary" data-action="view-script" data-script-id="${script.id}">详情/编辑</button>
+                <button type="button" class="secondary" data-action="view-script" data-script-id="${script.id}">使用这版</button>
                 <button type="button" data-action="auto-video-script" data-script-id="${script.id}">生成视频</button>
               </div>
             </div>
@@ -1540,6 +1662,19 @@ function taskVideoSrc(task) {
   return authenticatedMediaUrl(`/api/video-tasks/${task.id}/output`);
 }
 
+function taskVideoPosterSrc(task) {
+  const outputPath = task.captioned_output_path || task.output_path;
+  if (!outputPath || outputPath.startsWith("mock://") || outputPath.startsWith("http")) return "";
+  return authenticatedMediaUrl(`/api/video-tasks/${task.id}/poster`);
+}
+
+function taskVideoElement(task, className = "taskOutputPreviewVideo") {
+  const videoSrc = taskVideoSrc(task);
+  if (!videoSrc) return "";
+  const posterSrc = taskVideoPosterSrc(task);
+  return `<video class="${className}" src="${videoSrc}" ${posterSrc ? `poster="${posterSrc}"` : ""} controls preload="auto" playsinline></video>`;
+}
+
 function taskActionState(task) {
   const hasOutput = Boolean(task.captioned_output_path || task.output_path);
   const isRunning = task.status === "running";
@@ -1683,6 +1818,7 @@ function openTaskScriptDetailDrawer(scriptId) {
       <div><h3>视频提示词</h3><pre>${escapeHtml(script.seedance_prompt || "暂无")}</pre></div>
       <div><h3>标题建议</h3><pre>${escapeHtml(script.title_options || "暂无")}</pre></div>
     </div>
+    ${renderVideoPlanWorkbench(script)}
     <div class="drawerActions">
       <button type="button" data-action="create-task-from-script" data-id="${script.id}">生成视频</button>
       <button type="button" class="secondary" data-action="edit-script-from-task-drawer" data-id="${script.id}">去编辑脚本</button>
@@ -1773,7 +1909,7 @@ async function openTaskDetailDrawer(taskId) {
     </div>
     <section class="taskDrawerVideoPanel">
       <h3>成片视频</h3>
-      ${videoSrc ? `<video class="taskOutputPreviewVideo drawerVideo" src="${videoSrc}" controls preload="metadata"></video>` : `<div class="item">这个任务还没有生成可预览的视频。</div>`}
+      ${videoSrc ? taskVideoElement(task, "taskOutputPreviewVideo drawerVideo") : `<div class="item">这个任务还没有生成可预览的视频。</div>`}
     </section>
     ${script ? `
       <div class="analysisGrid drawerAnalysisGrid">
@@ -1781,6 +1917,7 @@ async function openTaskDetailDrawer(taskId) {
         <div><h3>分镜/画面</h3><pre>${escapeHtml(script.storyboard || "暂无")}</pre></div>
       </div>
     ` : ""}
+    <div id="taskSkillTrace"></div>
     <div id="taskSegmentDetailList" class="taskSegmentDetailList"></div>
     <div class="drawerActions">
       ${taskActionButtons(task, { includeDetail: false })}
@@ -1790,10 +1927,27 @@ async function openTaskDetailDrawer(taskId) {
   drawer.setAttribute("aria-hidden", "false");
   try {
     const segments = await api.get(`/video-tasks/${task.id}/segments`);
+    renderTaskSkillTrace(task, script, segments);
     renderTaskSegmentsInDrawer(segments);
   } catch {
+    renderTaskSkillTrace(task, script, []);
     renderTaskSegmentsInDrawer([]);
   }
+}
+
+function renderTaskSkillTrace(task, script, segments) {
+  const target = document.querySelector("#taskSkillTrace");
+  if (!target || !script) return;
+  target.innerHTML = `
+    <section class="videoPlanWorkbench compactPlanWorkbench">
+      <div class="candidateHeader">
+        <strong>Skill 执行过程</strong>
+        <span>这条任务的分镜、素材、生成和质检结果。</span>
+      </div>
+      ${renderSkillFlowCards(script, task, segments)}
+      ${renderGenerationDecision(script, task)}
+    </section>
+  `;
 }
 
 function renderTaskSegmentsInDrawer(segments) {
@@ -1817,9 +1971,9 @@ function renderTaskSegmentsInDrawer(segments) {
           </tr>
         </thead>
         <tbody>
-          ${segments.map((segment) => `
+            ${segments.map((segment) => `
             <tr>
-              <td>#${Number(segment.segment_index || 0) + 1}</td>
+              <td>#${Number(segment.segment_index || 0)}</td>
               <td>${escapeHtml(segment.title || "-")}</td>
               <td>${Number(segment.duration_seconds || 0)} 秒</td>
               <td>${renderSegmentMaterialControl(segment)}</td>
@@ -1878,7 +2032,7 @@ function renderTaskOutputPreview(task) {
   panel.classList.remove("hiddenPanel");
   meta.textContent = `任务 #${task.id} · ${taskStatusLabel(task.status)} · ${taskSegmentMeta(task)} · ${exportProfileMeta(task)}`;
   content.innerHTML = videoSrc
-    ? `<video class="taskOutputPreviewVideo" src="${videoSrc}" controls preload="metadata"></video>`
+    ? taskVideoElement(task)
     : `<div class="item">这个任务还没有可预览的成片。</div>`;
 }
 
@@ -2636,6 +2790,29 @@ function openAssetDetailDrawer(kind, id) {
     const canAnalyze = Boolean(material.file_path);
     const canGenerateScript = analysis && analysis.status === "approved";
     const needsResolve = isReference && !canAnalyze && Boolean(material.source_url);
+    let primaryAction = "";
+    if (isReference && canGenerateScript) {
+      primaryAction = `<button type="button" data-action="script-from-reference-analysis" data-id="${analysis.id}">生成脚本</button>`;
+    } else if (isReference && analysis) {
+      primaryAction = `<button type="button" data-action="view-reference-analysis" data-id="${analysis.id}">${referenceAnalysisActionLabel(analysis)}</button>`;
+    } else if (needsResolve) {
+      primaryAction = `<button type="button" data-action="resolve-reference-material" data-id="${material.id}">解析下载源文件</button>`;
+    } else if (isReference && canAnalyze) {
+      primaryAction = `<button type="button" data-action="analyze-reference-material" data-id="${material.id}">深度拆解</button>`;
+    } else if (!material.source_url) {
+      primaryAction = `<button type="button" data-action="remote-upload-material" data-id="${material.id}">补传服务器</button>`;
+    }
+    const moreActions = [
+      isReference ? `<button type="button" class="secondary" data-action="select-reference-material" data-id="${material.id}">设为当前参考</button>` : "",
+      needsResolve && !primaryAction.includes("resolve-reference-material") ? `<button type="button" class="secondary" data-action="resolve-reference-material" data-id="${material.id}">解析下载源文件</button>` : "",
+      isReference && canAnalyze && !primaryAction.includes("analyze-reference-material") ? `<button type="button" class="secondary" data-action="analyze-reference-material" data-id="${material.id}">深度拆解</button>` : "",
+      analysis && !primaryAction.includes("view-reference-analysis") ? `<button type="button" class="secondary" data-action="view-reference-analysis" data-id="${analysis.id}">${referenceAnalysisActionLabel(analysis)}</button>` : "",
+      canGenerateScript && !primaryAction.includes("script-from-reference-analysis") ? `<button type="button" class="secondary" data-action="script-from-reference-analysis" data-id="${analysis.id}">生成脚本</button>` : "",
+      isReference && material.source_url ? `<button type="button" class="secondary" data-action="open-reference-source" data-url="${escapeHtml(material.source_url)}">打开原链接</button>` : "",
+      material.source_url ? `<button type="button" class="secondary" data-action="copy-material-url" data-url="${escapeHtml(material.source_url)}">复制云端地址</button>` : "",
+      !material.source_url && !primaryAction.includes("remote-upload-material") ? `<button type="button" class="secondary" data-action="remote-upload-material" data-id="${material.id}">补传服务器</button>` : "",
+      `<button type="button" class="danger" data-action="delete-material" data-id="${material.id}">删除素材</button>`,
+    ].filter(Boolean).join("");
     title.textContent = `#${material.id} ${material.name}`;
     eyebrow.textContent = "Material";
     content.innerHTML = `
@@ -2656,16 +2833,15 @@ function openAssetDetailDrawer(kind, id) {
         </div>
       </div>
       ${renderMaterialPreview(material, "assetDrawerMedia full")}
-      <div class="drawerActions">
-        ${isReference ? `<button type="button" data-action="select-reference-material" data-id="${material.id}">选择为当前参考</button>` : ""}
-        ${needsResolve ? `<button type="button" data-action="resolve-reference-material" data-id="${material.id}">解析下载源文件</button>` : ""}
-        ${isReference ? `<button type="button" data-action="analyze-reference-material" data-id="${material.id}" ${canAnalyze ? "" : "disabled"}>深度拆解</button>` : ""}
-        ${isReference ? `<button type="button" class="secondary" data-action="view-reference-analysis" data-id="${analysis ? analysis.id : ""}" ${analysis ? "" : "disabled"}>${referenceAnalysisActionLabel(analysis)}</button>` : ""}
-        ${isReference ? `<button type="button" class="secondary" data-action="script-from-reference-analysis" data-id="${analysis ? analysis.id : ""}" ${canGenerateScript ? "" : "disabled"}>生成脚本</button>` : ""}
-        ${isReference && material.source_url ? `<button type="button" class="secondary" data-action="open-reference-source" data-url="${escapeHtml(material.source_url)}">打开原链接</button>` : ""}
-        ${material.source_url ? `<button type="button" class="secondary" data-action="copy-material-url" data-url="${escapeHtml(material.source_url)}">复制云端地址</button>` : `<button type="button" class="secondary" data-action="remote-upload-material" data-id="${material.id}">补传服务器</button>`}
-        <button type="button" class="danger" data-action="delete-material" data-id="${material.id}">删除素材</button>
+      <div class="drawerPrimaryAction">
+        ${primaryAction || `<span class="recordMeta">当前素材暂无推荐操作。</span>`}
       </div>
+      <details class="drawerMoreActions">
+        <summary>更多操作</summary>
+        <div class="drawerActions">
+          ${moreActions}
+        </div>
+      </details>
     `;
   }
 
@@ -4198,14 +4374,14 @@ async function generateScriptCandidates(button) {
   const originalText = button.textContent;
   const payload = formData(form);
   payload.duration_seconds = Number(payload.duration_seconds);
-  payload.count = Number(document.querySelector("#batchScriptCount").value || 3);
+  payload.count = selectedScriptCandidateCount();
   button.disabled = true;
-  button.textContent = "生成候选中...";
-  renderScriptLoading(`AI 正在生成 ${payload.count} 条候选方案，审核人只需选择满意的一版...`);
+  button.textContent = payload.count > 1 ? `生成 ${payload.count} 条中...` : "生成中...";
+  renderScriptLoading(scriptGenerationWaitHint(payload.count, payload.duration_seconds));
   try {
     const scripts = await api.post("/scripts/batch-generate", payload);
     state.scripts = [...scripts, ...state.scripts.filter((item) => !scripts.some((script) => script.id === item.id))];
-    applyGeneratedScript(scripts[0]);
+    applyGeneratedScript(scripts[0], { openDetail: true });
     renderScriptSelects(state.scripts);
     renderScriptCandidates(state.scripts);
     toast(`已生成 ${scripts.length} 条候选方案`);
@@ -4219,10 +4395,27 @@ async function generateScriptCandidates(button) {
   }
 }
 
+async function generateOneMoreScript(button) {
+  const previousCount = selectedScriptCandidateCount();
+  setScriptCandidateCount(1);
+  try {
+    await saveCurrentScriptEdits({ silent: true });
+    await generateScriptCandidates(button);
+  } finally {
+    setScriptCandidateCount(previousCount);
+  }
+}
+
 document.querySelector("#scriptForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   await saveCurrentScriptEdits({ silent: true });
   await generateScriptCandidates(event.currentTarget.querySelector("button[type='submit']"));
+});
+
+document.querySelector(".candidateCountControl").addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-count]");
+  if (!button) return;
+  setScriptCandidateCount(Number(button.dataset.count));
 });
 
 function syncDurationPreset() {
@@ -4522,8 +4715,11 @@ document.querySelector("#closeScriptDetailBtn").addEventListener("click", async 
 });
 
 document.querySelector("#regenerateScriptBtn").addEventListener("click", async () => {
-  await saveCurrentScriptEdits({ silent: true });
-  document.querySelector("#scriptForm").requestSubmit();
+  await generateOneMoreScript(document.querySelector("#regenerateScriptBtn"));
+});
+
+document.querySelector("#continueGenerateScriptBtn").addEventListener("click", async () => {
+  await generateOneMoreScript(document.querySelector("#continueGenerateScriptBtn"));
 });
 
 document.querySelector("#titleSuggestionList").addEventListener("click", async (event) => {

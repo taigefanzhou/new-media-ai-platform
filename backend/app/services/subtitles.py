@@ -410,6 +410,8 @@ class SubtitleEngine:
             "aac",
             "-b:a",
             "160k",
+            "-movflags",
+            "+faststart",
             str(output_path),
         ]
         try:
