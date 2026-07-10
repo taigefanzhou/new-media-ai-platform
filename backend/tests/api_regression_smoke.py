@@ -86,6 +86,9 @@ def main() -> None:
         assert task.status_code == 200, task.text
         assert task.json()["script_id"] == script_id
 
+        incomplete_resume = client.post(f"/api/video-tasks/{task.json()['id']}/resume", headers=admin_headers)
+        assert incomplete_resume.status_code == 409, incomplete_resume.text
+
         task_list = client.get("/api/video-tasks", headers=admin_headers)
         assert task_list.status_code == 200, task_list.text
         assert any(item["id"] == task.json()["id"] for item in task_list.json())

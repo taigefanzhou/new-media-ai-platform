@@ -203,6 +203,37 @@ class VideoPipeline:
         self.session.refresh(task)
         return task
 
+    async def resume_completed_segments(self, task: VideoTask) -> VideoTask:
+        if task.production_mode not in {"seedance_scene", "material_mix"}:
+            raise RuntimeError("当前成片方式不支持从分段恢复合成。")
+        script = self.session.get(Script, task.script_id)
+        if script is None:
+            raise RuntimeError("找不到任务对应脚本。")
+        segments = list(
+            self.session.exec(
+                select(VideoSegment)
+                .where(VideoSegment.video_task_id == task.id)
+                .order_by(VideoSegment.segment_index.asc())
+            ).all()
+        )
+        if not segments or any(not segment.output_path for segment in segments):
+            raise RuntimeError("分段视频尚未全部完成，无法恢复合成。")
+
+        task.status = TaskStatus.running
+        task.error_message = None
+        task.completed_segments = len(segments)
+        task.updated_at = datetime.utcnow()
+        self.session.add(task)
+        self.session.commit()
+
+        voice = await self._synthesize_voice(script, None)
+        task.output_path = await self.media.compose_scene_video(
+            [segment.output_path for segment in segments if segment.output_path],
+            voice,
+            export_profile=task.export_profile,
+        )
+        return await self._finalize_task(task, script)
+
     async def _apply_professional_render(self, task: VideoTask, script: Script) -> None:
         original_output = task.output_path
         try:

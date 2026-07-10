@@ -80,6 +80,22 @@ async def _run_video_task_background(task_id: int) -> None:
             session.commit()
 
 
+async def _resume_video_task_background(task_id: int) -> None:
+    with Session(engine) as session:
+        task = session.get(VideoTask, task_id)
+        if task is None:
+            return
+        try:
+            await VideoPipeline(session).resume_completed_segments(task)
+        except Exception as exc:
+            task.status = TaskStatus.failed
+            task.error_message = str(exc)
+            task.audit_notes = f"{task.audit_notes}\n恢复合成失败：{exc}".strip()
+            task.updated_at = datetime.utcnow()
+            session.add(task)
+            session.commit()
+
+
 def _queue_video_task(session: Session, task: VideoTask, note: str | None = None) -> VideoTask:
     task.status = TaskStatus.queued
     task.error_message = None
@@ -297,6 +313,30 @@ async def run_video_task(
     queued_task = _queue_video_task(session, task, "任务已进入后台生成队列。")
     background_tasks.add_task(_run_video_task_background, queued_task.id)
     return queued_task
+
+
+async def resume_video_task(
+    task_id: int,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> VideoTask:
+    task = session.get(VideoTask, task_id)
+    _ensure_record_access(task, user, "Video task", write=True)
+    segments = list(session.exec(select(VideoSegment).where(VideoSegment.video_task_id == task_id)).all())
+    if task.production_mode not in {"seedance_scene", "material_mix"}:
+        raise HTTPException(status_code=400, detail="This task does not support segment recovery")
+    if task.output_path or len(segments) < max(1, task.segment_count) or any(not segment.output_path for segment in segments):
+        raise HTTPException(status_code=409, detail="Completed segments are not available for recovery")
+    task.status = TaskStatus.running
+    task.error_message = None
+    task.audit_notes = f"{task.audit_notes}\n已从完成分段恢复最终合成，不会重新调用视频模型。".strip()
+    task.updated_at = datetime.utcnow()
+    session.add(task)
+    session.commit()
+    session.refresh(task)
+    background_tasks.add_task(_resume_video_task_background, task.id)
+    return task
 
 
 def approve_video_task(

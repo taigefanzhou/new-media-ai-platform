@@ -81,6 +81,7 @@ const state = {
   autoSaveToLocalFolder: localStorage.getItem("autoSaveToLocalFolder") === "1",
   localSavedVideoIds: new Set(JSON.parse(localStorage.getItem("localSavedVideoIds") || "[]")),
   localSavingVideoIds: new Set(),
+  localSaveFailedVideoIds: new Set(),
   users: [],
   currentUser: null,
   currentSettingsSection: "usage",
@@ -413,12 +414,13 @@ async function autoSaveVideosToLocal(videos) {
   for (const video of videos || []) {
     if (!video?.task_id || video.storage_kind === "placeholder" || !video.exists && video.storage_kind !== "external") continue;
     const taskId = Number(video.task_id);
-    if (state.localSavedVideoIds.has(taskId) || state.localSavingVideoIds.has(taskId)) continue;
+    if (state.localSavedVideoIds.has(taskId) || state.localSavingVideoIds.has(taskId) || state.localSaveFailedVideoIds.has(taskId)) continue;
     state.localSavingVideoIds.add(taskId);
     try {
-      await saveVideoToLocalFolder(video, true);
+      const saved = await saveVideoToLocalFolder(video, true);
+      if (!saved) state.localSaveFailedVideoIds.add(taskId);
     } catch {
-      toast(`视频任务 #${taskId} 自动保存到电脑失败`);
+      state.localSaveFailedVideoIds.add(taskId);
     } finally {
       state.localSavingVideoIds.delete(taskId);
     }
@@ -1699,6 +1701,8 @@ function taskVideoElement(task, className = "taskOutputPreviewVideo") {
 function taskActionState(task) {
   const hasOutput = Boolean(task.captioned_output_path || task.output_path);
   const isRunning = task.status === "running";
+  const completedSegments = Number(task.completed_segments || 0);
+  const segmentCount = Math.max(1, Number(task.segment_count || 0));
   return {
     canSelectForRun: !hasOutput && ["draft", "queued", "failed"].includes(task.status),
     canPreview: Boolean(taskVideoSrc(task)),
@@ -1707,6 +1711,7 @@ function taskActionState(task) {
     canPublish: task.status === "approved" && hasOutput,
     canDeleteOutput: hasOutput && !isRunning,
     canDeleteTask: !isRunning,
+    canResume: isRunning && !hasOutput && completedSegments >= segmentCount,
     runLabel: isRunning ? "生成中" : hasOutput ? "已生成" : "开始生成",
     previewLabel: hasOutput ? (taskVideoSrc(task) ? "成片预览" : "不可预览") : "暂无成片",
   };
@@ -1715,6 +1720,7 @@ function taskActionState(task) {
 function actionErrorMessage(action) {
   return {
     "run-video-task": "这个任务当前不能开始生成，请先删除成片或检查任务状态",
+    "resume-video-task": "恢复合成失败，已保留分段视频，可稍后重试",
     "approve-video-task": "只有待审核且已生成成片的任务才能审核通过",
     "prepare-publish": "只有已审核通过的成片才能准备发布",
     "delete-task-output": "当前不能删除成片，可能任务正在生成或还没有成片",
@@ -1729,7 +1735,7 @@ function taskActionButtons(task, options = {}) {
   );
   const buttons = options.includeDetail === false ? [] : [button("view-video-task", "详情")];
   if (task.status === "running") {
-    buttons.push(button("run-video-task", "生成中", "", true));
+    buttons.push(actions.canResume ? button("resume-video-task", "恢复合成") : button("run-video-task", "生成中", "", true));
   } else if (actions.canRun) {
     buttons.push(button("run-video-task", "生成"));
   }
@@ -5119,6 +5125,13 @@ document.querySelectorAll("#taskListTasks, #taskList, #taskDetailDrawer").forEac
       if (statusCell) statusCell.textContent = "生成中";
       const task = await api.post(`/video-tasks/${id}/run`);
       toast(`任务已运行：${taskStatusLabel(task.status)}`);
+      closeTaskDetailDrawer();
+    }
+    if (button.dataset.action === "resume-video-task") {
+      button.textContent = "恢复中";
+      button.disabled = true;
+      await api.post(`/video-tasks/${id}/resume`);
+      toast("已开始恢复合成，不会重新生成分段视频");
       closeTaskDetailDrawer();
     }
     if (button.dataset.action === "approve-video-task") {
