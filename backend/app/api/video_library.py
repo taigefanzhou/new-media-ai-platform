@@ -103,6 +103,9 @@ def _queue_video_task(session: Session, task: VideoTask, note: str | None = None
     task.subtitle_srt_path = None
     task.subtitle_ass_path = None
     task.captioned_output_path = None
+    task.quality_status = "pending"
+    task.quality_score = 0
+    task.quality_summary = "等待自动质检。"
     task.updated_at = datetime.utcnow()
     if note:
         task.audit_notes = f"{task.audit_notes}\n{note}".strip() if task.audit_notes else note
@@ -416,11 +419,18 @@ def update_video_segment_material(
     segment.output_path = None
     segment.error_message = None
     segment.status = TaskStatus.queued
+    segment.quality_status = "pending"
+    segment.quality_score = 0
+    segment.quality_summary = "等待重新生成后的自动质检。"
+    segment.generation_attempts = 0
     segment.updated_at = datetime.utcnow()
     task.output_path = None
     task.subtitle_srt_path = None
     task.subtitle_ass_path = None
     task.captioned_output_path = None
+    task.quality_status = "pending"
+    task.quality_score = 0
+    task.quality_summary = "等待重新生成后的自动质检。"
     task.subtitle_status = "pending" if task.subtitle_enabled else "disabled"
     task.completed_segments = 0
     if task.status in {TaskStatus.needs_review, TaskStatus.approved, TaskStatus.failed}:

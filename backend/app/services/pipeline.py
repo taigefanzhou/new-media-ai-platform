@@ -23,6 +23,7 @@ from app.services.export_profiles import resolve_export_profile
 from app.services.model_router import choose_model_config, model_choice_note
 from app.services.professional_render import ProfessionalRenderClient
 from app.services.subtitles import SubtitleEngine
+from app.services.video_quality import GeneratedVideoQualityGuard, VideoQualityResult
 from app.services.usage import estimate_text_tokens, record_model_usage
 from app.services.video_skills import material_selection_rules, quality_guard_checklist, video_skill_manifest
 
@@ -36,6 +37,7 @@ class VideoPipeline:
         self.digital_human_model_config = choose_model_config(session, "digital_human", "talking_head_template")
         self.digital_human_platform_credential = self._active_platform_credential("volcengine", "digital_human")
         self.voice_clone_model_config = choose_model_config(session, "voice_clone", "digital_human")
+        self.quality_guard = GeneratedVideoQualityGuard()
         self.media = MediaGenerationClient(
             self.video_model_config,
             self.tts_model_config,
@@ -196,6 +198,7 @@ class VideoPipeline:
                 task.audit_notes = f"{task.audit_notes}\n字幕引擎执行失败，已保留无字幕原片：{exc}".strip()
         else:
             task.subtitle_status = "disabled"
+        self._review_final_output(task, script)
         task.status = TaskStatus.needs_review
         task.updated_at = datetime.utcnow()
         self.session.add(task)
@@ -264,6 +267,10 @@ class VideoPipeline:
                 material_id=material.id if material else None,
                 material_match_notes=match_note,
                 status=TaskStatus.queued,
+                quality_status="pending",
+                quality_score=0,
+                quality_summary="等待生成后自动质检。",
+                generation_attempts=0,
             )
             self.session.add(segment)
             segments.append(segment)
@@ -281,42 +288,73 @@ class VideoPipeline:
             material = self.session.get(Material, segment.material_id) if segment.material_id else None
             if material and task.owner_user_id is not None and material.owner_user_id != task.owner_user_id:
                 material = None
-            if (
+            uses_library_clip = bool(
                 task.production_mode == "material_mix"
                 and material
                 and material.file_path
                 and material.copyright_status in {CopyrightStatus.owned, CopyrightStatus.licensed}
-            ):
+            )
+            if uses_library_clip:
                 clip_path = await self.media.material_to_scene_clip(
                     material.file_path,
                     segment.duration_seconds,
                     task.export_profile,
                 )
             else:
-                clip_path = await self.media.generate_video_segment(
-                    segment.prompt,
-                    segment.duration_seconds,
-                    segment.segment_index - 1,
-                    task.segment_count,
-                    task.export_profile,
-                    reference_media=self._seedance_reference_media(material),
+                clip_path = await self._generate_segment_candidate(segment, task, material)
+            quality = self._inspect_segment_output(clip_path, segment, task)
+            chosen_path = clip_path
+            if quality.status in {"retry", "failed"} and not uses_library_clip:
+                retry_path = await self._generate_segment_candidate(
+                    segment,
+                    task,
+                    material,
+                    repair_instruction=(
+                        "Avoid blank or dark frames. Keep the requested duration and aspect ratio. "
+                        "Use a clear, stable live-action shot."
+                    ),
                 )
-                self._record_usage(
-                    "video",
-                    self.video_model_config,
-                    provider=self._usage_provider(self.video_model_config, self.settings.video_generation_provider),
-                    model_name=self._usage_model(self.video_model_config, self.settings.seedance_model),
-                    prompt_tokens=estimate_text_tokens(segment.prompt),
+                retry_quality = self._inspect_segment_output(retry_path, segment, task)
+                if retry_quality.score > quality.score:
+                    chosen_path = retry_path
+                    quality = VideoQualityResult(
+                        retry_quality.score,
+                        "passed" if retry_quality.score >= 82 else "review",
+                        f"自动重做后选中第 2 个候选：{retry_quality.summary}",
+                        retry_quality.duration_seconds,
+                        retry_quality.width,
+                        retry_quality.height,
+                    )
+                else:
+                    quality = VideoQualityResult(
+                        quality.score,
+                        "review",
+                        f"自动重做未优于首版，保留第 1 个候选：{quality.summary}",
+                        quality.duration_seconds,
+                        quality.width,
+                        quality.height,
+                    )
+            elif uses_library_clip:
+                quality = VideoQualityResult(
+                    quality.score,
+                    "passed" if quality.score >= 82 else "review",
+                    f"复用已授权素材：{quality.summary}",
+                    quality.duration_seconds,
+                    quality.width,
+                    quality.height,
                 )
-            segment.output_path = clip_path
+            segment.output_path = chosen_path
             segment.status = TaskStatus.needs_review
+            segment.quality_status = quality.status
+            segment.quality_score = quality.score
+            segment.quality_summary = quality.summary
             segment.updated_at = datetime.utcnow()
             task.completed_segments = min(task.segment_count, task.completed_segments + 1)
             task.updated_at = datetime.utcnow()
             self.session.add(segment)
             self.session.add(task)
             self.session.commit()
-            return clip_path
+            return chosen_path
         except Exception as exc:
             self._record_usage(
                 "video",
@@ -336,6 +374,60 @@ class VideoPipeline:
             self.session.add(task)
             self.session.commit()
             raise
+
+    async def _generate_segment_candidate(
+        self,
+        segment: VideoSegment,
+        task: VideoTask,
+        material: Material | None,
+        repair_instruction: str = "",
+    ) -> str:
+        prompt = " ".join(part for part in (segment.prompt, repair_instruction) if part).strip()
+        segment.generation_attempts += 1
+        self.session.add(segment)
+        self.session.commit()
+        clip_path = await self.media.generate_video_segment(
+            prompt,
+            segment.duration_seconds,
+            segment.segment_index - 1,
+            task.segment_count,
+            task.export_profile,
+            reference_media=self._seedance_reference_media(material),
+        )
+        self._record_usage(
+            "video",
+            self.video_model_config,
+            provider=self._usage_provider(self.video_model_config, self.settings.video_generation_provider),
+            model_name=self._usage_model(self.video_model_config, self.settings.seedance_model),
+            prompt_tokens=estimate_text_tokens(prompt),
+        )
+        return clip_path
+
+    def _inspect_segment_output(self, clip_path: str, segment: VideoSegment, task: VideoTask) -> VideoQualityResult:
+        return self.quality_guard.inspect(
+            clip_path,
+            expected_duration_seconds=segment.duration_seconds,
+            expected_width=task.export_width,
+            expected_height=task.export_height,
+        )
+
+    def _review_final_output(self, task: VideoTask, script: Script) -> None:
+        output_path = task.captioned_output_path or task.output_path
+        if not output_path:
+            task.quality_status = "failed"
+            task.quality_score = 0
+            task.quality_summary = "未找到成片文件。"
+            return
+        result = self.quality_guard.inspect(
+            output_path,
+            expected_duration_seconds=script.duration_seconds,
+            expected_width=task.export_width,
+            expected_height=task.export_height,
+        )
+        task.quality_status = result.status
+        task.quality_score = result.score
+        task.quality_summary = result.summary
+        task.audit_notes = f"{task.audit_notes}\n自动成片质检：{result.score:.0f} 分，{result.summary}".strip()
 
     def _task_plan_notes(self, task: VideoTask, script: Script) -> str:
         base_note = task.audit_notes.strip()

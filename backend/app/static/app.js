@@ -1637,6 +1637,16 @@ function subtitleStatusLabel(status) {
   }[status] || status || "待生成字幕";
 }
 
+function qualityStatusLabel(status) {
+  return {
+    pending: "待质检",
+    passed: "自动通过",
+    review: "建议复核",
+    retry: "已自动重做",
+    failed: "质检失败",
+  }[status] || status || "待质检";
+}
+
 function taskProgress(task) {
   if (task.status === "running" && Number(task.segment_count || 0) > 1) {
     const completed = Number(task.completed_segments || 0);
@@ -1930,6 +1940,7 @@ async function openTaskDetailDrawer(taskId) {
         <div><span>数字人</span><strong>${escapeHtml(humanName(task.digital_human_id))}</strong></div>
         <div><span>目标平台</span><strong>${escapeHtml(taskTargetPlatformLabel(task))}</strong></div>
         <div><span>字幕成片</span><strong>${task.captioned_output_path ? "已生成" : subtitleStatusLabel(task.subtitle_status)}</strong></div>
+        <div><span>自动质检</span><strong>${qualityStatusLabel(task.quality_status)} ${task.quality_score ? `· ${Math.round(Number(task.quality_score))} 分` : ""}</strong></div>
         <div><span>更新时间</span><strong>${formatDateTime(task.updated_at)}</strong></div>
       </div>
       ${task.error_message ? `<div class="errorText">${escapeHtml(task.error_message)}</div>` : ""}
@@ -1993,7 +2004,8 @@ function renderTaskSegmentsInDrawer(segments) {
             <th>段落</th>
             <th>标题</th>
             <th>时长</th>
-            <th>素材方案</th>
+            <th>系统素材方案</th>
+            <th>自动质检</th>
             <th>状态</th>
           </tr>
         </thead>
@@ -2004,6 +2016,7 @@ function renderTaskSegmentsInDrawer(segments) {
               <td>${escapeHtml(segment.title || "-")}</td>
               <td>${Number(segment.duration_seconds || 0)} 秒</td>
               <td>${renderSegmentMaterialControl(segment)}</td>
+              <td><strong>${qualityStatusLabel(segment.quality_status)}</strong><div class="recordMeta">${segment.quality_score ? `${Math.round(Number(segment.quality_score))} 分` : "待生成"}${segment.generation_attempts > 1 ? ` · 已比选 ${segment.generation_attempts} 个候选` : ""}</div><div class="recordMeta">${escapeHtml(segment.quality_summary || "")}</div></td>
               <td><span class="status taskStatus ${taskStatusClass(segment.status)}">${taskStatusLabel(segment.status)}</span></td>
             </tr>
           `).join("")}
@@ -2021,21 +2034,7 @@ function eligibleSceneMaterials() {
 }
 
 function renderSegmentMaterialControl(segment) {
-  const materials = eligibleSceneMaterials();
-  const selectedId = String(segment.material_id || "");
-  const options = [
-    `<option value="">用 Seedance 补镜头</option>`,
-    ...materials.map((material) => (
-      `<option value="${material.id}" ${String(material.id) === selectedId ? "selected" : ""}>#${material.id} ${escapeHtml(material.name)} · ${materialKindLabel(material.kind)}</option>`
-    )),
-  ].join("");
-  return `
-    <div class="segmentMaterialControl">
-      <select data-segment-material-select="${segment.id}">${options}</select>
-      <button type="button" class="secondary compactButton" data-action="assign-segment-material" data-id="${segment.id}" data-task-id="${segment.video_task_id}">保存</button>
-      <div class="recordMeta">${escapeHtml(segment.material_match_notes || "未绑定素材，生成时会用 AI 补镜头。")}</div>
-    </div>
-  `;
+  return `<div class="segmentMaterialControl"><strong>${segment.material_id ? `已绑定素材 #${segment.material_id}` : "AI 补镜头"}</strong><div class="recordMeta">${escapeHtml(segment.material_match_notes || "系统未找到合适素材，已自动交给 AI 补镜头。")}</div></div>`;
 }
 
 function closeTaskDetailDrawer() {
@@ -2106,6 +2105,7 @@ function renderTaskTable(tasks) {
             <th>方式</th>
             <th>规格</th>
             <th>字幕</th>
+            <th>质检</th>
             <th>进度</th>
             <th>操作</th>
           </tr>
@@ -2134,6 +2134,7 @@ function renderTaskTable(tasks) {
                     <strong>${escapeHtml(subtitleStyleLabel(task.subtitle_style))}</strong>
                     <div class="recordMeta">${escapeHtml(subtitleStatusLabel(task.subtitle_status))}</div>
                   </td>
+                  <td><strong>${qualityStatusLabel(task.quality_status)}</strong><div class="recordMeta">${task.quality_score ? `${Math.round(Number(task.quality_score))} 分` : "生成后自动检查"}</div></td>
                   <td>
                     <div class="progressBar"><span style="width:${progress}%"></span></div>
                     <div class="recordMeta">${progress}% · ${taskStatusLabel(task.status)}</div>

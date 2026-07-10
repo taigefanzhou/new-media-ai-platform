@@ -85,6 +85,8 @@ def main() -> None:
         )
         assert task.status_code == 200, task.text
         assert task.json()["script_id"] == script_id
+        assert task.json()["quality_status"] == "pending"
+        assert task.json()["quality_score"] == 0
 
         incomplete_resume = client.post(f"/api/video-tasks/{task.json()['id']}/resume", headers=admin_headers)
         assert incomplete_resume.status_code == 409, incomplete_resume.text

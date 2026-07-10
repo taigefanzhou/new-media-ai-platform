@@ -159,6 +159,9 @@ def apply_sqlite_migrations() -> None:
             "subtitle_srt_path": "ALTER TABLE videotask ADD COLUMN subtitle_srt_path VARCHAR",
             "subtitle_ass_path": "ALTER TABLE videotask ADD COLUMN subtitle_ass_path VARCHAR",
             "captioned_output_path": "ALTER TABLE videotask ADD COLUMN captioned_output_path VARCHAR",
+            "quality_status": "ALTER TABLE videotask ADD COLUMN quality_status VARCHAR DEFAULT 'pending'",
+            "quality_score": "ALTER TABLE videotask ADD COLUMN quality_score FLOAT DEFAULT 0",
+            "quality_summary": "ALTER TABLE videotask ADD COLUMN quality_summary VARCHAR DEFAULT ''",
         }
         for column, statement in video_task_migrations.items():
             if video_task_rows and column not in video_task_columns:
@@ -181,6 +184,10 @@ def apply_sqlite_migrations() -> None:
         video_segment_migrations = {
             "material_id": "ALTER TABLE videosegment ADD COLUMN material_id INTEGER",
             "material_match_notes": "ALTER TABLE videosegment ADD COLUMN material_match_notes VARCHAR DEFAULT ''",
+            "quality_status": "ALTER TABLE videosegment ADD COLUMN quality_status VARCHAR DEFAULT 'pending'",
+            "quality_score": "ALTER TABLE videosegment ADD COLUMN quality_score FLOAT DEFAULT 0",
+            "quality_summary": "ALTER TABLE videosegment ADD COLUMN quality_summary VARCHAR DEFAULT ''",
+            "generation_attempts": "ALTER TABLE videosegment ADD COLUMN generation_attempts INTEGER DEFAULT 0",
         }
         for column, statement in video_segment_migrations.items():
             if video_segment_rows and column not in video_segment_columns:

@@ -314,6 +314,9 @@ class VideoTask(SQLModel, table=True):
     subtitle_ass_path: Optional[str] = None
     captioned_output_path: Optional[str] = None
     output_path: Optional[str] = None
+    quality_status: str = "pending"
+    quality_score: float = 0
+    quality_summary: str = ""
     error_message: Optional[str] = None
     audit_notes: str = ""
     owner_user_id: Optional[int] = Field(default=None, index=True)
@@ -332,6 +335,10 @@ class VideoSegment(SQLModel, table=True):
     material_match_notes: str = ""
     status: TaskStatus = TaskStatus.queued
     output_path: Optional[str] = None
+    quality_status: str = "pending"
+    quality_score: float = 0
+    quality_summary: str = ""
+    generation_attempts: int = 0
     error_message: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
