@@ -23,6 +23,7 @@ from app.services.export_profiles import resolve_export_profile
 from app.services.model_router import choose_model_config, model_choice_note
 from app.services.professional_render import ProfessionalRenderClient
 from app.services.subtitles import SubtitleEngine
+from app.services.video_analysis import ReferenceVideoAnalyzer
 from app.services.video_quality import GeneratedVideoQualityGuard, VideoQualityResult
 from app.services.usage import estimate_text_tokens, record_model_usage
 from app.services.video_skills import material_selection_rules, quality_guard_checklist, video_skill_manifest
@@ -37,6 +38,7 @@ class VideoPipeline:
         self.digital_human_model_config = choose_model_config(session, "digital_human", "talking_head_template")
         self.digital_human_platform_credential = self._active_platform_credential("volcengine", "digital_human")
         self.voice_clone_model_config = choose_model_config(session, "voice_clone", "digital_human")
+        self.quality_model_config = choose_model_config(session, "video_understanding", "quality_review")
         self.quality_guard = GeneratedVideoQualityGuard()
         self.media = MediaGenerationClient(
             self.video_model_config,
@@ -198,7 +200,7 @@ class VideoPipeline:
                 task.audit_notes = f"{task.audit_notes}\n字幕引擎执行失败，已保留无字幕原片：{exc}".strip()
         else:
             task.subtitle_status = "disabled"
-        self._review_final_output(task, script)
+        await self._review_final_output(task, script)
         task.status = TaskStatus.needs_review
         task.updated_at = datetime.utcnow()
         self.session.add(task)
@@ -411,7 +413,7 @@ class VideoPipeline:
             expected_height=task.export_height,
         )
 
-    def _review_final_output(self, task: VideoTask, script: Script) -> None:
+    async def _review_final_output(self, task: VideoTask, script: Script) -> None:
         output_path = task.captioned_output_path or task.output_path
         if not output_path:
             task.quality_status = "failed"
@@ -427,7 +429,28 @@ class VideoPipeline:
         task.quality_status = result.status
         task.quality_score = result.score
         task.quality_summary = result.summary
-        task.audit_notes = f"{task.audit_notes}\n自动成片质检：{result.score:.0f} 分，{result.summary}".strip()
+        visual_review = await ReferenceVideoAnalyzer(self.quality_model_config).review_generated_output(
+            output_path,
+            script.seedance_prompt,
+            script.duration_seconds,
+        )
+        if visual_review is not None:
+            visual_score = float(visual_review["score"])
+            task.quality_score = min(result.score, visual_score)
+            task.quality_status = "passed" if task.quality_score >= 82 and visual_review["decision"] == "passed" else "review"
+            task.quality_summary = f"{result.summary} 视觉复核：{visual_review['summary']}"
+            usage = visual_review["usage"] if isinstance(visual_review["usage"], dict) else {}
+            self._record_usage(
+                "video_understanding",
+                self.quality_model_config,
+                provider=self._usage_provider(self.quality_model_config, "video-understanding"),
+                model_name=self._usage_model(self.quality_model_config, "video-quality-review"),
+                prompt_tokens=int(usage.get("prompt_tokens") or usage.get("promptTokenCount") or 0),
+                completion_tokens=int(usage.get("completion_tokens") or usage.get("completionTokenCount") or 0),
+            )
+        task.audit_notes = (
+            f"{task.audit_notes}\n自动成片质检：{task.quality_score:.0f} 分，{task.quality_summary}"
+        ).strip()
 
     def _task_plan_notes(self, task: VideoTask, script: Script) -> str:
         base_note = task.audit_notes.strip()
@@ -759,6 +782,7 @@ class VideoPipeline:
         self.digital_human_model_config = choose_model_config(self.session, "digital_human", digital_scenario)
         self.digital_human_platform_credential = self._active_platform_credential("volcengine", "digital_human")
         self.voice_clone_model_config = choose_model_config(self.session, "voice_clone", "digital_human")
+        self.quality_model_config = choose_model_config(self.session, "video_understanding", "quality_review")
         self.media = MediaGenerationClient(
             self.video_model_config,
             self.tts_model_config,

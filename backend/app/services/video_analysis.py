@@ -63,6 +63,63 @@ class ReferenceVideoAnalyzer:
             return await self._enhance_with_model(video_path, local_result, transcript)
         return local_result
 
+    async def review_generated_output(
+        self,
+        video_path: str,
+        requested_prompt: str,
+        expected_duration_seconds: int,
+    ) -> dict[str, object] | None:
+        """Use the configured vision model once to review a finished generated video."""
+        if not self._can_use_model():
+            return None
+        path = Path(video_path)
+        if not path.exists() or not path.is_file():
+            return None
+        local_result = self._analyze_locally(path, "")
+        prompt = json.dumps(
+            {
+                "task": "审核一条 AI 生成短视频是否可进入人工终审。",
+                "expected_duration_seconds": expected_duration_seconds,
+                "requested_prompt": requested_prompt[:1200],
+                "contact_sheet_note": "附件为同一成片的连续抽帧，按时间从左到右、从上到下排列。",
+                "requirements": [
+                    "检查人脸、手部、人物轮廓是否出现明显乱码、扭曲或跨帧跳变。",
+                    "检查主体、场景和动作是否明显偏离 requested_prompt。",
+                    "检查画面是否清晰、无黑屏、无明显水印或大面积无关文字。",
+                    "如果无法从抽帧可靠判断口型同步，必须说明，不可臆测通过。",
+                    "必须返回严格 JSON，不要 Markdown。",
+                ],
+                "json_schema": {
+                    "quality_score": "0-100 整数",
+                    "decision": "passed 或 review",
+                    "summary": "中文一句话结论",
+                    "issues": ["中文问题描述"],
+                },
+            },
+            ensure_ascii=False,
+        )
+        try:
+            image_path = Path(local_result.dense_contact_sheet_path or local_result.contact_sheet_path)
+            provider = (self.model_config.provider or "").lower()
+            if "gemini" in provider:
+                parsed, usage = await self._call_gemini_video_understanding(prompt, image_path)
+            else:
+                parsed, usage = await self._call_openai_compatible_vision(prompt, image_path)
+        except Exception:
+            return None
+        score = self._safe_score(parsed.get("quality_score"), default=70)
+        decision = "passed" if str(parsed.get("decision") or "").lower() == "passed" and score >= 82 else "review"
+        issues = parsed.get("issues") if isinstance(parsed.get("issues"), list) else []
+        summary = str(parsed.get("summary") or "视觉复核已完成。").strip()
+        if issues:
+            summary = f"{summary} 问题：{'；'.join(str(item) for item in issues[:3])}"
+        return {
+            "score": score,
+            "decision": decision,
+            "summary": summary,
+            "usage": usage,
+        }
+
     async def test_connection(self) -> dict[str, object]:
         if not self.model_config:
             raise RuntimeError("没有选择模型配置")
