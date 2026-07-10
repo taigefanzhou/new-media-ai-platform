@@ -3285,30 +3285,35 @@ button:disabled {
 
 .taskTable:not(.scriptTaskTable) th:nth-child(8),
 .taskTable:not(.scriptTaskTable) td:nth-child(8) {
-  width: 18%;
+  width: 11%;
 }
 
 .taskTable:not(.scriptTaskTable) th:nth-child(9),
 .taskTable:not(.scriptTaskTable) td:nth-child(9) {
+  width: 18%;
+}
+
+.taskTable:not(.scriptTaskTable) th:nth-child(10),
+.taskTable:not(.scriptTaskTable) td:nth-child(10) {
   position: sticky;
   right: 0;
-  width: 230px;
-  min-width: 230px;
+  width: 180px;
+  min-width: 180px;
   box-shadow: -10px 0 16px rgba(15, 23, 42, 0.08);
 }
 
-.taskTable:not(.scriptTaskTable) th:nth-child(9) {
+.taskTable:not(.scriptTaskTable) th:nth-child(10) {
   z-index: 3;
   background: #f8fafc;
 }
 
-.taskTable:not(.scriptTaskTable) td:nth-child(9) {
+.taskTable:not(.scriptTaskTable) td:nth-child(10) {
   z-index: 2;
   overflow: visible;
   background: #ffffff;
 }
 
-.taskTable:not(.scriptTaskTable) tbody tr:hover td:nth-child(9) {
+.taskTable:not(.scriptTaskTable) tbody tr:hover td:nth-child(10) {
   background: #fbfcff;
 }
 
@@ -5299,8 +5304,8 @@ button:disabled {
     width: 100%;
   }
 
-  .taskTable:not(.scriptTaskTable) th:nth-child(9),
-  .taskTable:not(.scriptTaskTable) td:nth-child(9) {
+  .taskTable:not(.scriptTaskTable) th:nth-child(10),
+  .taskTable:not(.scriptTaskTable) td:nth-child(10) {
     position: static;
     width: auto;
     min-width: 0;
