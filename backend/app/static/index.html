@@ -9,7 +9,7 @@
         window.location.replace("/login.html");
       }
     </script>
-    <link rel="stylesheet" href="/styles.css?v=20260710-planner-review" />
+    <link rel="stylesheet" href="/styles.css?v=20260710-compact-planner" />
   </head>
   <body class="auth-pending">
     <aside class="sidebar">
@@ -174,17 +174,16 @@
                 </label>
                 <div class="durationField">
                   <span class="durationFieldTitle">视频时长</span>
-                  <div class="durationInputLine">
-                    <input id="scriptDurationInput" name="duration_seconds" type="number" min="15" max="360" value="30" />
-                    <span>秒</span>
-                  </div>
-                  <div class="durationPresets" aria-label="视频时长快捷选择">
-                    <button type="button" class="durationPreset active" data-duration="30">30秒</button>
-                    <button type="button" class="durationPreset" data-duration="60">1分钟</button>
-                    <button type="button" class="durationPreset" data-duration="180">3分钟</button>
-                    <button type="button" class="durationPreset" data-duration="300">5分钟</button>
-                    <button type="button" class="durationPreset" data-duration="360">6分钟</button>
-                    <button type="button" class="durationPreset" data-duration="custom">自定义</button>
+                  <div class="durationQuickLine">
+                    <div class="durationInputLine">
+                      <input id="scriptDurationInput" name="duration_seconds" type="number" min="15" max="360" value="30" />
+                      <span>秒</span>
+                    </div>
+                    <div class="durationPresets" aria-label="视频时长快捷选择">
+                      <button type="button" class="durationPreset active" data-duration="30">30秒</button>
+                      <button type="button" class="durationPreset" data-duration="60">1分钟</button>
+                      <button type="button" class="durationPreset" data-duration="180">3分钟</button>
+                    </div>
                   </div>
                 </div>
                 <label>数字人
@@ -208,14 +207,6 @@
               <div id="videoProductionSkillPanel" class="videoProductionSkillPanel"></div>
             </form>
 
-            <aside class="panel generationStrategyPanel" aria-label="生成策略">
-              <h2>生成策略</h2>
-              <ol class="generationStrategyList">
-                <li><span>1</span><div><strong>先出一版</strong><p>快速生成一版脚本，供你预览与选择。</p></div></li>
-                <li><span>2</span><div><strong>可继续生成</strong><p>不满意可继续生成，直到选择满意为止。</p></div></li>
-                <li><span>3</span><div><strong>满意后生成视频</strong><p>选定脚本后，再进入视频生成和审核。</p></div></li>
-              </ol>
-            </aside>
           </div>
 
           <section class="panel creationResultPanel">
@@ -237,7 +228,10 @@
                 </div>
               </div>
               <div id="scriptPreviewCreation" class="scriptResult empty">还没有脚本</div>
-              <div id="titleSuggestionList" class="titleGrid"></div>
+              <details class="scriptTitleDetails">
+                <summary>查看标题建议</summary>
+                <div id="titleSuggestionList" class="titleGrid"></div>
+              </details>
               <div id="voicePreviewPanel" class="voicePreviewPanel hiddenPanel"></div>
               <div class="creationFooterActions">
                 <div class="productionModeBar">
@@ -1049,6 +1043,6 @@
     </div>
 
     <div id="toast"></div>
-    <script src="/app.js?v=20260710-planner-review"></script>
+    <script src="/app.js?v=20260710-compact-planner"></script>
   </body>
 </html>

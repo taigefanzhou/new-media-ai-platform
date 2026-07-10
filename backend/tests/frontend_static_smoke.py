@@ -43,7 +43,7 @@ def main() -> None:
         ".videoPlanWorkbench",
         ".drawerMoreActions",
         ".candidateCountControl",
-        ".generationStrategyPanel",
+        ".scriptTitleDetails",
         ".scriptReviewSummary",
     ):
         assert selector in css, f"missing CSS selector: {selector}"

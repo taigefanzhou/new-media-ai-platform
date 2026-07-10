@@ -703,10 +703,7 @@ h2 {
 }
 
 .creationPlanner {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.34fr);
-  gap: 14px;
-  align-items: stretch;
+  max-width: 1180px;
 }
 
 .creationBrief {
@@ -715,27 +712,27 @@ h2 {
 
 .creationResultPanel {
   display: grid;
-  grid-template-columns: minmax(260px, 0.28fr) minmax(0, 1fr);
+  grid-template-columns: 270px minmax(0, 1fr);
   padding: 0;
   overflow: hidden;
 }
 
 .creationBrief textarea[name="topic"] {
-  min-height: 116px;
+  min-height: 78px;
 }
 
 .creationPrompt {
   display: grid;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 6px;
+  margin-bottom: 10px;
 }
 
 .creationParamBar {
   display: grid;
-  grid-template-columns: minmax(150px, 0.8fr) minmax(150px, 0.8fr) minmax(280px, 1.15fr) minmax(220px, 1fr) minmax(220px, 0.9fr) minmax(160px, 0.7fr);
-  gap: 10px;
+  grid-template-columns: 112px 112px minmax(210px, 1fr) minmax(156px, 0.9fr) 132px 104px;
+  gap: 8px;
   align-items: start;
-  margin-top: 12px;
+  margin-top: 10px;
 }
 
 .creationParamBar label,
@@ -745,79 +742,25 @@ h2 {
 
 .creationParamBar > button {
   width: 100%;
-  min-height: 44px;
+  min-height: 36px;
   align-self: end;
   justify-self: stretch;
 }
 
-.generationStrategyPanel {
-  display: grid;
-  align-content: start;
-  gap: 16px;
-}
-
-.generationStrategyPanel h2 {
-  margin: 0;
-  font-size: 17px;
-}
-
-.generationStrategyList {
-  display: grid;
-  gap: 18px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.generationStrategyList li {
-  display: grid;
-  grid-template-columns: 30px minmax(0, 1fr);
-  gap: 10px;
-  align-items: start;
-}
-
-.generationStrategyList li > span {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 7px;
-  background: #edf7f5;
-  color: var(--accent);
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.generationStrategyList strong {
-  color: var(--ink);
-  font-size: 14px;
-}
-
-.generationStrategyList p {
-  margin: 4px 0 0;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
 .candidateCountField {
   display: grid;
-  gap: 7px;
+  gap: 5px;
   margin-bottom: 0;
 }
 
 .candidateCountField > span {
   color: #344054;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 900;
 }
 
 .candidateCountField em {
-  color: var(--muted);
-  font-size: 12px;
-  font-style: normal;
-  font-weight: 800;
-  line-height: 1.35;
+  display: none;
 }
 
 .candidateCountControl {
@@ -856,21 +799,11 @@ h2 {
 }
 
 .creationProfileHint {
-  margin-top: 10px;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1.45;
+  display: none;
 }
 
 .videoProductionSkillPanel {
-  display: grid;
-  gap: 8px;
-  margin-top: 10px;
-  border: 1px solid #e5e8ef;
-  border-radius: 6px;
-  padding: 10px 12px;
-  background: #fbfdff;
+  display: none;
 }
 
 .skillPanelHeader {
@@ -986,48 +919,57 @@ h2 {
 
 .durationField {
   display: grid;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
 }
 
 .durationFieldTitle {
   color: #344054;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
+}
+
+.durationQuickLine {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
 }
 
 .durationInputLine {
   display: flex;
-  gap: 8px;
+  flex: 0 0 auto;
+  gap: 4px;
   align-items: center;
 }
 
 .durationInputLine input {
-  max-width: 86px;
+  width: 46px;
+  min-width: 46px;
+  height: 36px;
+  padding: 0 6px;
 }
 
 .durationInputLine span {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 800;
 }
 
 .durationPresets {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 4px;
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 3px;
 }
 
 .durationPreset {
-  width: auto;
-  min-height: 28px;
-  padding: 0 9px;
+  min-height: 36px;
+  padding: 0 4px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: 5px;
   background: #f8fafc;
   color: #344054;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 900;
 }
 
@@ -1046,7 +988,7 @@ h2 {
   justify-content: space-between;
   align-items: flex-start;
   gap: 12px;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 
 .sectionHeader h2 {
@@ -1054,7 +996,7 @@ h2 {
 }
 
 .sectionHeader p {
-  margin: 6px 0 0;
+  margin: 3px 0 0;
   color: var(--muted);
   line-height: 1.55;
 }
@@ -1110,10 +1052,10 @@ h2 {
 .scriptCandidatePanel {
   display: grid;
   align-content: start;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
   border-right: 1px solid var(--line);
-  padding: 18px;
+  padding: 14px;
 }
 
 .candidateContinueButton {
@@ -1123,7 +1065,7 @@ h2 {
 
 .scriptDetailPanel {
   min-width: 0;
-  padding: 18px 20px;
+  padding: 14px 16px;
 }
 
 .scriptDetailPanel.isEmpty .creationFooterActions,
@@ -1132,14 +1074,14 @@ h2 {
 }
 
 .scriptDetailPanel.isEmpty #scriptPreviewCreation {
-  min-height: 230px;
+  min-height: 180px;
   place-content: center;
   color: var(--muted);
   text-align: center;
 }
 
 .panel {
-  padding: 18px;
+  padding: 14px;
 }
 
 .settingsPane {
@@ -2496,7 +2438,7 @@ button:disabled {
 
 .scriptCandidateList {
   display: grid;
-  gap: 10px;
+  gap: 7px;
 }
 
 .resultHeaderActions {
@@ -2529,10 +2471,10 @@ button:disabled {
   grid-template-columns: minmax(0, 1fr) 18px;
   gap: 8px;
   width: 100%;
-  min-height: 78px;
+  min-height: 66px;
   border: 1px solid var(--line);
   border-radius: 6px;
-  padding: 11px;
+  padding: 9px 10px;
   background: #fbfcfd;
   color: inherit;
   text-align: left;
@@ -2541,21 +2483,21 @@ button:disabled {
 
 .candidateMain {
   display: grid;
-  gap: 4px;
+  gap: 2px;
   min-width: 0;
 }
 
 .candidateMain span,
 .candidateMain em {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
   font-style: normal;
 }
 
 .candidateRow b {
   align-self: center;
   color: #64748b;
-  font-size: 25px;
+  font-size: 20px;
   font-weight: 400;
   line-height: 1;
 }
@@ -2653,8 +2595,8 @@ button:disabled {
 .scriptReviewRow {
   display: grid;
   grid-template-columns: minmax(110px, 0.22fr) minmax(0, 1fr);
-  gap: 14px;
-  padding: 13px 14px;
+  gap: 12px;
+  padding: 10px 12px;
   border-bottom: 1px solid #edf0f3;
 }
 
@@ -2666,7 +2608,7 @@ button:disabled {
 
 .scriptReviewHeading strong {
   color: var(--ink);
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .scriptReviewHeading span {
@@ -2682,7 +2624,7 @@ button:disabled {
 
 .scriptReviewRow > span {
   color: #475467;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 900;
 }
 
@@ -2690,12 +2632,19 @@ button:disabled {
 .scriptReviewRow p {
   margin: 0;
   color: #263241;
-  font-size: 13px;
-  line-height: 1.55;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .scriptReviewRow p {
   white-space: pre-wrap;
+}
+
+.scriptReviewRow:nth-child(3) p {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .storyboardReviewRow > div {
@@ -2740,10 +2689,30 @@ button:disabled {
 
 .scriptEditDetails summary {
   cursor: pointer;
-  padding: 12px 0;
+  padding: 10px 0;
   color: var(--accent);
   font-size: 13px;
   font-weight: 900;
+}
+
+.scriptTitleDetails {
+  margin-top: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 10px;
+  background: #fbfcfd;
+}
+
+.scriptTitleDetails summary {
+  cursor: pointer;
+  padding: 9px 0;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.scriptTitleDetails[open] {
+  padding-bottom: 10px;
 }
 
 .voicePreviewPanel {
@@ -3040,12 +3009,12 @@ button:disabled {
 .creationFooterActions {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(500px, 0.9fr);
-  gap: 16px;
-  margin-top: 14px;
+  gap: 10px;
+  margin-top: 10px;
   align-items: end;
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 14px;
+  padding: 10px;
   background: #ffffff;
 }
 
