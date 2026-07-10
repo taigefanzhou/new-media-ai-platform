@@ -266,6 +266,10 @@ body.sidebar-collapsed .subNav {
   border-left: 0;
 }
 
+body.sidebar-collapsed .navMore {
+  display: none;
+}
+
 main {
   margin-left: var(--sidebar-width);
   padding: 22px 24px 28px 12px;
@@ -694,27 +698,26 @@ h2 {
 
 .creationFlow {
   display: grid;
-  grid-template-columns: minmax(320px, 0.42fr) minmax(0, 1fr);
   gap: 14px;
   align-items: start;
 }
 
+.creationPlanner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.34fr);
+  gap: 14px;
+  align-items: stretch;
+}
+
 .creationBrief {
-  grid-column: 1 / -1;
+  min-width: 0;
 }
 
 .creationResultPanel {
-  grid-column: 1 / -1;
-}
-
-.creationFlow:has(.scriptDetailPanel:not(.hiddenPanel)) .creationResultPanel {
-  grid-column: 1;
-  position: sticky;
-  top: 18px;
-}
-
-.creationFlow:has(.scriptDetailPanel:not(.hiddenPanel)) .scriptDetailPanel {
-  grid-column: 2;
+  display: grid;
+  grid-template-columns: minmax(260px, 0.28fr) minmax(0, 1fr);
+  padding: 0;
+  overflow: hidden;
 }
 
 .creationBrief textarea[name="topic"] {
@@ -745,6 +748,56 @@ h2 {
   min-height: 44px;
   align-self: end;
   justify-self: stretch;
+}
+
+.generationStrategyPanel {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+}
+
+.generationStrategyPanel h2 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.generationStrategyList {
+  display: grid;
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.generationStrategyList li {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.generationStrategyList li > span {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: #edf7f5;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.generationStrategyList strong {
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.generationStrategyList p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .candidateCountField {
@@ -1052,6 +1105,37 @@ h2 {
 
 .creationResultPanel {
   min-width: 0;
+}
+
+.scriptCandidatePanel {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+  border-right: 1px solid var(--line);
+  padding: 18px;
+}
+
+.candidateContinueButton {
+  width: 100%;
+  min-height: 38px;
+}
+
+.scriptDetailPanel {
+  min-width: 0;
+  padding: 18px 20px;
+}
+
+.scriptDetailPanel.isEmpty .creationFooterActions,
+.scriptDetailPanel.isEmpty .titleGrid {
+  display: none;
+}
+
+.scriptDetailPanel.isEmpty #scriptPreviewCreation {
+  min-height: 230px;
+  place-content: center;
+  color: var(--muted);
+  text-align: center;
 }
 
 .panel {
@@ -2442,12 +2526,17 @@ button:disabled {
 
 .candidateRow {
   display: grid;
-  gap: 10px;
-  min-height: 92px;
+  grid-template-columns: minmax(0, 1fr) 18px;
+  gap: 8px;
+  width: 100%;
+  min-height: 78px;
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 11px;
   background: #fbfcfd;
+  color: inherit;
+  text-align: left;
+  box-shadow: none;
 }
 
 .candidateMain {
@@ -2461,6 +2550,14 @@ button:disabled {
   color: var(--muted);
   font-size: 12px;
   font-style: normal;
+}
+
+.candidateRow b {
+  align-self: center;
+  color: #64748b;
+  font-size: 25px;
+  font-weight: 400;
+  line-height: 1;
 }
 
 .candidateMain strong {
@@ -2477,22 +2574,13 @@ button:disabled {
   white-space: nowrap;
 }
 
-.candidateActions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.candidateActions button {
-  width: 100%;
-  min-height: 34px;
-  padding: 0 11px;
-  white-space: nowrap;
-}
-
 .selectedCandidate {
   border-color: var(--accent);
   background: #f0fdfa;
+}
+
+.selectedCandidate b {
+  color: var(--accent);
 }
 
 .productionModeBar {
@@ -2552,6 +2640,110 @@ button:disabled {
 .scriptResult {
   display: grid;
   gap: 10px;
+}
+
+.scriptReviewSummary {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #ffffff;
+}
+
+.scriptReviewHeading,
+.scriptReviewRow {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.22fr) minmax(0, 1fr);
+  gap: 14px;
+  padding: 13px 14px;
+  border-bottom: 1px solid #edf0f3;
+}
+
+.scriptReviewHeading {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  background: #fbfcfd;
+}
+
+.scriptReviewHeading strong {
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.scriptReviewHeading span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.scriptReviewRow:last-child {
+  border-bottom: 0;
+}
+
+.scriptReviewRow > span {
+  color: #475467;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.scriptReviewRow strong,
+.scriptReviewRow p {
+  margin: 0;
+  color: #263241;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.scriptReviewRow p {
+  white-space: pre-wrap;
+}
+
+.storyboardReviewRow > div {
+  display: grid;
+  gap: 8px;
+}
+
+.storyboardChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.storyboardChips i {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  max-width: 180px;
+  overflow: hidden;
+  border: 1px solid #e4eaf2;
+  border-radius: 4px;
+  padding: 0 8px;
+  background: #f8fafc;
+  color: #475467;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scriptEditDetails {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 0 12px;
+  background: #fbfcfd;
+}
+
+.scriptEditDetails[open] {
+  padding-bottom: 12px;
+}
+
+.scriptEditDetails summary {
+  cursor: pointer;
+  padding: 12px 0;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 900;
 }
 
 .voicePreviewPanel {
@@ -4721,15 +4913,15 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
-  .creationFlow,
-  .creationFlow:has(.scriptDetailPanel:not(.hiddenPanel)) .creationResultPanel,
-  .creationFlow:has(.scriptDetailPanel:not(.hiddenPanel)) .scriptDetailPanel {
+  .creationPlanner,
+  .creationResultPanel,
+  .creationFlow {
     grid-template-columns: 1fr;
-    grid-column: 1 / -1;
   }
 
-  .creationFlow:has(.scriptDetailPanel:not(.hiddenPanel)) .creationResultPanel {
-    position: static;
+  .scriptCandidatePanel {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
   }
 
   .creationFooterActions,
@@ -4836,6 +5028,10 @@ button:disabled {
     margin: -2px 0 8px 16px;
     padding-left: 10px;
     border-left: 1px solid var(--line);
+  }
+
+  body.sidebar-collapsed .navMore {
+    display: grid;
   }
 
   body.nav-open .sidebar {

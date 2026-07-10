@@ -1008,7 +1008,7 @@ function renderOverviewActivity() {
 
 function hideScriptDetail(clearContent = false) {
   const panel = document.querySelector("#scriptDetailPanel");
-  if (panel) panel.classList.add("hiddenPanel");
+  if (panel) panel.classList.add("isEmpty");
   if (!clearContent) return;
   const titleTarget = document.querySelector("#titleSuggestionList");
   const creationTarget = document.querySelector("#scriptPreviewCreation");
@@ -1045,15 +1045,8 @@ function renderScripts(scripts) {
   const taskScriptSelect = document.querySelector("[name='script_id']");
   if (taskScriptSelect) taskScriptSelect.value = script.id;
   renderScriptCandidates(scripts);
-  const detailPanel = document.querySelector("#scriptDetailPanel");
-  const keepDetailOpen = detailPanel && !detailPanel.classList.contains("hiddenPanel");
-  if (keepDetailOpen) {
-    renderTitleSuggestions(script);
-    renderScriptDetail(script, state.highlightedScriptId === script.id);
-  } else if (resultStatus) {
-    resultStatus.textContent = scripts.length ? `已有 ${scripts.length} 条脚本，点详情查看` : "生成后先选择方案";
-    resultStatus.classList.remove("isGenerating");
-  }
+  renderTitleSuggestions(script);
+  renderScriptDetail(script, state.highlightedScriptId === script.id);
 }
 
 function productionModeLabel(mode) {
@@ -1322,10 +1315,44 @@ function renderScriptDetail(script, isFresh = false) {
   const creationTarget = document.querySelector("#scriptPreviewCreation");
   const resultStatus = document.querySelector("#scriptResultStatus");
   if (!creationTarget) return;
-  if (panel) panel.classList.remove("hiddenPanel");
+  if (panel) panel.classList.remove("isEmpty");
+  const storyboardRows = parseStoryboardPlan(script);
+  const wordCount = String(script.voiceover || "").replace(/\s/g, "").length;
+  const visualStyle = String(script.seedance_prompt || script.storyboard || "按分镜生成清晰、自然的实拍感画面")
+    .replace(/\s+/g, " ")
+    .slice(0, 96);
   creationTarget.className = `scriptResult${isFresh ? " scriptResultFresh" : ""}`;
   creationTarget.innerHTML = `
-    <form id="scriptEditForm" class="scriptEditForm" data-script-id="${script.id}" data-dirty="false">
+    <div class="scriptReviewSummary">
+      <div class="scriptReviewHeading">
+        <strong>#${script.id} ${escapeHtml(script.hook || "当前方案")}</strong>
+        <span>${wordCount} 字 · 预计 ${Number(script.duration_seconds || 30)} 秒</span>
+      </div>
+      <div class="scriptReviewRow">
+        <span>开场 Hook</span>
+        <strong>${escapeHtml(script.hook || "未生成开场 Hook")}</strong>
+      </div>
+      <div class="scriptReviewRow">
+        <span>口播文案</span>
+        <p>${escapeHtml(script.voiceover || "未生成口播文案")}</p>
+      </div>
+      <div class="scriptReviewRow storyboardReviewRow">
+        <span>分镜概览</span>
+        <div>
+          <strong>共 ${storyboardRows.length} 个镜头</strong>
+          <div class="storyboardChips">
+            ${storyboardRows.slice(0, 6).map((row, index) => `<i>${index + 1} ${escapeHtml(row.screen_text || row.visual || "镜头")}</i>`).join("") || "<i>生成后显示分镜</i>"}
+          </div>
+        </div>
+      </div>
+      <div class="scriptReviewRow">
+        <span>画面风格</span>
+        <p>${escapeHtml(visualStyle)}</p>
+      </div>
+    </div>
+    <details class="scriptEditDetails">
+      <summary>查看并编辑完整脚本</summary>
+      <form id="scriptEditForm" class="scriptEditForm" data-script-id="${script.id}" data-dirty="false">
       <div class="scriptEditGrid">
         <label>开头钩子<textarea name="hook" rows="2">${escapeHtml(script.hook)}</textarea></label>
         <label>标签<input name="hashtags" value="${escapeHtml(script.hashtags)}" /></label>
@@ -1344,7 +1371,8 @@ function renderScriptDetail(script, isFresh = false) {
         <button type="submit">保存脚本修改</button>
         <span id="scriptEditSaveState" class="resultHint">可直接修改，生成视频前会自动保存。</span>
       </div>
-    </form>
+      </form>
+    </details>
   `;
   if (resultStatus) {
     resultStatus.textContent = isFresh ? `脚本 #${script.id} · 刚刚生成` : `脚本 #${script.id}`;
@@ -1359,7 +1387,7 @@ function openScriptDetail(script, options = {}) {
   renderScriptCandidates(state.scripts);
   renderTitleSuggestions(script);
   renderScriptDetail(script, Boolean(options.isFresh));
-  if (options.scroll !== false) {
+  if (options.scroll === true) {
     document.querySelector("#scriptDetailPanel")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 }
@@ -1370,9 +1398,7 @@ function renderScriptLoading(message = "AI 正在生成标题、口播稿、分�
   const candidateTarget = document.querySelector("#scriptCandidateList");
   const creationTarget = document.querySelector("#scriptPreviewCreation");
   const resultStatus = document.querySelector("#scriptResultStatus");
-  if (detailPanel) {
-    detailPanel.classList.toggle("hiddenPanel", !keepTitles);
-  }
+  if (detailPanel) detailPanel.classList.remove("isEmpty");
   if (candidateTarget && !keepTitles) {
     candidateTarget.innerHTML = `<div class="item">正在生成候选方案...</div>`;
   }
@@ -1438,25 +1464,18 @@ function renderScriptCandidates(scripts) {
   }
   const pageInfo = pagedItems("scriptCandidates", scripts);
   target.innerHTML = `
-    <div class="candidateHeader">
-      <strong>候选方案</strong>
-      <span>点详情审核脚本，或直接生成视频任务。</span>
-    </div>
     <div class="candidateRows">
       ${pageInfo.items
         .map(
           (script, index) => `
-            <div class="candidateRow ${script.id === state.latestScriptId ? "selectedCandidate" : ""}">
+            <button type="button" class="candidateRow ${script.id === state.latestScriptId ? "selectedCandidate" : ""}" data-action="view-script" data-script-id="${script.id}">
               <div class="candidateMain">
-                <span>方案 ${(pageInfo.page - 1) * listPageSize + index + 1} · #${script.id} · ${script.duration_seconds || 30}s</span>
+                <span>#${script.id} ${script.id === state.latestScriptId ? "当前方案" : "备选方案"}</span>
                 <strong>${escapeHtml(script.hook || "未命名方案")}</strong>
-                <em>${escapeHtml((script.voiceover || "").slice(0, 78))}</em>
+                <em>生成时间 ${formatDateTime(script.created_at)} · ${script.duration_seconds || 30} 秒</em>
               </div>
-              <div class="candidateActions">
-                <button type="button" class="secondary" data-action="view-script" data-script-id="${script.id}">使用这版</button>
-                <button type="button" data-action="auto-video-script" data-script-id="${script.id}">生成视频</button>
-              </div>
-            </div>
+              <b aria-hidden="true">›</b>
+            </button>
           `,
         )
         .join("")}
@@ -4706,7 +4725,7 @@ document.querySelector("#createTaskFromScriptBtn").addEventListener("click", asy
 
 document.querySelector("#goTaskPageBtn").addEventListener("click", () => switchPage("tasks"));
 
-document.querySelector("#closeScriptDetailBtn").addEventListener("click", async () => {
+document.querySelector("#closeScriptDetailBtn")?.addEventListener("click", async () => {
   try {
     await saveCurrentScriptEdits({ silent: true });
   } catch (error) {

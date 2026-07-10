@@ -33,6 +33,8 @@ def main() -> None:
         "scriptForm",
         "scriptCandidateList",
         "scriptDetailPanel",
+        "creationPlanner",
+        "continueGenerateScriptBtn",
     ):
         assert f'id="{dom_id}"' in html, f"missing DOM id: {dom_id}"
 
@@ -41,6 +43,8 @@ def main() -> None:
         ".videoPlanWorkbench",
         ".drawerMoreActions",
         ".candidateCountControl",
+        ".generationStrategyPanel",
+        ".scriptReviewSummary",
     ):
         assert selector in css, f"missing CSS selector: {selector}"
 

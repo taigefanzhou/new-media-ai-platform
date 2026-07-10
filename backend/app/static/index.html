@@ -9,7 +9,7 @@
         window.location.replace("/login.html");
       }
     </script>
-    <link rel="stylesheet" href="/styles.css?v=20260709-simple-flow" />
+    <link rel="stylesheet" href="/styles.css?v=20260710-planner-review" />
   </head>
   <body class="auth-pending">
     <aside class="sidebar">
@@ -141,126 +141,134 @@
 
       <section id="page-creation" class="page">
         <section class="creationFlow">
-          <form id="scriptForm" class="panel creationBrief">
-            <div class="sectionHeader compactSectionHeader">
-              <div>
-                <h2>一键内容策划</h2>
-                <p>输入视频主题，AI 自动完成标题、脚本、分镜、画面提示词和成片任务。</p>
-              </div>
-              <span class="aiBadge">AI Writer</span>
-            </div>
-            <input
-              type="hidden"
-              name="brand_voice"
-              value="专业、可信、适合公司负责人口播；减少 AI 味，接近真实实拍表达；口语自然，有真实业务场景、具体数字和清晰行动建议"
-            />
-            <label class="creationPrompt">我想做的视频
-              <textarea name="topic" rows="4">企业短视频数字人获客</textarea>
-            </label>
-            <div class="creationParamBar">
-              <label>目标平台
-                <select name="target_platform">
-                  <option value="douyin">抖音</option>
-                  <option value="wechat_channels">视频号</option>
-                  <option value="xiaohongshu">小红书</option>
-                </select>
-              </label>
-              <label>口播语言
-                <select name="output_language">
-                  <option value="zh-CN">中文</option>
-                  <option value="en-US">英文</option>
-                </select>
-              </label>
-              <div class="durationField">
-                <span class="durationFieldTitle">视频时长</span>
-                <div class="durationInputLine">
-                  <input id="scriptDurationInput" name="duration_seconds" type="number" min="15" max="360" value="30" />
-                  <span>秒</span>
+          <div id="creationPlanner" class="creationPlanner">
+            <form id="scriptForm" class="panel creationBrief">
+              <div class="sectionHeader compactSectionHeader">
+                <div>
+                  <h2>一键内容策划</h2>
+                  <p>输入视频主题，AI 自动完成标题、脚本、分镜、画面提示词和成片任务。</p>
                 </div>
-                <div class="durationPresets" aria-label="视频时长快捷选择">
-                  <button type="button" class="durationPreset active" data-duration="30">30秒</button>
-                  <button type="button" class="durationPreset" data-duration="60">1分钟</button>
-                  <button type="button" class="durationPreset" data-duration="180">3分钟</button>
-                  <button type="button" class="durationPreset" data-duration="300">5分钟</button>
-                  <button type="button" class="durationPreset" data-duration="360">6分钟</button>
-                  <button type="button" class="durationPreset" data-duration="custom">自定义</button>
-                </div>
+                <span class="aiBadge">AI Writer</span>
               </div>
-              <label>数字人
-                <select id="creationHumanSelect">
-                  <option value="">不使用数字人露脸</option>
-                </select>
+              <input
+                type="hidden"
+                name="brand_voice"
+                value="专业、可信、适合公司负责人口播；减少 AI 味，接近真实实拍表达；口语自然，有真实业务场景、具体数字和清晰行动建议"
+              />
+              <label class="creationPrompt">我想做的视频
+                <textarea name="topic" rows="4">企业短视频数字人获客</textarea>
               </label>
-              <div class="candidateCountField">
-                <span>候选数</span>
-                <input id="batchScriptCount" type="hidden" value="1" />
-                <div class="candidateCountControl" aria-label="候选脚本数量">
-                  <button type="button" class="candidateCountOption active" data-count="1">1条</button>
-                  <button type="button" class="candidateCountOption" data-count="3">3条</button>
-                  <button type="button" class="candidateCountOption" data-count="5">5条</button>
+              <div class="creationParamBar">
+                <label>目标平台
+                  <select name="target_platform">
+                    <option value="douyin">抖音</option>
+                    <option value="wechat_channels">视频号</option>
+                    <option value="xiaohongshu">小红书</option>
+                  </select>
+                </label>
+                <label>口播语言
+                  <select name="output_language">
+                    <option value="zh-CN">中文</option>
+                    <option value="en-US">英文</option>
+                  </select>
+                </label>
+                <div class="durationField">
+                  <span class="durationFieldTitle">视频时长</span>
+                  <div class="durationInputLine">
+                    <input id="scriptDurationInput" name="duration_seconds" type="number" min="15" max="360" value="30" />
+                    <span>秒</span>
+                  </div>
+                  <div class="durationPresets" aria-label="视频时长快捷选择">
+                    <button type="button" class="durationPreset active" data-duration="30">30秒</button>
+                    <button type="button" class="durationPreset" data-duration="60">1分钟</button>
+                    <button type="button" class="durationPreset" data-duration="180">3分钟</button>
+                    <button type="button" class="durationPreset" data-duration="300">5分钟</button>
+                    <button type="button" class="durationPreset" data-duration="360">6分钟</button>
+                    <button type="button" class="durationPreset" data-duration="custom">自定义</button>
+                  </div>
                 </div>
-                <em>默认先生成 1 条，不满意再继续生成。</em>
+                <label>数字人
+                  <select id="creationHumanSelect">
+                    <option value="">不使用数字人露脸</option>
+                  </select>
+                </label>
+                <div class="candidateCountField">
+                  <span>候选数</span>
+                  <input id="batchScriptCount" type="hidden" value="1" />
+                  <div class="candidateCountControl" aria-label="候选脚本数量">
+                    <button type="button" class="candidateCountOption active" data-count="1">1条</button>
+                    <button type="button" class="candidateCountOption" data-count="3">3条</button>
+                    <button type="button" class="candidateCountOption" data-count="5">5条</button>
+                  </div>
+                  <em>默认先生成 1 条，不满意再继续生成。</em>
+                </div>
+                <button id="scriptSubmitBtn" type="submit">生成脚本</button>
               </div>
-              <button id="scriptSubmitBtn" type="submit">生成脚本</button>
-            </div>
-            <div id="creationExportProfileHint" class="creationProfileHint">输出规格会按目标平台自动匹配。</div>
-            <div id="videoProductionSkillPanel" class="videoProductionSkillPanel"></div>
-          </form>
+              <div id="creationExportProfileHint" class="creationProfileHint">输出规格会按目标平台自动匹配。</div>
+              <div id="videoProductionSkillPanel" class="videoProductionSkillPanel"></div>
+            </form>
+
+            <aside class="panel generationStrategyPanel" aria-label="生成策略">
+              <h2>生成策略</h2>
+              <ol class="generationStrategyList">
+                <li><span>1</span><div><strong>先出一版</strong><p>快速生成一版脚本，供你预览与选择。</p></div></li>
+                <li><span>2</span><div><strong>可继续生成</strong><p>不满意可继续生成，直到选择满意为止。</p></div></li>
+                <li><span>3</span><div><strong>满意后生成视频</strong><p>选定脚本后，再进入视频生成和审核。</p></div></li>
+              </ol>
+            </aside>
+          </div>
 
           <section class="panel creationResultPanel">
-            <div class="sectionHeader">
-              <div>
-                <h2>候选脚本</h2>
-                <p>选择满意的一版，可直接生成视频，也可以打开详情修改脚本。</p>
+            <aside class="scriptCandidatePanel">
+              <div class="sectionHeader compactSectionHeader">
+                <div>
+                  <h2>候选脚本</h2>
+                  <p>先比较方案，再打开需要的一版。</p>
+                </div>
               </div>
-              <div class="resultHeaderActions">
-                <span id="scriptResultStatus" class="resultHint">生成后先选择方案</span>
-                <button id="continueGenerateScriptBtn" type="button" class="secondary compactButton">继续生成一条</button>
+              <div id="scriptCandidateList" class="scriptCandidateList"></div>
+              <button id="continueGenerateScriptBtn" type="button" class="secondary candidateContinueButton">继续生成一条</button>
+            </aside>
+            <section id="scriptDetailPanel" class="scriptDetailPanel isEmpty">
+              <div class="sectionHeader compactSectionHeader">
+                <div>
+                  <h2>当前方案</h2>
+                  <p id="scriptResultStatus" class="resultHint">生成后选择一版查看</p>
+                </div>
               </div>
-            </div>
-            <div id="scriptCandidateList" class="scriptCandidateList"></div>
-          </section>
-
-          <section id="scriptDetailPanel" class="panel scriptDetailPanel hiddenPanel">
-            <div class="sectionHeader">
-              <div>
-                <h2>脚本详情</h2>
-                <p>审核口播稿，必要时调整标题、分镜和视频提示词。</p>
+              <div id="scriptPreviewCreation" class="scriptResult empty">还没有脚本</div>
+              <div id="titleSuggestionList" class="titleGrid"></div>
+              <div id="voicePreviewPanel" class="voicePreviewPanel hiddenPanel"></div>
+              <div class="creationFooterActions">
+                <div class="productionModeBar">
+                  <label>成片方式
+                    <select id="creationProductionModeSelect">
+                      <option value="talking_head_template">数字人口播模板（目标成片）</option>
+                      <option value="material_mix">素材库混剪方案（先排素材）</option>
+                      <option value="seedance_scene">Seedance AI 实景/B-roll</option>
+                      <option value="digital_human">真人数字人口播（头像/源视频）</option>
+                      <option value="dynamic_explainer">图文草稿预览（不建议成片）</option>
+                    </select>
+                  </label>
+                  <label>字幕风格
+                    <select id="creationSubtitleStyleSelect">
+                      <option value="auto">AI 自动选择</option>
+                      <option value="business">商务清晰</option>
+                      <option value="viral">爆款大字</option>
+                      <option value="digital_human">数字人口播</option>
+                      <option value="tutorial">教程说明</option>
+                      <option value="minimal">极简底栏</option>
+                    </select>
+                  </label>
+                  <span id="productionModeHint">会生成参考视频那种口播模板：顶部标题、底部身份条、字幕和解释页。</span>
+                </div>
+                <div class="itemActions creationActions">
+                  <button id="regenerateScriptBtn" type="button" class="secondary">继续生成一条</button>
+                  <button id="createTaskFromScriptBtn" type="button">生成视频</button>
+                  <button id="goTaskPageBtn" type="button" class="secondary">查看生成进度</button>
+                </div>
               </div>
-              <button id="closeScriptDetailBtn" type="button" class="secondary compactButton">收起详情</button>
-            </div>
-            <div id="titleSuggestionList" class="titleGrid"></div>
-            <div id="scriptPreviewCreation" class="scriptResult empty">还没有脚本</div>
-            <div id="voicePreviewPanel" class="voicePreviewPanel hiddenPanel"></div>
-            <div class="creationFooterActions">
-              <div class="productionModeBar">
-                <label>成片方式
-                  <select id="creationProductionModeSelect">
-                    <option value="talking_head_template">数字人口播模板（目标成片）</option>
-                    <option value="material_mix">素材库混剪方案（先排素材）</option>
-                    <option value="seedance_scene">Seedance AI 实景/B-roll</option>
-                    <option value="digital_human">真人数字人口播（头像/源视频）</option>
-                    <option value="dynamic_explainer">图文草稿预览（不建议成片）</option>
-                  </select>
-                </label>
-                <label>字幕风格
-                  <select id="creationSubtitleStyleSelect">
-                    <option value="auto">AI 自动选择</option>
-                    <option value="business">商务清晰</option>
-                    <option value="viral">爆款大字</option>
-                    <option value="digital_human">数字人口播</option>
-                    <option value="tutorial">教程说明</option>
-                    <option value="minimal">极简底栏</option>
-                  </select>
-                </label>
-                <span id="productionModeHint">会生成参考视频那种口播模板：顶部标题、底部身份条、字幕和解释页。</span>
-              </div>
-              <div class="itemActions creationActions">
-                <button id="regenerateScriptBtn" type="button" class="secondary">继续生成一条</button>
-                <button id="createTaskFromScriptBtn" type="button">审核通过并自动生成视频</button>
-                <button id="goTaskPageBtn" type="button" class="secondary">查看生成进度</button>
-              </div>
-            </div>
+            </section>
           </section>
         </section>
       </section>
@@ -1041,6 +1049,6 @@
     </div>
 
     <div id="toast"></div>
-    <script src="/app.js?v=20260709-simple-flow"></script>
+    <script src="/app.js?v=20260710-planner-review"></script>
   </body>
 </html>
