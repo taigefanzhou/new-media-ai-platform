@@ -503,7 +503,7 @@ h2 {
 
 .quickStartGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -729,7 +729,7 @@ h2 {
 
 .creationParamBar {
   display: grid;
-  grid-template-columns: 112px 112px minmax(210px, 1fr) minmax(156px, 0.9fr) 132px 104px;
+  grid-template-columns: 104px 104px minmax(132px, 0.8fr) 72px minmax(210px, 1fr) minmax(148px, 0.9fr) 132px 104px;
   gap: 8px;
   align-items: start;
   margin-top: 10px;
@@ -2525,32 +2525,6 @@ button:disabled {
   color: var(--accent);
 }
 
-.productionModeBar {
-  display: grid;
-  grid-template-columns: minmax(260px, 360px) minmax(280px, 1fr);
-  gap: 14px;
-  align-items: center;
-  width: 100%;
-}
-
-.productionModeBar label {
-  margin-bottom: 0;
-}
-
-.productionModeBar span {
-  display: block;
-  min-width: 0;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 10px 12px;
-  background: #fbfcfd;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 800;
-  line-height: 1.45;
-  overflow-wrap: anywhere;
-}
-
 .titleOption {
   display: grid;
   gap: 6px;
@@ -3004,12 +2978,13 @@ button:disabled {
   grid-template-columns: minmax(120px, 0.8fr) minmax(220px, 1.25fr) minmax(150px, 0.9fr);
   gap: 10px;
   align-items: stretch;
+  width: min(720px, 100%);
+  margin-top: 0;
 }
 
 .creationFooterActions {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(500px, 0.9fr);
-  gap: 10px;
+  display: flex;
+  justify-content: flex-end;
   margin-top: 10px;
   align-items: end;
   border: 1px solid var(--line);
@@ -3149,13 +3124,6 @@ button:disabled {
   cursor: pointer;
   color: var(--accent);
   font-weight: 900;
-}
-
-.advancedTaskGrid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.9fr);
-  gap: 14px;
-  margin-top: 16px;
 }
 
 .taskTable {
@@ -4152,6 +4120,43 @@ button:disabled {
   background: #ffffff;
 }
 
+.humanMobileList {
+  display: grid;
+  gap: 12px;
+}
+
+.humanMobileCard {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.humanMobileCard strong {
+  display: block;
+  font-size: 17px;
+}
+
+.humanMobileCard p {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.humanMobileAuth {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.humanMobileHint {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 13px;
+}
+
 .assetListTable {
   min-width: 1120px;
   border-collapse: collapse;
@@ -4428,6 +4433,20 @@ button:disabled {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.55;
+}
+
+.manualAssetBindForm {
+  display: grid;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.manualAssetBindForm label {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .assetDetailGrid {
@@ -4759,7 +4778,6 @@ button:disabled {
 .creationProfileHint,
 .captureModeCard span,
 .capturePlatformHint,
-.productionModeBar span,
 .referenceMaterialCard,
 .analysisPreviewCard,
 .taskTable .recordMeta,
@@ -4900,12 +4918,10 @@ button:disabled {
 
   .creationFooterActions,
   .creationParamBar,
-  .productionModeBar,
   .analysisGrid,
   .referenceContentGrid,
   .modelConfigForm,
   .storageConfigForm,
-  .advancedTaskGrid,
   .scriptUtilityGrid,
   .scriptMetaGrid,
   .scriptEditGrid,
@@ -5118,7 +5134,6 @@ button:disabled {
   .creationActions,
   .creationFooterActions,
   .creationParamBar,
-  .productionModeBar,
   .referenceTabs,
   .analysisGrid,
   .humanAssetFormPanel,
@@ -5127,7 +5142,6 @@ button:disabled {
   .referenceActions,
   .modelConfigForm,
   .storageConfigForm,
-  .advancedTaskGrid,
   .scriptUtilityGrid,
   .scriptEditGrid,
   .settingsAccountForm,
@@ -5382,5 +5396,54 @@ button:disabled {
   .portraitPreview {
     width: 80px;
     height: 80px;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  body.asset-drawer-open {
+    overflow: hidden;
+  }
+
+  body.asset-drawer-open .mobileNavToggle {
+    display: none;
+  }
+
+  .drawerOverlay {
+    justify-content: stretch;
+  }
+
+  .detailDrawer {
+    box-sizing: border-box;
+    width: 100vw;
+    max-width: 100vw;
+    min-width: 0;
+    height: 100dvh;
+    padding: 14px;
+    border-left: 0;
+  }
+
+  .assetDetailContent,
+  .assetDrawerSummary,
+  .volcengineAuthBlock {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 760px), (hover: none) and (pointer: coarse) {
+  .humanListTable td {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .humanListTable td:nth-child(2),
+  .humanListTable td:nth-child(3),
+  .humanListTable td:nth-child(4),
+  .humanListTable td:nth-child(5),
+  .humanListTable td:nth-child(7) {
+    display: none;
+  }
+
+  .humanListTable .tableActions {
+    grid-template-columns: 1fr;
   }
 }

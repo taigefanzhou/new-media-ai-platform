@@ -11,14 +11,25 @@ from app.services.video_quality import GeneratedVideoQualityGuard
 
 
 def _make_clip(path: Path, color: str, duration_seconds: int = 2) -> None:
-    from moviepy.editor import ColorClip
+    import numpy as np
+    from moviepy.editor import AudioClip, ColorClip
 
-    colors = {"blue": (30, 80, 220), "black": (0, 0, 0)}
-    clip = ColorClip(size=(320, 568), color=colors[color], duration=duration_seconds)
+    def tone(t):
+        values = np.asarray(t)
+        wave = 0.04 * np.sin(2 * np.pi * 220 * values)
+        return [float(wave), float(wave)] if np.isscalar(t) else np.column_stack([wave, wave])
+
+    audio = AudioClip(tone, duration=duration_seconds, fps=44100)
+    clip = ColorClip(
+        size=(320, 568),
+        color={"blue": (30, 80, 220), "black": (0, 0, 0)}[color],
+        duration=duration_seconds,
+    ).set_audio(audio)
     try:
-        clip.write_videofile(str(path), fps=24, codec="libx264", audio=False, logger=None)
+        clip.write_videofile(str(path), fps=24, codec="libx264", audio_codec="aac", logger=None)
     finally:
         clip.close()
+        audio.close()
 
 
 def main() -> None:
@@ -32,8 +43,11 @@ def main() -> None:
 
         passed = guard.inspect(str(normal), expected_duration_seconds=2, expected_width=320, expected_height=568)
         assert passed.status == "passed", passed
+        assert passed.score >= 82, passed
+
         rejected = guard.inspect(str(black), expected_duration_seconds=2, expected_width=320, expected_height=568)
         assert rejected.status == "retry", rejected
+        assert rejected.score < 60, rejected
 
     print("video quality smoke ok")
 

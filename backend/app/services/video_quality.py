@@ -51,6 +51,9 @@ class GeneratedVideoQualityGuard:
             if abs(expected_ratio - actual_ratio) > 0.08:
                 score -= 25
                 reasons.append("画幅与导出规格不一致")
+        if not bool(metadata.get("has_audio")):
+            score -= 35
+            reasons.append("成片缺少有效音轨")
         if self._looks_near_black(path, duration):
             score -= 70
             reasons.append("抽帧接近黑屏或无有效画面")
@@ -64,25 +67,38 @@ class GeneratedVideoQualityGuard:
 
     def _probe(self, path: Path) -> dict[str, float | int]:
         command = [
-            "ffprobe", "-v", "error", "-select_streams", "v:0",
-            "-show_entries", "stream=width,height:format=duration", "-of", "json", str(path),
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "stream=codec_type,width,height:format=duration",
+            "-of",
+            "json",
+            str(path),
         ]
         try:
             completed = subprocess.run(command, check=True, capture_output=True, text=True, timeout=20)
             payload = json.loads(completed.stdout)
-            stream = (payload.get("streams") or [{}])[0]
+            streams = payload.get("streams") or []
+            stream = next((item for item in streams if item.get("codec_type") == "video"), {})
             return {
                 "duration": float((payload.get("format") or {}).get("duration") or 0),
                 "width": int(stream.get("width") or 0),
                 "height": int(stream.get("height") or 0),
+                "has_audio": any(item.get("codec_type") == "audio" for item in streams),
             }
         except (OSError, subprocess.SubprocessError, ValueError, json.JSONDecodeError):
             try:
                 from moviepy.editor import VideoFileClip
 
-                clip = VideoFileClip(str(path), audio=False)
+                clip = VideoFileClip(str(path))
                 try:
-                    return {"duration": float(clip.duration or 0), "width": int(clip.w or 0), "height": int(clip.h or 0)}
+                    return {
+                        "duration": float(clip.duration or 0),
+                        "width": int(clip.w or 0),
+                        "height": int(clip.h or 0),
+                        "has_audio": clip.audio is not None,
+                    }
                 finally:
                     clip.close()
             except Exception:
@@ -94,9 +110,9 @@ class GeneratedVideoQualityGuard:
 
             clip = VideoFileClip(str(path), audio=False)
             try:
-                sample_times = sorted({0.0, max(0.0, duration / 2), max(0.0, duration - 0.1)})
+                sample_times = sorted({0.0, duration * 0.2, duration * 0.5, duration * 0.8, max(0.0, duration - 0.1)})
                 brightness = [float(np.asarray(clip.get_frame(time)).mean()) for time in sample_times]
-                return bool(brightness) and max(brightness) < 10
+                return sum(value < 8 for value in brightness) >= 2
             finally:
                 clip.close()
         except Exception:

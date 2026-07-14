@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import math
 import base64
+import mimetypes
+import re
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -36,6 +39,11 @@ class ReferenceAnalysisResult:
     reuse_notes: str
     quality_score: float = 0
     quality_summary: str = ""
+    blueprint_json: str = ""
+    edit_plan_json: str = ""
+    transcript: str = ""
+    transcript_segments_json: str = ""
+    analysis_source: str = "local"
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0
@@ -207,6 +215,15 @@ class ReferenceVideoAnalyzer:
             editing_analysis = self._editing_analysis(duration, scene_count, avg_shot, visual_frequency, timeline)
             reusable_template = self._reusable_template(duration, timeline, transcript)
             reuse_notes = self._reuse_notes(timeline)
+            blueprint = self._default_blueprint(
+                script_analysis,
+                shooting_analysis,
+                reusable_template,
+                reuse_notes,
+                timeline,
+            )
+            edit_plan = self._default_edit_plan(timeline)
+            transcript_segments = self._default_transcript_segments(transcript, duration)
             quality_score, quality_summary = self._local_quality_score(
                 duration=duration,
                 width=width,
@@ -235,6 +252,11 @@ class ReferenceVideoAnalyzer:
                 reuse_notes=reuse_notes,
                 quality_score=quality_score,
                 quality_summary=quality_summary,
+                blueprint_json=json.dumps(blueprint, ensure_ascii=False),
+                edit_plan_json=json.dumps(edit_plan, ensure_ascii=False),
+                transcript=transcript,
+                transcript_segments_json=json.dumps(transcript_segments, ensure_ascii=False),
+                analysis_source="local",
             )
         finally:
             clip.close()
@@ -249,10 +271,15 @@ class ReferenceVideoAnalyzer:
         prompt = self._model_analysis_prompt(video_path, local_result, transcript)
         image_path = Path(local_result.dense_contact_sheet_path or local_result.contact_sheet_path)
         try:
-            if "gemini" in provider:
+            if self._is_volcengine_ark(provider):
+                parsed, usage = await self._call_volcengine_video_understanding(prompt, video_path, local_result.duration_seconds)
+                local_result.analysis_source = "full_video"
+            elif "gemini" in provider:
                 parsed, usage = await self._call_gemini_video_understanding(prompt, image_path)
+                local_result.analysis_source = "contact_sheet"
             else:
                 parsed, usage = await self._call_openai_compatible_vision(prompt, image_path)
+                local_result.analysis_source = "contact_sheet"
         except Exception as exc:
             raise RuntimeError(f"视频理解模型增强失败，未使用本地结果代替真实模型：{exc}") from exc
 
@@ -288,6 +315,9 @@ class ReferenceVideoAnalyzer:
                     "拍摄方式要说清楚人物景别、机位、背景、表情、手势、屏幕录制或B-roll的使用。",
                     "剪辑方式要说清楚每几秒发生视觉变化、如何切截图/卡片/人物、如何保持口播不断线。",
                     "生成的 reusable_template 要能直接给脚本生成模块使用。",
+                    "reference_blueprint 必须是结构化对象，完整记录内容策略、视觉、字幕、音频和合规边界。",
+                    "edit_plan 必须按时间顺序给出可执行剪辑动作，可直接交给系统内 Remotion/FFmpeg 渲染。",
+                    "如果能听清视频音频，transcript 必须给出完整口播，transcript_segments 必须给出对应时间段；已有 transcript 只能作为校对参考。",
                     "必须输出严格 JSON，不要使用 Markdown。",
                 ],
                 "json_schema": {
@@ -298,6 +328,31 @@ class ReferenceVideoAnalyzer:
                     "reuse_notes": "可学习/不可搬运/合规注意，中文，多行文本",
                     "quality_score": "0-100 的数字，评价这次拆解是否足够指导原创视频生产",
                     "quality_summary": "中文，一句话说明评分原因和下一步优化建议",
+                    "transcript": "完整口播文本；没有语音则为空字符串",
+                    "transcript_segments": [
+                        {"start_second": 0, "end_second": 3.2, "text": "口播内容", "speaker": "speaker_1", "estimated": False}
+                    ],
+                    "reference_blueprint": {
+                        "hook": "开场钩子及其有效原因",
+                        "audience": "目标观众",
+                        "narrative_structure": ["叙事阶段及作用"],
+                        "visual_style": "人物、场景、构图、运镜和色彩规律",
+                        "caption_style": "字幕位置、断句、字号层级、强调方式",
+                        "audio_style": "口播、音乐、环境声、音效和节奏规律",
+                        "reusable_rules": ["可复用的结构和方法"],
+                        "compliance_limits": ["不可复制的人物、台词、音乐、标识和画面"],
+                    },
+                    "edit_plan": [
+                        {
+                            "start_second": 0,
+                            "end_second": 5,
+                            "action": "keep / trim / replace / overlay",
+                            "visual": "主画面或B-roll要求",
+                            "caption": "字幕与关键词强调",
+                            "transition": "hard_cut / J_cut / L_cut / dissolve",
+                            "audio": "口播、BGM、环境声或音效操作",
+                        }
+                    ],
                     "timeline": [
                         {
                             "index": 1,
@@ -305,6 +360,14 @@ class ReferenceVideoAnalyzer:
                             "end_second": 5,
                             "visual_role": "画面角色",
                             "script_function": "脚本作用",
+                            "shot_type": "景别和机位",
+                            "camera_movement": "运镜方式",
+                            "person_action": "人物动作、表情和视线",
+                            "transcript_excerpt": "这一时段对应的口播原文或语义摘要",
+                            "caption": "字幕内容、位置和强调词",
+                            "audio": "口播、音乐、环境声和音效",
+                            "material_role": "数字人、产品、场景、证据或过渡素材",
+                            "engagement_reason": "这一段为什么能留住观众",
                             "editing_note": "剪辑手法",
                             "reuse_instruction": "原创复用方式",
                         }
@@ -313,6 +376,107 @@ class ReferenceVideoAnalyzer:
             },
             ensure_ascii=False,
         )
+
+    def _is_volcengine_ark(self, provider: str) -> bool:
+        api_base = (self.model_config.api_base or "").lower() if self.model_config else ""
+        return "volcengine" in provider or provider in {"ark", "doubao"} or "volces.com/api/v3" in api_base
+
+    async def _call_volcengine_video_understanding(
+        self,
+        prompt: str,
+        video_path: Path,
+        duration_seconds: float,
+    ) -> tuple[dict, dict]:
+        if video_path.stat().st_size > 512 * 1024 * 1024:
+            raise RuntimeError("参考视频超过方舟 Files API 的 512MB 上限，请先压缩或配置 TOS 大文件存储。")
+        api_base = self._ark_api_base(self.model_config.api_base)
+        headers = {"Authorization": f"Bearer {self.model_config.api_key}"}
+        mime_type = mimetypes.guess_type(video_path.name)[0] or "video/mp4"
+        fps = 1.0 if duration_seconds <= 120 else 0.5 if duration_seconds <= 600 else 0.3
+        file_id = ""
+        async with httpx.AsyncClient(timeout=300, trust_env=False) as client:
+            try:
+                with video_path.open("rb") as source:
+                    upload = await client.post(
+                        api_base + "/files",
+                        headers=headers,
+                        data={"purpose": "user_data", "preprocess_configs[video][fps]": str(fps)},
+                        files={"file": (video_path.name, source, mime_type)},
+                    )
+                upload.raise_for_status()
+                file_data = upload.json()
+                file_id = str(file_data.get("id") or "")
+                if not file_id:
+                    raise RuntimeError("方舟 Files API 未返回 file id")
+
+                status = str(file_data.get("status") or "processing")
+                for _ in range(150):
+                    if status not in {"processing", "queued", "pending"}:
+                        break
+                    await asyncio.sleep(2)
+                    file_response = await client.get(api_base + f"/files/{file_id}", headers=headers)
+                    file_response.raise_for_status()
+                    file_data = file_response.json()
+                    status = str(file_data.get("status") or "")
+                if status not in {"active", "processed", "completed", "succeeded", "success"}:
+                    raise RuntimeError(f"方舟视频文件处理失败：{status or 'timeout'}")
+
+                response = await client.post(
+                    api_base + "/responses",
+                    headers={**headers, "Content-Type": "application/json"},
+                    json={
+                        "model": self.model_config.model_name,
+                        "input": [
+                            {
+                                "role": "user",
+                                "content": [
+                                    {"type": "input_video", "file_id": file_id},
+                                    {"type": "input_text", "text": prompt},
+                                ],
+                            }
+                        ],
+                    },
+                )
+                response.raise_for_status()
+                data = response.json()
+            finally:
+                if file_id:
+                    try:
+                        await client.delete(api_base + f"/files/{file_id}", headers=headers)
+                    except httpx.HTTPError:
+                        pass
+        usage_data = data.get("usage") or {}
+        usage = {
+            "prompt_tokens": usage_data.get("input_tokens") or 0,
+            "completion_tokens": usage_data.get("output_tokens") or 0,
+            "total_tokens": usage_data.get("total_tokens") or 0,
+        }
+        return self._loads_json_loose(self._responses_output_text(data)), usage
+
+    def _ark_api_base(self, api_base: str) -> str:
+        normalized = api_base.rstrip("/")
+        for suffix in ("/chat/completions", "/responses", "/files"):
+            if normalized.endswith(suffix):
+                normalized = normalized[: -len(suffix)]
+        return normalized
+
+    def _responses_output_text(self, data: dict) -> str:
+        direct = data.get("output_text")
+        if isinstance(direct, str) and direct.strip():
+            return direct
+        parts: list[str] = []
+        for item in data.get("output") or []:
+            if not isinstance(item, dict):
+                continue
+            for content in item.get("content") or []:
+                if not isinstance(content, dict):
+                    continue
+                text = content.get("text")
+                if content.get("type") in {"output_text", "text"} and isinstance(text, str):
+                    parts.append(text)
+        if not parts:
+            raise RuntimeError("方舟 Responses API 未返回视频分析文本")
+        return "\n".join(parts)
 
     async def _call_openai_compatible_vision(self, prompt: str, image_path: Path) -> tuple[dict, dict]:
         api_base = self.model_config.api_base.rstrip("/")
@@ -388,15 +552,44 @@ class ReferenceVideoAnalyzer:
         usage: dict,
     ) -> ReferenceAnalysisResult:
         timeline = parsed.get("timeline")
-        if isinstance(timeline, list) and timeline:
+        if isinstance(timeline, list):
+            timeline = [item for item in timeline if isinstance(item, dict)]
+        if timeline:
             local_result.timeline_json = json.dumps(timeline, ensure_ascii=False)
             local_result.scene_count = len(timeline)
             local_result.avg_shot_seconds = round(local_result.duration_seconds / len(timeline), 2)
             local_result.visual_change_frequency = self._visual_frequency_label(local_result.avg_shot_seconds)
+        else:
+            timeline = json.loads(local_result.timeline_json or "[]")
         for field_name in ("script_analysis", "shooting_analysis", "editing_analysis", "reusable_template", "reuse_notes"):
             value = parsed.get(field_name)
             if isinstance(value, str) and value.strip():
                 setattr(local_result, field_name, value.strip())
+        blueprint = parsed.get("reference_blueprint")
+        if not isinstance(blueprint, dict):
+            blueprint = self._default_blueprint(
+                local_result.script_analysis,
+                local_result.shooting_analysis,
+                local_result.reusable_template,
+                local_result.reuse_notes,
+                timeline,
+            )
+        edit_plan = parsed.get("edit_plan")
+        if isinstance(edit_plan, list):
+            edit_plan = [item for item in edit_plan if isinstance(item, dict)]
+        if not edit_plan:
+            edit_plan = self._default_edit_plan(timeline)
+        local_result.blueprint_json = json.dumps(blueprint, ensure_ascii=False)
+        local_result.edit_plan_json = json.dumps(edit_plan, ensure_ascii=False)
+        model_transcript = parsed.get("transcript")
+        if isinstance(model_transcript, str) and model_transcript.strip():
+            local_result.transcript = model_transcript.strip()
+        transcript_segments = parsed.get("transcript_segments")
+        if isinstance(transcript_segments, list):
+            transcript_segments = [item for item in transcript_segments if isinstance(item, dict)]
+        if not transcript_segments:
+            transcript_segments = self._default_transcript_segments(local_result.transcript, local_result.duration_seconds)
+        local_result.transcript_segments_json = json.dumps(transcript_segments, ensure_ascii=False)
         local_result.quality_score = self._safe_score(parsed.get("quality_score"), default=local_result.quality_score)
         quality_summary = parsed.get("quality_summary")
         if isinstance(quality_summary, str) and quality_summary.strip():
@@ -406,6 +599,60 @@ class ReferenceVideoAnalyzer:
         local_result.total_tokens = int(usage.get("total_tokens") or usage.get("totalTokenCount") or 0)
         local_result.model_enhanced = True
         return local_result
+
+    def _default_blueprint(
+        self,
+        script_analysis: str,
+        shooting_analysis: str,
+        reusable_template: str,
+        reuse_notes: str,
+        timeline: list[dict[str, object]],
+    ) -> dict[str, object]:
+        return {
+            "hook": script_analysis,
+            "narrative_structure": [item.get("script_function", "") for item in timeline],
+            "visual_style": shooting_analysis,
+            "caption_style": "按语义短句断行，关键词强调，避开人物面部和产品主体。",
+            "audio_style": "口播优先，BGM自动压低，转场只在叙事节点使用。",
+            "reusable_rules": [reusable_template],
+            "compliance_limits": [reuse_notes],
+        }
+
+    def _default_edit_plan(self, timeline: list[dict[str, object]]) -> list[dict[str, object]]:
+        return [
+            {
+                "start_second": item.get("start_second", 0),
+                "end_second": item.get("end_second", 0),
+                "action": "keep",
+                "visual": item.get("reuse_instruction") or item.get("visual_role") or "",
+                "caption": item.get("script_function") or "",
+                "transition": "hard_cut",
+                "audio": "narration_priority",
+            }
+            for item in timeline
+        ]
+
+    def _default_transcript_segments(self, transcript: str, duration_seconds: float) -> list[dict[str, object]]:
+        sentences = [item.strip() for item in re.split(r"(?<=[。！？!?])", transcript) if item.strip()]
+        total_chars = sum(len(item) for item in sentences)
+        if not sentences or total_chars <= 0 or duration_seconds <= 0:
+            return []
+        cursor = 0.0
+        segments: list[dict[str, object]] = []
+        for sentence in sentences:
+            span = duration_seconds * len(sentence) / total_chars
+            end = min(duration_seconds, cursor + span)
+            segments.append(
+                {
+                    "start_second": round(cursor, 2),
+                    "end_second": round(end, 2),
+                    "text": sentence,
+                    "speaker": "speaker_1",
+                    "estimated": True,
+                }
+            )
+            cursor = end
+        return segments
 
     def _image_data_uri(self, image_path: Path) -> str:
         image_b64 = base64.b64encode(image_path.read_bytes()).decode("ascii")

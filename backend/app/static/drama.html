@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>短剧工作台</title>
+    <script>if (!localStorage.getItem("authToken")) window.location.replace("/login.html");</script>
+    <style>
+      :root { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; color: #172033; background: #f4f7fb; }
+      body { margin: 0; } main { max-width: 1180px; margin: 0 auto; padding: 28px 20px 56px; }
+      header, .row, .project-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; } header { margin-bottom: 22px; }
+      h1, h2, h3, p { margin-top: 0; } h1 { margin-bottom: 6px; } h2 { margin-bottom: 6px; } .muted { color: #64748b; }
+      .panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 20px; margin-bottom: 16px; box-shadow: 0 8px 24px rgba(15, 23, 42, .04); }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+      label { display: grid; gap: 6px; font-size: 14px; color: #475569; } input, textarea, select { box-sizing: border-box; width: 100%; border: 1px solid #cbd5e1; border-radius: 9px; padding: 10px; font: inherit; color: #172033; background: #fff; } textarea { min-height: 74px; resize: vertical; }
+      button, .link { border: 0; border-radius: 9px; padding: 10px 14px; font: inherit; cursor: pointer; background: #2563eb; color: #fff; text-decoration: none; } button.secondary, .link.secondary { background: #e8eef9; color: #1e40af; } button:disabled { opacity: .55; cursor: wait; }
+      .project { display: grid; grid-template-columns: 270px 1fr; gap: 16px; } .project-list { display: grid; align-content: start; gap: 8px; } .project-card { text-align: left; background: #f8fafc; color: #172033; border: 1px solid #e2e8f0; } .project-card.active { border-color: #2563eb; background: #eff6ff; }
+      .pill { border-radius: 999px; padding: 4px 8px; background: #e0e7ff; color: #3730a3; font-size: 12px; } .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; } .card { padding: 12px; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; }
+      table { width: 100%; border-collapse: collapse; } th, td { padding: 10px 7px; border-bottom: 1px solid #e2e8f0; vertical-align: top; text-align: left; } th { color: #64748b; font-size: 12px; } td textarea { min-width: 190px; } .status { min-height: 20px; color: #b91c1c; }
+      @media (max-width: 760px) { .project { grid-template-columns: 1fr; } header, .row, .project-head { align-items: flex-start; flex-direction: column; } table { display: block; overflow-x: auto; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div><h1>短剧工作台</h1><p class="muted">锁定角色、场景和首帧后，逐镜头生成原创竖屏短剧。</p></div>
+        <a class="link secondary" href="/">返回视频平台</a>
+      </header>
+
+      <section class="panel">
+        <div class="row"><div><h2>新建项目</h2><p class="muted">一集对应一个项目；默认不自动产生视频模型费用。</p></div><button id="cloudHotelBtn" class="secondary" type="button">创建“未来云端酒店”示例</button></div>
+        <form id="projectForm" class="grid">
+          <label>项目名<input name="title" required placeholder="例如：云端酒店异常事件·第1集" /></label>
+          <label>旁白音色<select id="narratorHuman" name="narrator_human_id"><option value="">暂不绑定</option></select></label>
+          <label>剧情简介<textarea name="premise" placeholder="主角、任务、冲突和下集钩子"></textarea></label>
+          <label>统一美术提示词<textarea name="visual_style" placeholder="9:16、手机 Vlog、未来云端酒店、金白云海、真实人物、无文字、无水印"></textarea></label>
+          <div><button type="submit">创建空项目</button></div>
+        </form>
+      </section>
+
+      <section class="panel project">
+        <aside><h2>项目</h2><div id="projectList" class="project-list"></div></aside>
+        <div id="projectDetail"><p class="muted">选择一个项目查看角色、场景和镜头。</p></div>
+      </section>
+      <p id="status" class="status" role="status"></p>
+    </main>
+    <script src="/drama.js?v=20260710-drama"></script>
+  </body>
+</html>

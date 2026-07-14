@@ -57,7 +57,7 @@ from app.schemas.requests import (
 )
 from app.services.file_cleanup import delete_local_file
 from app.services.model_router import is_model_config_ready
-from app.services.pipeline import VideoPipeline
+from app.services.pipeline import VideoPipeline, video_task_failure_message
 
 
 async def _run_video_task_background(task_id: int) -> None:
@@ -69,11 +69,11 @@ async def _run_video_task_background(task_id: int) -> None:
             await VideoPipeline(session).run(task)
         except Exception as exc:
             task.status = TaskStatus.failed
-            task.error_message = str(exc)
+            task.error_message = video_task_failure_message(exc)
             task.audit_notes = (
-                f"{task.audit_notes}\n后台生成启动失败：{exc}".strip()
+                f"{task.audit_notes}\n后台生成启动失败：{task.error_message}".strip()
                 if task.audit_notes
-                else f"后台生成启动失败：{exc}"
+                else f"后台生成启动失败：{task.error_message}"
             )
             task.updated_at = datetime.utcnow()
             session.add(task)
@@ -89,8 +89,8 @@ async def _resume_video_task_background(task_id: int) -> None:
             await VideoPipeline(session).resume_completed_segments(task)
         except Exception as exc:
             task.status = TaskStatus.failed
-            task.error_message = str(exc)
-            task.audit_notes = f"{task.audit_notes}\n恢复合成失败：{exc}".strip()
+            task.error_message = video_task_failure_message(exc)
+            task.audit_notes = f"{task.audit_notes}\n恢复合成失败：{task.error_message}".strip()
             task.updated_at = datetime.utcnow()
             session.add(task)
             session.commit()
@@ -124,7 +124,7 @@ def _validate_video_task_inputs(
     if production_mode not in PRODUCTION_MODES:
         raise HTTPException(status_code=400, detail="Unknown production mode")
     if digital_human_id is None:
-        if production_mode in {"digital_human", "talking_head_template"}:
+        if production_mode in {"digital_human", "talking_head_template", "reference_clone"}:
             raise HTTPException(status_code=400, detail="数字人口播需要选择数字人，并上传头像或口播源视频。")
         return
     human = session.get(DigitalHuman, digital_human_id)
@@ -133,18 +133,18 @@ def _validate_video_task_inputs(
     elif human is None:
         raise HTTPException(status_code=404, detail="Digital human not found")
     if (
-        production_mode in {"digital_human", "talking_head_template"}
+        production_mode in {"digital_human", "talking_head_template", "reference_clone"}
         and human.portrait_material_id is None
         and human.source_video_material_id is None
     ):
         raise HTTPException(status_code=400, detail="数字人口播需要先上传该数字人的头像或口播源视频。")
     if (
-        production_mode in {"digital_human", "talking_head_template"}
+        production_mode in {"digital_human", "talking_head_template", "reference_clone"}
         and _digital_human_model_needs_source_video(session)
         and human.source_video_material_id is None
     ):
         raise HTTPException(status_code=400, detail="当前 VideoRetalk 数字人模型需要先上传该数字人的口播源视频。")
-    if production_mode in {"digital_human", "talking_head_template"} and not _digital_human_service_ready(session):
+    if production_mode in {"digital_human", "talking_head_template", "reference_clone"} and not _digital_human_service_ready(session):
         raise HTTPException(status_code=400, detail="数字人口播需要先在系统设置里配置真实数字人驱动接口。")
 
 
@@ -191,6 +191,7 @@ def create_video_task_from_script(
         export_profile=payload.export_profile,
         subtitle_enabled=payload.subtitle_enabled,
         subtitle_style=payload.subtitle_style,
+        voice_id=payload.voice_id,
         owner=user,
     )
     session.add(task)
@@ -219,6 +220,7 @@ async def approve_script_and_run_video_task(
         export_profile=payload.export_profile,
         subtitle_enabled=payload.subtitle_enabled,
         subtitle_style=payload.subtitle_style,
+        voice_id=payload.voice_id,
         status=TaskStatus.queued,
         audit_notes=f"脚本已审核通过，系统已按「{payload.production_mode}」创建视频任务并进入生成队列。",
         owner=user,
@@ -247,6 +249,7 @@ def create_video_task(
         export_profile=payload.export_profile,
         subtitle_enabled=payload.subtitle_enabled,
         subtitle_style=payload.subtitle_style,
+        voice_id=payload.voice_id,
         owner=user,
     )
     session.add(task)
@@ -274,6 +277,7 @@ def batch_create_video_tasks(
             export_profile=payload.export_profile,
             subtitle_enabled=payload.subtitle_enabled,
             subtitle_style=payload.subtitle_style,
+            voice_id=payload.voice_id,
             owner=user,
         )
         session.add(task)

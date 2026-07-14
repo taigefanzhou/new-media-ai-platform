@@ -13,7 +13,32 @@ from app.services.export_profiles import resolve_export_profile
 from app.services.pipeline import VideoPipeline
 
 
-PRODUCTION_MODES = {"dynamic_explainer", "digital_human", "material_mix", "seedance_scene", "talking_head_template"}
+PRODUCTION_MODES = {
+    "dynamic_explainer",
+    "digital_human",
+    "material_mix",
+    "reference_clone",
+    "seedance_scene",
+    "talking_head_template",
+}
+
+VOICE_PRESETS = {
+    "longanhuan": "元气自然女声",
+    "longanwen_v3": "优雅知性女声",
+    "longanli_v3": "利落从容女声",
+    "longxing_v3": "温婉邻家女声",
+    "longwan_v3": "细腻柔声女声",
+    "longanyang": "阳光男声",
+}
+
+
+def normalize_voice_id(voice_id: Optional[str]) -> Optional[str]:
+    value = (voice_id or "").strip()
+    if not value:
+        return None
+    if value not in VOICE_PRESETS:
+        raise HTTPException(status_code=400, detail="未知音色，请选择系统提供的音色。")
+    return value
 
 
 def _estimated_video_segment_count(duration_seconds: int) -> int:
@@ -29,6 +54,7 @@ def _build_video_task(
     export_profile: Optional[str] = None,
     subtitle_enabled: bool = True,
     subtitle_style: str = "auto",
+    voice_id: Optional[str] = None,
     status: TaskStatus = TaskStatus.queued,
     audit_notes: str = "",
     owner: User | None = None,
@@ -37,7 +63,16 @@ def _build_video_task(
         raise HTTPException(status_code=400, detail="Unknown production mode")
     segment_count = _estimated_video_segment_count(script.duration_seconds)
     platform_name = target_platform or script.target_platform or "douyin"
-    profile = resolve_export_profile(export_profile, platform_name)
+    # ponytail: reference_clone currently means the approved He Yiyi 9:16 hotel talking template.
+    if production_mode == "reference_clone":
+        platform_name = "wechat_channels"
+        profile = resolve_export_profile("wechat_channels_portrait", platform_name)
+    else:
+        profile = resolve_export_profile(export_profile, platform_name)
+    selected_voice = normalize_voice_id(voice_id)
+    task_notes = audit_notes
+    if selected_voice:
+        task_notes = f"{task_notes}\nvoice_id={selected_voice}".strip()
     task = VideoTask(
         script_id=script.id or 0,
         digital_human_id=digital_human_id,
@@ -53,7 +88,7 @@ def _build_video_task(
         subtitle_enabled=subtitle_enabled,
         subtitle_style=subtitle_style or "auto",
         subtitle_status="pending" if subtitle_enabled else "disabled",
-        audit_notes=audit_notes,
+        audit_notes=task_notes,
     )
     if owner is not None:
         _assign_owner(task, owner)

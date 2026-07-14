@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import logging
 import re
 from sqlmodel import select
 from sqlmodel import Session
@@ -26,7 +27,24 @@ from app.services.subtitles import SubtitleEngine
 from app.services.video_analysis import ReferenceVideoAnalyzer
 from app.services.video_quality import GeneratedVideoQualityGuard, VideoQualityResult
 from app.services.usage import estimate_text_tokens, record_model_usage
-from app.services.video_skills import material_selection_rules, quality_guard_checklist, video_skill_manifest
+from app.services.video_skills import (
+    he_yiyi_hotel_template_manifest,
+    material_selection_rules,
+    quality_guard_checklist,
+    video_skill_manifest,
+)
+
+
+logger = logging.getLogger(__name__)
+
+
+def video_task_failure_message(error: Exception | str) -> str:
+    detail = str(error).lower()
+    if "inputimagesensitivecontentdetected" in detail or "may contain real person" in detail:
+        return "当前视频模型不支持包含真人的人像参考图。请改用无真人画面后重新生成。"
+    if any(token in detail for token in ("timeout", "connection", "连接失败")):
+        return "视频生成服务暂时连接不上，请稍后重新生成。"
+    return "视频生成未完成，请稍后重新生成。"
 
 
 class VideoPipeline:
@@ -92,7 +110,13 @@ class VideoPipeline:
             source_video_material = self._source_video_material(human)
             source_video = source_video_material.file_path if source_video_material else None
             source_video_url = source_video_material.source_url if source_video_material else None
-            voice = await self._voice_for_human(human, source_video, task, source_video_url)
+            voice = self._voice_for_task(task) or await self._voice_for_human(human, source_video, task, source_video_url)
+            trusted_asset_uri = self._trusted_asset_uri(human)
+            if task.production_mode == "reference_clone":
+                self._require_reference_clone_asset(human)
+                return await self._run_trusted_presenter_task(task, script, segments, voice)
+            if task.production_mode in {"digital_human", "talking_head_template"} and trusted_asset_uri:
+                return await self._run_trusted_presenter_task(task, script, segments, voice)
             if task.production_mode == "talking_head_template":
                 if human is None:
                     raise RuntimeError("数字人口播模板需要选择数字人。")
@@ -178,8 +202,9 @@ class VideoPipeline:
             task.output_path = await self.media.compose_final_video(clips, avatar, export_profile=task.export_profile)
             return await self._finalize_task(task, script)
         except Exception as exc:
+            logger.exception("Video task %s failed", task.id)
             task.status = TaskStatus.failed
-            task.error_message = task.error_message or str(exc)
+            task.error_message = task.error_message or video_task_failure_message(exc)
             task.updated_at = datetime.utcnow()
             self.session.add(task)
             self.session.commit()
@@ -187,8 +212,10 @@ class VideoPipeline:
             return task
 
     async def _finalize_task(self, task: VideoTask, script: Script) -> VideoTask:
-        await self._apply_professional_render(task, script)
-        if task.subtitle_enabled:
+        if task.production_mode == "reference_clone":
+            task.subtitle_status = "completed"
+        elif task.subtitle_enabled:
+            await self._apply_professional_render(task, script)
             task.subtitle_status = "running"
             self.session.add(task)
             self.session.commit()
@@ -198,7 +225,7 @@ class VideoPipeline:
             except Exception as exc:
                 task.subtitle_status = "failed"
                 task.audit_notes = f"{task.audit_notes}\n字幕引擎执行失败，已保留无字幕原片：{exc}".strip()
-        else:
+        elif not task.subtitle_enabled:
             task.subtitle_status = "disabled"
         await self._review_final_output(task, script)
         task.status = TaskStatus.needs_review
@@ -241,15 +268,52 @@ class VideoPipeline:
 
     async def _apply_professional_render(self, task: VideoTask, script: Script) -> None:
         original_output = task.output_path
+        # The reference template's inserts are timed for a long-form video. Scaling
+        # them into a short clip covers the presenter for most of the runtime.
+        broll_paths = [] if script.duration_seconds < 12 else self._owned_broll_paths(task)
         try:
-            rendered = await ProfessionalRenderClient().render_task(task, script, original_output)
+            rendered = await ProfessionalRenderClient().render_task(task, script, original_output, broll_paths=broll_paths)
         except Exception as exc:
             task.audit_notes = f"{task.audit_notes}\n专业包装渲染失败，已保留基础成片：{exc}".strip()
             return
         if not rendered:
             return
         task.output_path = rendered
-        task.audit_notes = f"{task.audit_notes}\n专业包装：已通过 Remotion 模板生成剪映式包装成片。".strip()
+        template_note = "何依依酒店干货模板" if task.production_mode == "reference_clone" else "Remotion 专业模板"
+        task.audit_notes = (
+            f"{task.audit_notes}\n专业包装：已通过{template_note}生成成片；"
+            f"匹配 {len(broll_paths)} 个 owned/licensed B-roll，并加入原创背景音乐和节点音效。"
+        ).strip()
+
+    def _owned_broll_paths(self, task: VideoTask) -> list[str]:
+        materials = self.session.exec(
+            select(Material).where(
+                Material.kind == MaterialKind.video,
+                Material.copyright_status.in_([CopyrightStatus.owned, CopyrightStatus.licensed]),
+            )
+        ).all()
+        if task.production_mode == "reference_clone":
+            template_tag = "reference-template:he_yiyi_hotel_v1"
+            role_order = {"broll-role:hotel": 0, "broll-role:system": 1}
+            template_materials = [
+                material
+                for material in materials
+                if template_tag in (material.tags or "")
+                and material.file_path
+                and material.owner_user_id in (None, task.owner_user_id)
+            ]
+            template_materials.sort(
+                key=lambda material: next(
+                    (order for tag, order in role_order.items() if tag in (material.tags or "")),
+                    len(role_order),
+                )
+            )
+            return [material.file_path for material in template_materials[:2] if material.file_path]
+        return [
+            material.file_path
+            for material in materials
+            if material.file_path and (material.owner_user_id in (None, task.owner_user_id))
+        ][:6]
 
     def _reset_segments(self, task: VideoTask, segment_specs: list[dict[str, object]]) -> list[VideoSegment]:
         existing = self.session.exec(select(VideoSegment).where(VideoSegment.video_task_id == task.id)).all()
@@ -259,7 +323,23 @@ class VideoPipeline:
 
         segments: list[VideoSegment] = []
         for index, spec in enumerate(segment_specs):
-            material, match_note = self._match_material_for_segment(spec, task.owner_user_id)
+            if task.production_mode in {"material_mix", "seedance_scene"}:
+                material = self.session.get(Material, spec.get("reference_material_id")) if spec.get("reference_material_id") else None
+                if material is not None and material.owner_user_id not in (None, task.owner_user_id):
+                    material = None
+                if material is not None and self._is_person_reference_material(material):
+                    material = None
+                    match_note = "人物头像和口播源不会发送给场景视频模型，已改为按文本生成。"
+                else:
+                    match_note = ""
+                if material is not None:
+                    match_note = f"短剧镜头已锁定参考素材 #{material.id}：{material.name}（仅作模型参考，不直接混剪）。"
+                elif task.production_mode == "seedance_scene":
+                    material, match_note = None, match_note or "原创镜头未绑定参考素材，按文本提示生成。"
+                else:
+                    material, match_note = self._match_material_for_segment(spec, task.owner_user_id)
+            else:
+                material, match_note = None, "纯原创生成，不使用素材库或参考视频作为模型输入。"
             segment = VideoSegment(
                 video_task_id=task.id or 0,
                 segment_index=index + 1,
@@ -358,6 +438,8 @@ class VideoPipeline:
             self.session.commit()
             return chosen_path
         except Exception as exc:
+            logger.exception("Video task %s segment %s failed", task.id, segment.segment_index)
+            failure_message = video_task_failure_message(exc)
             self._record_usage(
                 "video",
                 self.video_model_config,
@@ -367,10 +449,10 @@ class VideoPipeline:
                 status="failed",
             )
             segment.status = TaskStatus.failed
-            segment.error_message = str(exc)
+            segment.error_message = failure_message
             segment.updated_at = datetime.utcnow()
             task.status = TaskStatus.failed
-            task.error_message = f"第 {segment.segment_index} 段生成失败：{exc}"
+            task.error_message = f"第 {segment.segment_index} 段生成失败：{failure_message}"
             task.updated_at = datetime.utcnow()
             self.session.add(segment)
             self.session.add(task)
@@ -384,7 +466,30 @@ class VideoPipeline:
         material: Material | None,
         repair_instruction: str = "",
     ) -> str:
-        prompt = " ".join(part for part in (segment.prompt, repair_instruction) if part).strip()
+        prompt = " ".join(
+            part
+            for part in (
+                segment.prompt,
+                self._trusted_human_identity_instruction(task),
+                repair_instruction,
+            )
+            if part
+        ).strip()
+        human = self.session.get(DigitalHuman, task.digital_human_id) if task.digital_human_id else None
+        if task.production_mode in {"digital_human", "reference_clone", "talking_head_template"} and self._trusted_asset_uri(human):
+            prompt = (
+                f"{prompt}\nUse the authorized woman in the reference image as the only presenter. "
+                "Preserve her identity, hairstyle, clothing and facial proportions across every shot. Natural eye contact, "
+                "subtle speaking motion and hand gestures, realistic skin texture, no extra people, no text, no watermark."
+            ).strip()
+        if task.production_mode == "reference_clone":
+            prompt = (
+                f"{prompt}\nLocked tripod, eye-level seated medium shot in a beige armchair. Frame the face at 24.84% "
+                "of canvas width, centered at 51.68% across and 48.31% down. Keep hands near the lap with occasional "
+                "chest-level gestures. Recreate the reference set: warm wood wall, illuminated award shelf on the left, "
+                "tall green plant on the right, beige chair, and a dome camera near the top center. Clean plate only; "
+                "the title, subtitles and graphic overlays are added later."
+            ).strip()
         segment.generation_attempts += 1
         self.session.add(segment)
         self.session.commit()
@@ -394,7 +499,17 @@ class VideoPipeline:
             segment.segment_index - 1,
             task.segment_count,
             task.export_profile,
-            reference_media=self._seedance_reference_media(material),
+            reference_media=(
+                self._scene_reference_media(task, material)
+                if task.production_mode in {
+                    "digital_human",
+                    "material_mix",
+                    "reference_clone",
+                    "seedance_scene",
+                    "talking_head_template",
+                }
+                else []
+            ),
         )
         self._record_usage(
             "video",
@@ -458,10 +573,22 @@ class VideoPipeline:
         model_notes = [
             model_choice_note("tts", self.tts_model_config, "voice_preview"),
         ]
+        human = self.session.get(DigitalHuman, task.digital_human_id) if task.digital_human_id else None
+        trusted_asset_uri = self._trusted_asset_uri(human)
         if task.production_mode in {"material_mix", "seedance_scene", "digital_human"}:
             model_notes.append(model_choice_note("video", self.video_model_config, task.production_mode))
-        if task.production_mode in {"talking_head_template", "digital_human"}:
+        if task.production_mode == "reference_clone" and trusted_asset_uri:
+            model_notes.append(model_choice_note("video", self.video_model_config, task.production_mode))
+        elif task.production_mode in {"talking_head_template", "digital_human", "reference_clone"}:
             model_notes.append(model_choice_note("digital_human", self.digital_human_model_config, task.production_mode))
+        template_note = ""
+        if task.production_mode == "reference_clone":
+            template = he_yiyi_hotel_template_manifest()
+            template_note = (
+                f"\n可执行参考模板：{template['key']}（拆解 #{template['reference_analysis_id']} / "
+                f"素材 #{template['reference_material_id']}），只复用结构，原人物和原素材不进入成片。"
+                f"\n人物身份源：{trusted_asset_uri or '未绑定 active 企业资产'}；旧头像和融合样片禁止回退。"
+            )
         plan_note = (
             f"成片方式：{task.production_mode}。长视频分段计划：脚本时长 {script.duration_seconds} 秒，"
             f"共 {task.segment_count} 段，每段约 10 秒，可用于后续分段预览和失败段重跑。"
@@ -470,6 +597,7 @@ class VideoPipeline:
             f"\n内置视频生产 Skill：{self._skill_summary_note()}"
             f"\n素材匹配规则：{'; '.join(material_selection_rules()[:3])}"
             f"\n成片质检清单：{'; '.join(quality_guard_checklist())}"
+            f"{template_note}"
         )
         return f"{base_note}\n{plan_note}".strip() if base_note else plan_note
 
@@ -495,6 +623,10 @@ class VideoPipeline:
             if candidate in name:
                 return candidate
         return name[:8] if len(name) > 8 else name or "数字人"
+
+    def _voice_for_task(self, task: VideoTask) -> str | None:
+        match = re.search(r"(?:^|\n)voice_id=([A-Za-z0-9_\\-]+)", task.audit_notes or "")
+        return match.group(1) if match else None
 
     def _portrait_material(self, human: DigitalHuman | None) -> Material | None:
         if human is None or human.portrait_material_id is None:
@@ -540,7 +672,6 @@ class VideoPipeline:
             Material.copyright_status.in_([
                 CopyrightStatus.owned,
                 CopyrightStatus.licensed,
-                CopyrightStatus.reference_only,
             ]),
         )
         if owner_user_id is not None:
@@ -567,6 +698,8 @@ class VideoPipeline:
             return []
         if material.copyright_status == CopyrightStatus.blocked:
             return []
+        if self._is_person_reference_material(material):
+            return []
         if material.kind not in {
             MaterialKind.video,
             MaterialKind.image,
@@ -588,6 +721,72 @@ class VideoPipeline:
                 else str(material.copyright_status),
             }
         ]
+
+    def _scene_reference_media(self, task: VideoTask, material: Material | None) -> list[dict[str, object]]:
+        references = self._seedance_reference_media(material)
+        human = self.session.get(DigitalHuman, task.digital_human_id) if task.digital_human_id else None
+        asset_uri = self._trusted_asset_uri(human)
+        if human and asset_uri:
+            references.insert(
+                0,
+                {
+                    "name": human.name,
+                    "kind": "portrait",
+                    "source_url": asset_uri,
+                    "copyright_status": "authorized_real_person",
+                },
+            )
+        return references
+
+    def _trusted_human_identity_instruction(self, task: VideoTask) -> str:
+        human = self.session.get(DigitalHuman, task.digital_human_id) if task.digital_human_id else None
+        if not human or human.volcengine_asset_status != "active" or not (human.volcengine_asset_uri or "").strip():
+            return ""
+        return (
+            "Use the latest authorized enterprise asset exactly as supplied. Preserve the person's identity, apparent age, "
+            "facial proportions, shoulder-length side-parted hairstyle, clothing, accessories and natural skin texture. "
+            "Do not restyle the hair, replace the outfit, age the person, reshape facial features, apply heavy makeup, "
+            "or use plastic smoothing. Only adapt camera framing, speaking motion and lighting to the requested shot."
+        )
+
+    @staticmethod
+    def _trusted_asset_uri(human: DigitalHuman | None) -> str:
+        asset_uri = (human.volcengine_asset_uri or "").strip() if human else ""
+        if not human or human.volcengine_asset_status != "active" or not asset_uri:
+            return ""
+        return asset_uri if asset_uri.startswith("asset://") else f"asset://{asset_uri}"
+
+    @classmethod
+    def _require_reference_clone_asset(cls, human: DigitalHuman | None) -> str:
+        asset_uri = cls._trusted_asset_uri(human)
+        if not asset_uri:
+            raise RuntimeError("何依依参考复刻必须使用状态为 active 的最新火山企业数字资产，不再支持旧头像或融合样片回退。")
+        return asset_uri
+
+    async def _run_trusted_presenter_task(
+        self,
+        task: VideoTask,
+        script: Script,
+        segments: list[VideoSegment],
+        voice: str | None,
+    ) -> VideoTask:
+        audio = await self._synthesize_voice(script, voice)
+        clips = [await self._run_segment(segment, task) for segment in segments]
+        task.output_path = await self.media.compose_scene_video(clips, audio, export_profile=task.export_profile)
+        task.audit_notes = (
+            f"{task.audit_notes}\n已使用火山可信素材库企业人像，通过 Seedance 生成全部人物镜头；"
+            "旧版 480P 数字人口播模型未参与本次成片。"
+        ).strip()
+        if task.production_mode == "reference_clone":
+            await self._apply_professional_render(task, script)
+            task.subtitle_enabled = True
+            task.subtitle_style = "digital_human"
+            task.subtitle_status = "completed"
+        return await self._finalize_task(task, script)
+
+    @staticmethod
+    def _is_person_reference_material(material: Material) -> bool:
+        return material.kind in {MaterialKind.portrait, MaterialKind.avatar_source} or "digital-human:" in (material.tags or "")
 
     def _match_tokens(self, text: str) -> set[str]:
         raw = re.findall(r"[a-zA-Z0-9\u4e00-\u9fff]{2,}", text or "")
@@ -677,6 +876,11 @@ class VideoPipeline:
         chunks = self._voiceover_chunks(script.voiceover)
         if self._should_split_talking_avatar_audio(script) and len(chunks) > 1:
             avatars: list[str] = []
+            task.segment_count = len(chunks)
+            task.completed_segments = 0
+            task.updated_at = datetime.utcnow()
+            self.session.add(task)
+            self.session.commit()
             for index, chunk in enumerate(chunks):
                 audio = await self._synthesize_text_voice(chunk, voice)
                 avatars.append(
@@ -689,6 +893,10 @@ class VideoPipeline:
                         source_video_url=source_video_url,
                     )
                 )
+                task.completed_segments = index + 1
+                task.updated_at = datetime.utcnow()
+                self.session.add(task)
+                self.session.commit()
             avatar = await self.media.compose_talking_avatar_sequence(avatars)
             note = f"数字人口播已自动拆成 {len(chunks)} 段短音频生成，再合成为一条完整口播。"
             task.audit_notes = f"{task.audit_notes}\n{note}".strip()
@@ -776,7 +984,9 @@ class VideoPipeline:
 
     def _configure_models_for_task(self, task: VideoTask, script: Script) -> None:
         video_scenario = "seedance_scene" if task.production_mode in {"material_mix", "seedance_scene", "digital_human"} else "preview"
-        digital_scenario = task.production_mode if task.production_mode in {"talking_head_template", "digital_human"} else "preview"
+        digital_scenario = "talking_head_template" if task.production_mode == "reference_clone" else (
+            task.production_mode if task.production_mode in {"talking_head_template", "digital_human"} else "preview"
+        )
         self.video_model_config = choose_model_config(self.session, "video", video_scenario)
         self.tts_model_config = choose_model_config(self.session, "tts", "voice_preview")
         self.digital_human_model_config = choose_model_config(self.session, "digital_human", digital_scenario)

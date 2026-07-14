@@ -10,6 +10,7 @@ from sqlmodel import Session, select
 
 from app.api.access import _assign_owner, _ensure_record_access, _owned_statement, _require_write_user
 from app.api.system_models import _smart_model_config
+from app.api.video_tasks_support import normalize_voice_id
 from app.core.auth import current_user
 from app.core.config import get_settings
 from app.core.db import get_session
@@ -188,7 +189,7 @@ async def generate_script_voice_preview(
     human = session.get(DigitalHuman, payload.digital_human_id) if payload.digital_human_id else None
     if human is not None:
         _ensure_record_access(human, user, "Digital human")
-    voice = human.default_voice if human and human.default_voice else None
+    voice = normalize_voice_id(payload.voice_id) or (human.default_voice if human and human.default_voice else None)
     tts_model = _smart_model_config(session, "tts", "voice_preview")
     media = MediaGenerationClient(tts_model_config=tts_model, storage_dir=get_storage_root(session))
     try:

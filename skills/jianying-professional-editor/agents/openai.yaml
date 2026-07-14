@@ -1,0 +1,4 @@
+interface:
+  display_name: "剪映专业剪辑导演"
+  short_description: "把脚本和素材编排为专业短视频并驱动剪映10.9执行"
+  default_prompt: "使用 $jianying-professional-editor 将这批素材规划成专业短视频并在剪映中完成剪辑。"

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.api.modules.digital_humans import router as digital_humans_router
+from app.api.modules.drama import router as drama_router
 from app.api.modules.publishing import router as publishing_router
 from app.api.modules.reference_learning import router as reference_learning_router
 from app.api.modules.script_creation import router as script_creation_router
@@ -13,6 +14,7 @@ module_routers = (
     system_router,
     reference_learning_router,
     script_creation_router,
+    drama_router,
     digital_humans_router,
     video_library_router,
     trending_router,

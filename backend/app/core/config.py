@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     digital_human_api_base: Optional[str] = None
     digital_human_api_key: Optional[str] = None
 
+    volc_portrait_fusion_access_key: Optional[str] = None
+    volc_portrait_fusion_secret_key: Optional[str] = None
+
     voice_clone_provider: str = "mock"
     voice_clone_api_base: Optional[str] = None
     voice_clone_api_key: Optional[str] = None

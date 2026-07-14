@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from datetime import datetime
+from time import sleep
 from urllib.parse import urlencode
 
 from fastapi import Depends, HTTPException
 from fastapi.responses import RedirectResponse
+from sqlalchemy.exc import OperationalError
 from sqlmodel import Session, select
 
 from app.api.system_auth import _user_public, require_admin
@@ -117,9 +119,17 @@ def _frontend_wechat_redirect(status: str, *, token: str = "", request_id: int |
 
 def _create_auth_session_for_user(session: Session, user: User) -> str:
     token = create_token()
-    session.add(AuthSession(user_id=user.id or 0, token=token))
-    session.commit()
-    return token
+    for attempt in range(2):
+        session.add(AuthSession(user_id=user.id or 0, token=token))
+        try:
+            session.commit()
+            return token
+        except OperationalError as exc:
+            session.rollback()
+            if "database is locked" not in str(exc).lower() or attempt:
+                raise
+            sleep(0.25)
+    raise RuntimeError("Unable to create an authentication session")
 
 
 def wechat_login_public_config(session: Session = Depends(get_session)) -> WechatLoginPublicConfig:

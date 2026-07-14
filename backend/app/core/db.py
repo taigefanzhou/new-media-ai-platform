@@ -7,7 +7,11 @@ from app.models.entities import User, UserRole
 
 
 settings = get_settings()
-engine = create_engine(settings.database_url, echo=False)
+engine = create_engine(
+    settings.database_url,
+    echo=False,
+    connect_args={"check_same_thread": False, "timeout": 10} if settings.database_url.startswith("sqlite") else {},
+)
 
 
 def init_db() -> None:
@@ -63,6 +67,10 @@ def apply_sqlite_migrations() -> None:
                     reuse_notes VARCHAR DEFAULT '',
                     quality_score FLOAT DEFAULT 0,
                     quality_summary VARCHAR DEFAULT '',
+                    blueprint_json VARCHAR DEFAULT '',
+                    edit_plan_json VARCHAR DEFAULT '',
+                    transcript_segments_json VARCHAR DEFAULT '',
+                    analysis_source VARCHAR DEFAULT 'local',
                     model_enhanced BOOLEAN DEFAULT 0,
                     error_message VARCHAR,
                     created_at DATETIME,
@@ -76,6 +84,10 @@ def apply_sqlite_migrations() -> None:
         analysis_migrations = {
             "quality_score": "ALTER TABLE referencevideoanalysis ADD COLUMN quality_score FLOAT DEFAULT 0",
             "quality_summary": "ALTER TABLE referencevideoanalysis ADD COLUMN quality_summary VARCHAR DEFAULT ''",
+            "blueprint_json": "ALTER TABLE referencevideoanalysis ADD COLUMN blueprint_json VARCHAR DEFAULT ''",
+            "edit_plan_json": "ALTER TABLE referencevideoanalysis ADD COLUMN edit_plan_json VARCHAR DEFAULT ''",
+            "transcript_segments_json": "ALTER TABLE referencevideoanalysis ADD COLUMN transcript_segments_json VARCHAR DEFAULT ''",
+            "analysis_source": "ALTER TABLE referencevideoanalysis ADD COLUMN analysis_source VARCHAR DEFAULT 'local'",
             "model_enhanced": "ALTER TABLE referencevideoanalysis ADD COLUMN model_enhanced BOOLEAN DEFAULT 0",
         }
         for column, statement in analysis_migrations.items():

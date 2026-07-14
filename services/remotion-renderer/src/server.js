@@ -62,6 +62,11 @@ function normalizeScenes(value) {
     }));
 }
 
+function normalizeBrollPaths(value) {
+  if (!Array.isArray(value)) return [];
+  return value.filter(Boolean).slice(0, 6).map(localVideoUrl);
+}
+
 async function renderProfessionalVideo(payload) {
   const sourcePath = payload.source_video_path || payload.sourceVideo || "";
   const outputPath = path.resolve(String(payload.output_path || payload.outputPath || "/tmp/remotion-output.mp4"));
@@ -80,6 +85,7 @@ async function renderProfessionalVideo(payload) {
     brandName: String(payload.brand_name || payload.brandName || "TECHARK"),
     template: String(payload.template || "business_talking"),
     scenes: normalizeScenes(payload.scenes),
+    brollVideos: normalizeBrollPaths(payload.broll_paths || payload.brollPaths),
   };
 
   const url = await serveUrl();

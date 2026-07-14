@@ -32,6 +32,15 @@ const api = {
     if (!res.ok) throw new Error(await res.text());
     return res.json();
   },
+  async put(path, body = {}) {
+    const res = await fetch(`/api${path}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
   async delete(path) {
     const res = await fetch(`/api${path}`, {
       method: "DELETE",
@@ -234,7 +243,7 @@ const providerOptions = {
     { value: "mock", label: "Mock 测试", model: "mock-asr" },
   ],
   video_understanding: [
-    { value: "volcengine-ark", label: "火山方舟 / 视频理解", model: "doubao-seed-2-0-pro-260215", base: "https://ark.cn-beijing.volces.com/api/v3" },
+    { value: "volcengine-ark", label: "火山方舟 / Doubao Seed 2.1 Pro 视频理解", model: "doubao-seed-2-1-pro-260628", base: "https://ark.cn-beijing.volces.com/api/v3" },
     { value: "aliyun-bailian", label: "阿里云百炼 / Qwen3-VL", model: "qwen3-vl-plus", base: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
     { value: "gemini", label: "Gemini Video Understanding", model: "gemini-2.5-pro", base: "https://generativelanguage.googleapis.com/v1beta" },
     { value: "local", label: "本地镜头/节奏分析", model: "local-video-analyzer" },
@@ -629,6 +638,23 @@ function apiErrorMessage(error, fallback = "操作失败，请稍后重试") {
   return message;
 }
 
+function videoTaskErrorMessage(errorMessage) {
+  const message = String(errorMessage || "");
+  const lowered = message.toLowerCase();
+  if (lowered.includes("inputimagesensitivecontentdetected") || lowered.includes("may contain real person")) {
+    return "当前视频模型不支持包含真人的人像参考图。请改用无真人画面后重新生成。";
+  }
+  if (lowered.includes("timeout") || lowered.includes("connection") || message.includes("连接失败")) {
+    return "视频生成服务暂时连接不上，请稍后重新生成。";
+  }
+  return message || "视频生成未完成，请稍后重新生成。";
+}
+
+function videoTaskAuditNotes(task) {
+  const notes = task.audit_notes || "任务开始后会记录模板、模型、素材和质检结果。";
+  return task.error_message ? notes.replaceAll(task.error_message, videoTaskErrorMessage(task.error_message)) : notes;
+}
+
 function parseRoute(hash) {
   const value = hash.replace("#", "") || "overview";
   if (value.startsWith("settings-")) {
@@ -683,28 +709,6 @@ function focusWhenVisible(selector) {
   window.setTimeout(() => document.querySelector(selector)?.focus(), 80);
 }
 
-function selectPreferredCreationHuman(preferredText = "黄丽") {
-  const select = document.querySelector("#creationHumanSelect");
-  if (!select || select.value) return Boolean(select?.value);
-  const candidates = Array.from(select.options).filter((option) => option.value);
-  const preferred = candidates.find((option) => option.textContent.includes(preferredText)) || candidates[0];
-  if (!preferred) return false;
-  select.value = preferred.value;
-  return true;
-}
-
-function applyDigitalHumanWorkbenchPreset(attempt = 0) {
-  const hasHuman = selectPreferredCreationHuman();
-  const modeSelect = document.querySelector("#creationProductionModeSelect");
-  if (modeSelect) {
-    modeSelect.value = "talking_head_template";
-    syncProductionModeHint();
-  }
-  if (!hasHuman && attempt < 5) {
-    window.setTimeout(() => applyDigitalHumanWorkbenchPreset(attempt + 1), 160);
-  }
-}
-
 function openWorkbenchAction(action) {
   closeMobileNav();
   if (action === "link-reference") {
@@ -718,16 +722,8 @@ function openWorkbenchAction(action) {
     focusWhenVisible("#trendingSearchForm [name='keyword']");
     return;
   }
-  if (action === "digital-human") {
-    switchPage("creation");
-    applyDigitalHumanWorkbenchPreset();
-    document.querySelector("#creationHumanSelect")?.focus();
-    return;
-  }
   if (action === "material-mix") {
     switchPage("creation");
-    const modeSelect = document.querySelector("#creationProductionModeSelect");
-    if (modeSelect) modeSelect.value = "material_mix";
     focusWhenVisible("#scriptForm [name='topic']");
     return;
   }
@@ -1023,7 +1019,6 @@ function hideScriptDetail(clearContent = false) {
 
 function renderScripts(scripts) {
   state.scripts = scripts;
-  renderScriptSelects(scripts);
   renderTaskScriptTable(scripts);
   renderTaskWorkflowStats();
   const creationTarget = document.querySelector("#scriptPreviewCreation");
@@ -1044,8 +1039,6 @@ function renderScripts(scripts) {
   }
   const script = scripts.find((item) => item.id === state.highlightedScriptId) || scripts[0];
   state.latestScriptId = script.id;
-  const taskScriptSelect = document.querySelector("[name='script_id']");
-  if (taskScriptSelect) taskScriptSelect.value = script.id;
   renderScriptCandidates(scripts);
   renderTitleSuggestions(script);
   renderScriptDetail(script, state.highlightedScriptId === script.id);
@@ -1056,6 +1049,7 @@ function productionModeLabel(mode) {
     dynamic_explainer: "图文草稿",
     digital_human: "真人口播",
     material_mix: "素材库混剪",
+    reference_clone: "何依依酒店干货",
     seedance_scene: "Seedance 实景",
     talking_head_template: "口播模板",
   }[mode] || "口播模板";
@@ -1085,16 +1079,6 @@ function defaultExportProfileForPlatform(platform) {
 
 function renderExportProfileSelects(profiles) {
   state.exportProfiles = profiles || [];
-  const options = state.exportProfiles
-    .map((profile) => (
-      `<option value="${profile.key}">${escapeHtml(profile.label)} · ${profile.width}x${profile.height}</option>`
-    ))
-    .join("");
-  document.querySelectorAll("#taskExportProfileSelect, #batchExportProfileSelect").forEach((select) => {
-    const current = select.value;
-    select.innerHTML = `<option value="">按脚本平台自动匹配</option>${options}`;
-    select.value = current || "";
-  });
   syncCreationExportProfileHint();
 }
 
@@ -1243,6 +1227,7 @@ function syncProductionModeDecisionText(mode) {
     dynamic_explainer: "本地图文讲解，不依赖外部视频模型。",
     digital_human: "使用数字人驱动接口生成真人口播。",
     material_mix: "先匹配素材库，缺口由视频模型补镜头。",
+    reference_clone: "按何依依酒店干货模板执行数字人、字幕、B-roll、音乐和质检。",
     seedance_scene: "按分镜调用 Seedance 生成 AI 实景片段。",
     talking_head_template: "用数字人视频叠加标题、身份条和解释页。",
   }[mode] || "按当前系统配置自动选择。";
@@ -1440,9 +1425,6 @@ function applyGeneratedScript(script, options = {}) {
   state.latestScriptId = script.id;
   state.highlightedScriptId = script.id;
   state.scripts = [script, ...state.scripts.filter((item) => item.id !== script.id)];
-  const scriptInput = document.querySelector("[name='script_id']");
-  if (scriptInput) scriptInput.value = script.id;
-  renderScriptSelects(state.scripts);
   renderScriptCandidates(state.scripts);
   renderTitleSuggestions(script);
   if (options.openDetail) {
@@ -1486,26 +1468,6 @@ function renderScriptCandidates(scripts) {
   `;
 }
 
-function renderScriptSelects(scripts) {
-  const select = document.querySelector("#taskScriptSelect");
-  const batchSelect = document.querySelector("#batchScriptSelect");
-  const options = scripts
-    .map((script) => `<option value="${script.id}">#${script.id} ${escapeHtml(script.hook || "未命名脚本").slice(0, 44)}</option>`)
-    .join("");
-  if (select) {
-    const current = select.value;
-    select.innerHTML = `<option value="">先生成脚本</option>${options}`;
-    select.value = current || state.latestScriptId || "";
-  }
-  if (batchSelect) {
-    const selected = new Set([...batchSelect.selectedOptions].map((item) => item.value));
-    batchSelect.innerHTML = options || `<option value="">先生成脚本</option>`;
-    [...batchSelect.options].forEach((option) => {
-      option.selected = selected.has(option.value);
-    });
-  }
-}
-
 function renderTitleSuggestions(script) {
   const target = document.querySelector("#titleSuggestionList");
   if (!target) return;
@@ -1540,7 +1502,6 @@ function updateScriptInState(script) {
     : [script, ...state.scripts];
   state.latestScriptId = script.id;
   state.highlightedScriptId = script.id;
-  renderScriptSelects(state.scripts);
   renderScriptCandidates(state.scripts);
 }
 
@@ -1624,6 +1585,10 @@ function subtitleStyleLabel(style) {
     tutorial: "教程说明",
     minimal: "极简底栏",
   }[style] || style || "AI 自动";
+}
+
+function taskSubtitleStyleLabel(task) {
+  return task?.production_mode === "reference_clone" ? "何依依模板字幕" : subtitleStyleLabel(task?.subtitle_style);
 }
 
 function subtitleStatusLabel(status) {
@@ -1811,7 +1776,6 @@ function renderTaskScriptTable(scripts = state.scripts) {
             <td>
               <div class="tableActions">
                 <button type="button" class="secondary" data-action="view-task-script" data-id="${script.id}">详情</button>
-                <button type="button" data-action="create-task-from-script" data-id="${script.id}">生成视频</button>
               </div>
             </td>
           </tr>
@@ -1855,60 +1819,12 @@ function openTaskScriptDetailDrawer(scriptId) {
       <div><h3>视频提示词</h3><pre>${escapeHtml(script.seedance_prompt || "暂无")}</pre></div>
       <div><h3>标题建议</h3><pre>${escapeHtml(script.title_options || "暂无")}</pre></div>
     </div>
-    ${renderVideoPlanWorkbench(script)}
     <div class="drawerActions">
-      <button type="button" data-action="create-task-from-script" data-id="${script.id}">生成视频</button>
-      <button type="button" class="secondary" data-action="edit-script-from-task-drawer" data-id="${script.id}">去编辑脚本</button>
+      <button type="button" data-action="edit-script-from-task-drawer" data-id="${script.id}">去编辑脚本</button>
     </div>
   `;
   drawer.classList.remove("hiddenPanel");
   drawer.setAttribute("aria-hidden", "false");
-}
-
-async function createTaskFromTaskScript(scriptId, button) {
-  const script = state.scripts.find((item) => Number(item.id) === Number(scriptId));
-  if (!script) {
-    toast("没有找到这条脚本");
-    return;
-  }
-  const originalText = button?.textContent || "";
-  if (button) {
-    button.disabled = true;
-    button.textContent = "进入队列...";
-  }
-  const form = document.querySelector("#taskForm");
-  let productionMode = form?.querySelector("[name='production_mode']")?.value || "dynamic_explainer";
-  const humanValue = form?.querySelector("[name='digital_human_id']")?.value || "";
-  const exportProfile = form?.querySelector("[name='export_profile']")?.value || defaultExportProfileForPlatform(script.target_platform || "douyin");
-  if (["digital_human", "talking_head_template"].includes(productionMode) && !humanValue) {
-    productionMode = "dynamic_explainer";
-  }
-  try {
-    const payload = {
-      production_mode: productionMode,
-      target_platform: script.target_platform || "douyin",
-      export_profile: exportProfile,
-      subtitle_enabled: true,
-      subtitle_style: form?.querySelector("[name='subtitle_style']")?.value || "auto",
-    };
-    if (humanValue) payload.digital_human_id = Number(humanValue);
-    const endpoint = productionMode === "material_mix" ? "video-task" : "auto-video-task";
-    const task = await api.post(`/scripts/${script.id}/${endpoint}`, payload);
-    state.latestTaskId = task.id;
-    toast(productionMode === "material_mix" ? `已创建素材方案任务 #${task.id}` : `已进入自动生成队列 #${task.id}`);
-    closeTaskDetailDrawer();
-    await refresh();
-    if (productionMode === "material_mix") {
-      await openTaskDetailDrawer(task.id);
-    }
-  } catch (error) {
-    toast(apiErrorMessage(error, "创建视频任务失败"));
-  } finally {
-    if (button) {
-      button.disabled = false;
-      button.textContent = originalText;
-    }
-  }
 }
 
 async function openTaskDetailDrawer(taskId) {
@@ -1932,18 +1848,23 @@ async function openTaskDetailDrawer(taskId) {
         <span class="status taskStatus ${taskStatusClass(task.status)}">${taskStatusLabel(task.status)}</span>
         <span class="status">${productionModeLabel(task.production_mode)}</span>
         <span class="status">${escapeHtml(exportProfileMeta(task))}</span>
-        <span class="status">${subtitleStyleLabel(task.subtitle_style)}</span>
+        <span class="status">${taskSubtitleStyleLabel(task)}</span>
         <span class="status taskStatus ${task.subtitle_status === "failed" ? "taskStatusFailed" : task.subtitle_status === "completed" ? "taskStatusApproved" : "taskStatusQueued"}">${subtitleStatusLabel(task.subtitle_status)}</span>
       </div>
       <div class="assetDetailGrid">
         <div><span>脚本</span><strong>#${task.script_id} ${escapeHtml(script?.hook || "")}</strong></div>
         <div><span>数字人</span><strong>${escapeHtml(humanName(task.digital_human_id))}</strong></div>
         <div><span>目标平台</span><strong>${escapeHtml(taskTargetPlatformLabel(task))}</strong></div>
-        <div><span>字幕成片</span><strong>${task.captioned_output_path ? "已生成" : subtitleStatusLabel(task.subtitle_status)}</strong></div>
+        <div><span>字幕成片</span><strong>${task.production_mode === "reference_clone" ? "已内嵌" : task.captioned_output_path ? "已生成" : subtitleStatusLabel(task.subtitle_status)}</strong></div>
         <div><span>自动质检</span><strong>${qualityStatusLabel(task.quality_status)} ${task.quality_score ? `· ${Math.round(Number(task.quality_score))} 分` : ""}</strong></div>
+        <div><span>生成时间</span><strong>${task.output_path ? formatDateTime(task.updated_at) : "生成中"}</strong></div>
         <div><span>更新时间</span><strong>${formatDateTime(task.updated_at)}</strong></div>
       </div>
-      ${task.error_message ? `<div class="errorText">${escapeHtml(task.error_message)}</div>` : ""}
+      ${task.error_message ? `<div class="errorText">${escapeHtml(videoTaskErrorMessage(task.error_message))}</div>` : ""}
+      <details class="scriptTitleDetails">
+        <summary>查看生产记录</summary>
+        <pre>${escapeHtml(videoTaskAuditNotes(task))}</pre>
+      </details>
     </div>
     <section class="taskDrawerVideoPanel">
       <h3>成片视频</h3>
@@ -1979,8 +1900,8 @@ function renderTaskSkillTrace(task, script, segments) {
   target.innerHTML = `
     <section class="videoPlanWorkbench compactPlanWorkbench">
       <div class="candidateHeader">
-        <strong>Skill 执行过程</strong>
-        <span>这条任务的分镜、素材、生成和质检结果。</span>
+        <strong>模板执行过程</strong>
+        <span>这条任务使用的参考模板、数字人、配音、素材、生成和质检结果。</span>
       </div>
       ${renderSkillFlowCards(script, task, segments)}
       ${renderGenerationDecision(script, task)}
@@ -2131,7 +2052,7 @@ function renderTaskTable(tasks) {
                     <div class="recordMeta">${escapeHtml(exportProfileMeta(task))}</div>
                   </td>
                   <td>
-                    <strong>${escapeHtml(subtitleStyleLabel(task.subtitle_style))}</strong>
+                    <strong>${escapeHtml(taskSubtitleStyleLabel(task))}</strong>
                     <div class="recordMeta">${escapeHtml(subtitleStatusLabel(task.subtitle_status))}</div>
                   </td>
                   <td><strong>${qualityStatusLabel(task.quality_status)}</strong><div class="recordMeta">${task.quality_score ? `${Math.round(Number(task.quality_score))} 分` : "生成后自动检查"}</div></td>
@@ -2139,7 +2060,8 @@ function renderTaskTable(tasks) {
                     <div class="progressBar"><span style="width:${progress}%"></span></div>
                     <div class="recordMeta">${progress}% · ${taskStatusLabel(task.status)}</div>
                     <div class="recordMeta">${taskSegmentMeta(task)}</div>
-                    ${task.error_message ? `<div class="errorText">${escapeHtml(task.error_message)}</div>` : ""}
+                    <div class="recordMeta">生成时间：${task.output_path ? formatDateTime(task.updated_at) : "生成中"}</div>
+                    ${task.error_message ? `<div class="errorText">${escapeHtml(videoTaskErrorMessage(task.error_message))}</div>` : ""}
                   </td>
                   <td>
                     <div class="tableActions">
@@ -2585,7 +2507,7 @@ function analysisMetricsHtml(analysis) {
       <span>${analysis.width || "-"}x${analysis.height || "-"}</span>
       <span>${analysis.scene_count || 0} 个视觉段落</span>
       <span>平均 ${Number(analysis.avg_shot_seconds || 0).toFixed(1)} 秒/段</span>
-      <span>${analysis.model_enhanced ? "模型增强" : "本地基础"} · ${Number(analysis.quality_score || 0).toFixed(0)} 分</span>
+      <span>${analysis.analysis_source === "full_video" ? "完整视频理解" : analysis.model_enhanced ? "抽帧模型增强" : "本地基础"} · ${Number(analysis.quality_score || 0).toFixed(0)} 分</span>
     </div>
   `;
 }
@@ -2603,6 +2525,8 @@ function renderAnalysisDetailDrawer(analysisId) {
   const material = state.materials.find((item) => Number(item.id) === Number(analysis.material_id));
   const transcript = latestTranscriptionForMaterial(analysis.material_id);
   const timeline = parseAnalysisTimeline(analysis);
+  const blueprint = parseJsonObject(analysis.blueprint_json);
+  const editPlan = parseJsonArray(analysis.edit_plan_json);
   const canGenerate = analysis.status === "approved";
   const canApprove = analysis.status !== "approved" && analysis.status !== "failed";
   const canReject = analysis.status !== "rejected";
@@ -2629,6 +2553,19 @@ function renderAnalysisDetailDrawer(analysisId) {
       <div><h3>剪辑方式</h3><pre>${escapeHtml(analysis.editing_analysis || "运行后生成")}</pre></div>
       <div><h3>可复用模板</h3><pre>${escapeHtml(analysis.reusable_template || "运行后生成")}</pre></div>
     </div>
+    ${Object.keys(blueprint).length ? `
+      <details class="analysisTimelineDetails" open>
+        <summary>结构化生产蓝图</summary>
+        <div class="analysisGrid drawerAnalysisGrid">
+          <div><h3>开场钩子</h3><pre>${escapeHtml(blueprint.hook || "-")}</pre></div>
+          <div><h3>目标观众</h3><pre>${escapeHtml(blueprint.audience || "-")}</pre></div>
+          <div><h3>画面风格</h3><pre>${escapeHtml(blueprint.visual_style || "-")}</pre></div>
+          <div><h3>字幕设计</h3><pre>${escapeHtml(blueprint.caption_style || "-")}</pre></div>
+          <div><h3>声音设计</h3><pre>${escapeHtml(blueprint.audio_style || "-")}</pre></div>
+          <div><h3>叙事结构</h3><pre>${escapeHtml(Array.isArray(blueprint.narrative_structure) ? blueprint.narrative_structure.join("\n") : blueprint.narrative_structure || "-")}</pre></div>
+        </div>
+      </details>
+    ` : ""}
     ${timeline.length ? `
       <details class="analysisTimelineDetails" open>
         <summary>镜头时间轴</summary>
@@ -2654,11 +2591,30 @@ function renderAnalysisDetailDrawer(analysisId) {
         </table>
       </details>
     ` : ""}
+    ${editPlan.length ? `
+      <details class="analysisTimelineDetails">
+        <summary>智能剪辑计划</summary>
+        <table class="compactTable analysisTimelineTable">
+          <thead><tr><th>时间</th><th>动作</th><th>画面</th><th>字幕</th><th>转场/声音</th></tr></thead>
+          <tbody>
+            ${editPlan.slice(0, 60).map((item) => `
+              <tr>
+                <td>${Number(item.start_second || 0).toFixed(1)}-${Number(item.end_second || 0).toFixed(1)}s</td>
+                <td>${escapeHtml(item.action || "keep")}</td>
+                <td>${escapeHtml(item.visual || "-")}</td>
+                <td>${escapeHtml(item.caption || "-")}</td>
+                <td>${escapeHtml([item.transition, item.audio].filter(Boolean).join(" · ") || "-")}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </details>
+    ` : ""}
     ${analysis.reuse_notes ? `<pre class="analysisReuseNotes">${escapeHtml(analysis.reuse_notes)}</pre>` : ""}
-    ${transcript?.transcript ? `
+    ${(analysis.transcript || transcript?.transcript) ? `
       <details class="analysisTimelineDetails">
         <summary>口播转写文本</summary>
-        <div class="transcript">${escapeHtml(transcript.transcript)}</div>
+        <div class="transcript">${escapeHtml(analysis.transcript || transcript.transcript)}</div>
       </details>
     ` : ""}
   `;
@@ -2772,24 +2728,24 @@ function openAssetDetailDrawer(kind, id) {
         <div class="volcengineAuthBlock">
           <div>
             <strong>火山真人资产认证</strong>
-            <span>通过 H5 真人认证后，后续才能把这个数字人作为火山 Asset Group / Asset URI 使用。</span>
-          </div>
-          <div class="assetVoiceBlock">
-            <span>认证链接</span>
-            <code>${escapeHtml(human.volcengine_auth_url || "未创建")}</code>
+            <span>由本人完成 H5 真人认证后，才能用于多场景数字人生成。</span>
           </div>
           <div class="assetDetailGrid">
-            <div><span>BytedToken</span><strong>${escapeHtml(human.volcengine_byted_token || "-")}</strong></div>
-            <div><span>认证结果码</span><strong>${escapeHtml(human.volcengine_auth_result_code || "-")}</strong></div>
-            <div><span>Asset Group URI</span><strong>${escapeHtml(human.volcengine_asset_group_uri || "-")}</strong></div>
-            <div><span>Asset URI</span><strong>${escapeHtml(human.volcengine_asset_uri || "-")}</strong></div>
+            <div><span>认证状态</span><strong>${volcengineAuthStatusLabel(human.volcengine_auth_status)}</strong></div>
+            <div><span>认证用途</span><strong>多场景数字人生成</strong></div>
           </div>
           <div class="drawerActions">
-            <button type="button" data-action="create-volcengine-auth" data-id="${human.id}">创建认证链接</button>
-            ${human.volcengine_auth_url ? `<button type="button" class="secondary" data-action="open-volcengine-auth" data-url="${escapeHtml(human.volcengine_auth_url)}">打开认证页</button>` : ""}
-            ${human.volcengine_auth_url ? `<button type="button" class="secondary" data-action="copy-volcengine-auth-url" data-url="${escapeHtml(human.volcengine_auth_url)}">复制链接</button>` : ""}
-            <button type="button" class="secondary" data-action="sync-volcengine-auth" data-id="${human.id}">同步认证结果</button>
+            <button type="button" data-action="enter-volcengine-auth" data-id="${human.id}" data-url="${escapeHtml(human.volcengine_auth_url || "")}">进入真人认证</button>
+            <button type="button" class="secondary" data-action="sync-volcengine-auth" data-id="${human.id}">刷新认证状态</button>
           </div>
+          <form class="manualAssetBindForm" data-action="bind-manual-volcengine-asset" data-id="${human.id}">
+            <strong>控制台授权后手动绑定</strong>
+            <span>在方舟体验中心完成人工授权后，将资产信息填回这里；不调用高级认证 API。</span>
+            <label>Asset Group ID<input name="asset_group_id" value="${escapeHtml(human.volcengine_asset_group_id || "")}" placeholder="必填，控制台中的 Asset Group ID" /></label>
+            <label>Asset Group URI<input name="asset_group_uri" value="${escapeHtml(human.volcengine_asset_group_uri || "")}" placeholder="可选，例如 asset-group://..." /></label>
+            <label>Asset URI<input name="asset_uri" value="${escapeHtml(human.volcengine_asset_uri || "")}" placeholder="可选，例如 asset://..." /></label>
+            <div class="drawerActions"><button type="submit">保存控制台资产</button><a class="buttonLike secondary" href="https://console.volcengine.com/ark/region:ark+cn-beijing/experience/vision" target="_blank" rel="noreferrer">打开方舟体验中心</a></div>
+          </form>
         </div>
       </div>
       <div class="assetDrawerMediaGrid">
@@ -2875,6 +2831,28 @@ function openAssetDetailDrawer(kind, id) {
 
   drawer.classList.remove("hiddenPanel");
   drawer.setAttribute("aria-hidden", "false");
+  document.body.classList.add("asset-drawer-open");
+}
+
+async function enterVolcengineAuth(button) {
+  const existingUrl = button.dataset.url || "";
+  if (existingUrl) {
+    window.location.assign(existingUrl);
+    return;
+  }
+  button.disabled = true;
+  button.textContent = "正在进入...";
+  try {
+    const result = await api.post(`/digital-humans/${button.dataset.id}/volcengine-auth/session`, {
+      callback_url: volcengineCallbackUrl(),
+    });
+    if (!result.auth_url) throw new Error("认证页面暂时不可用，请稍后重试");
+    window.location.assign(result.auth_url);
+  } catch (error) {
+    toast(humanAuthErrorMessage(error));
+    button.disabled = false;
+    button.textContent = "进入真人认证";
+  }
 }
 
 function closeAssetDetailDrawer() {
@@ -2882,21 +2860,37 @@ function closeAssetDetailDrawer() {
   if (!drawer) return;
   drawer.classList.add("hiddenPanel");
   drawer.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("asset-drawer-open");
 }
 
 function renderHumanSelects(humans) {
-  const select = document.querySelector("#taskHumanSelect");
-  const batchSelect = document.querySelector("#batchHumanSelect");
   const creationSelect = document.querySelector("#creationHumanSelect");
+  const preferredHuman = [...humans].reverse().find((human) => human.portrait_material_id || human.source_video_material_id);
   const options = humans
     .map((human) => `<option value="${human.id}">#${human.id} ${escapeHtml(human.name)}</option>`)
     .join("");
-  [select, batchSelect, creationSelect].filter(Boolean).forEach((target) => {
+  [creationSelect].filter(Boolean).forEach((target) => {
     const current = target.value;
     target.innerHTML = `<option value="">不使用数字人露脸</option>${options}`;
-    target.value = current || state.latestHumanId || "";
+    target.value = current || state.latestHumanId || preferredHuman?.id || "";
   });
   syncCreationProductionModeWithHuman();
+}
+
+function isCompactHumanList() {
+  return window.matchMedia("(max-width: 760px), (hover: none) and (pointer: coarse)").matches;
+}
+
+function canAuthenticateHuman(human) {
+  return human.style !== "voice_only" && Boolean(human.portrait_material_id);
+}
+
+function humanAuthErrorMessage(error) {
+  const message = String(error?.message || error || "");
+  if (message.includes("SubscriptionRequired")) {
+    return "火山真人认证服务尚未开通，请先为当前火山账号开通高级或企业套餐后重试。";
+  }
+  return apiErrorMessage(error, "暂时无法进入真人认证，请检查服务开通和 AK/SK 权限");
 }
 
 function renderDigitalHumans(humans) {
@@ -2907,7 +2901,28 @@ function renderDigitalHumans(humans) {
     target.innerHTML = `<div class="item">还没有数字人形象</div>`;
     return;
   }
-  const pageInfo = pagedItems("digitalHumans", humans);
+  const pageInfo = pagedItems("digitalHumans", [...humans].sort((left, right) => Number(canAuthenticateHuman(right)) - Number(canAuthenticateHuman(left))));
+  if (isCompactHumanList()) {
+    target.innerHTML = `
+      <div class="humanMobileList">
+        ${pageInfo.items.map((human) => `
+          <article class="humanMobileCard">
+            <div>
+              <strong>#${human.id} ${escapeHtml(human.name)}</strong>
+              <p>${escapeHtml(human.role || "数字人形象")}</p>
+            </div>
+            <div class="humanMobileAuth">${volcengineAuthStateLabel(human)}</div>
+            ${canAuthenticateHuman(human)
+              ? `<button type="button" data-action="enter-volcengine-auth" data-id="${human.id}" data-url="${escapeHtml(human.volcengine_auth_url || "")}">进入真人认证</button>`
+              : `<div class="humanMobileHint">此资产仅用于授权配音，不支持真人认证。</div>`}
+            <button type="button" class="secondary" data-action="view-human-detail" data-id="${human.id}">查看详情</button>
+          </article>
+        `).join("")}
+      </div>
+      ${pagerHtml("digitalHumans", pageInfo)}
+    `;
+    return;
+  }
   target.innerHTML = `
     <table class="settingsTable compactTable assetListTable humanListTable">
       <thead>
@@ -2943,6 +2958,7 @@ function renderDigitalHumans(humans) {
             <td>${formatDateTime(human.created_at)}</td>
             <td>
               <div class="tableActions">
+                ${canAuthenticateHuman(human) ? `<button type="button" data-action="enter-volcengine-auth" data-id="${human.id}" data-url="${escapeHtml(human.volcengine_auth_url || "")}">进入真人认证</button>` : ""}
                 <button type="button" class="secondary" data-action="view-human-detail" data-id="${human.id}">详情</button>
                 <button type="button" class="danger" data-action="delete-human" data-id="${human.id}">删除</button>
               </div>
@@ -3765,12 +3781,26 @@ function renderTranscriptions(tasks) {
 }
 
 function parseAnalysisTimeline(analysis) {
-  if (!analysis?.timeline_json) return [];
+  return parseJsonArray(analysis?.timeline_json);
+}
+
+function parseJsonArray(value) {
+  if (!value) return [];
   try {
-    const parsed = JSON.parse(analysis.timeline_json);
+    const parsed = JSON.parse(value);
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
+  }
+}
+
+function parseJsonObject(value) {
+  if (!value) return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
   }
 }
 
@@ -4384,8 +4414,6 @@ document.querySelector("#humanAssetForm").addEventListener("submit", async (even
     if (!res.ok) throw new Error(await res.text());
     const human = await res.json();
     state.latestHumanId = human.id;
-    const taskHumanSelect = document.querySelector("#taskHumanSelect");
-    if (taskHumanSelect) taskHumanSelect.value = human.id;
     toast(`数字人资产已创建 #${human.id}`);
     form.reset();
     await refresh();
@@ -4410,7 +4438,6 @@ async function generateScriptCandidates(button) {
     const scripts = await api.post("/scripts/batch-generate", payload);
     state.scripts = [...scripts, ...state.scripts.filter((item) => !scripts.some((script) => script.id === item.id))];
     applyGeneratedScript(scripts[0], { openDetail: true });
-    renderScriptSelects(state.scripts);
     renderScriptCandidates(state.scripts);
     toast(`已生成 ${scripts.length} 条候选方案`);
     await refresh();
@@ -4477,98 +4504,51 @@ document.querySelector("#scriptForm [name='duration_seconds']").addEventListener
 document.querySelector("#scriptForm [name='target_platform']").addEventListener("change", syncCreationExportProfileHint);
 
 function selectedCreationProductionMode() {
-  const select = document.querySelector("#creationProductionModeSelect");
-  const humanInput = document.querySelector("#creationHumanSelect");
-  const hasHuman = Boolean(humanInput?.value);
-  const selected = select?.value || "";
-  const recommended = recommendedCreationProductionMode(hasHuman);
-  if (["talking_head_template", "digital_human"].includes(selected) && !hasRealDigitalHuman()) {
-    return recommended;
-  }
-  if (["talking_head_template", "digital_human"].includes(selected) && !hasHuman) {
-    return recommended;
-  }
-  if (selected === "seedance_scene" && !hasRealVideoGeneration()) {
-    return recommended;
-  }
-  return selected || recommended;
+  return document.querySelector("#creationHumanSelect")?.value ? "talking_head_template" : "seedance_scene";
 }
 
-function integrationIsRealReady(key) {
-  const item = state.integrations?.[key] || {};
-  return Boolean(item.configured && item.real_api);
-}
-
-function hasRealVideoGeneration() {
-  return integrationIsRealReady("video_generation");
+function selectedCreationVoiceId() {
+  return document.querySelector("#creationVoiceSelect")?.value || null;
 }
 
 function hasRealDigitalHuman() {
-  return integrationIsRealReady("digital_human");
-}
-
-function recommendedCreationProductionMode(hasHuman = Boolean(document.querySelector("#creationHumanSelect")?.value)) {
-  if (hasHuman && hasRealDigitalHuman()) return "talking_head_template";
-  if (hasRealVideoGeneration()) return "seedance_scene";
-  return "dynamic_explainer";
+  const item = state.integrations?.digital_human || {};
+  return Boolean(item.configured && item.real_api);
 }
 
 function syncCreationProductionModeWithHuman() {
-  const select = document.querySelector("#creationProductionModeSelect");
-  const humanInput = document.querySelector("#creationHumanSelect");
-  if (!select || !humanInput) return;
-  const nextMode = recommendedCreationProductionMode(Boolean(humanInput.value));
-  if (
-    !select.value
-    || ["talking_head_template", "digital_human"].includes(select.value)
-    || (select.value === "seedance_scene" && !hasRealVideoGeneration())
-  ) {
-    select.value = nextMode;
-  }
   syncProductionModeHint();
 }
 
 function syncProductionModeHint() {
-  const select = document.querySelector("#creationProductionModeSelect");
   const hint = document.querySelector("#productionModeHint");
-  if (!select || !hint) return;
-  const effectiveMode = selectedCreationProductionMode();
-  const suffix = effectiveMode !== select.value
-    ? ` 当前接口状态下会自动改用「${productionModeLabel(effectiveMode)}」。`
-    : "";
-  const message = {
-    dynamic_explainer: "本地图文讲解预览：不依赖外部视频模型，可生成本地 MP4，并自动烧录字幕，适合先跑通审核和保存流程。",
-    digital_human: "需要选择已上传头像或口播源视频的数字人，用于后续真人嘴型驱动。",
-    material_mix: "先按分镜匹配素材库素材，可人工修改；缺素材的镜头再用 Seedance 补。",
-    seedance_scene: "会把分镜表拆成多个 Seedance 镜头，生成 AI 实景画面后自动拼接。",
-    talking_head_template: "需要真实数字人驱动接口，会生成顶部标题、底部身份条、字幕和解释页的口播模板。",
-  }[select.value] || "";
-  hint.textContent = `${message}${suffix}`;
+  if (!hint) return;
+  hint.textContent = document.querySelector("#creationHumanSelect")?.value
+    ? "已自动选择系统内数字人口播：沿用人物原声和稳定口播模板，字幕与解释画面由系统补充。"
+    : "未选择数字人：系统会自动按脚本分镜生成实景镜头并完成字幕和剪辑。";
 }
 
 function isDigitalHumanProductionMode(mode) {
-  return ["digital_human", "talking_head_template"].includes(mode);
+  return ["digital_human", "talking_head_template", "reference_clone"].includes(mode);
 }
 
 function estimatedDigitalHumanCost(script) {
   const seconds = Math.max(15, Number(script?.duration_seconds || 60));
-  const amount = seconds * 0.5;
-  const amountText = amount % 1 === 0 ? String(amount) : amount.toFixed(1);
-  return `预计正式数字人费用约 ${amountText} 元（按阿里 480P 0.5 元/秒估算，实际以账单为准）。`;
+  return `将按 ${seconds} 秒调用当前已配置的数字人模型，实际消耗会记录到模型用量。`;
 }
 
-function renderVoicePreview(url, costText) {
+function renderVoicePreview(url, costText = "") {
   const panel = document.querySelector("#voicePreviewPanel");
   if (!panel) return;
   panel.classList.remove("hiddenPanel");
   panel.innerHTML = `
     <div class="voicePreviewHeader">
       <strong>口播试听</strong>
-      <span class="status">先试听，再正式生成</span>
+      <span class="status">确认满意后再生成视频</span>
     </div>
     <audio controls autoplay src="${url}"></audio>
-    <p class="resultHint">声音、语速和稿子确认满意后，再继续生成正式数字人成片。</p>
-    <p class="resultHint">${escapeHtml(costText)}</p>
+    <p class="resultHint">声音、语速和稿子确认满意后，再继续生成正式视频。</p>
+    ${costText ? `<p class="resultHint">${escapeHtml(costText)}</p>` : ""}
   `;
 }
 
@@ -4585,7 +4565,38 @@ async function confirmVoicePreviewBeforeFormalGeneration(script, payload, button
   return window.confirm(`已生成口播试听，请先听声音和节奏。\n\n${costText}\n\n确认口播满意，并继续生成正式数字人视频吗？`);
 }
 
-document.querySelector("#creationProductionModeSelect").addEventListener("change", syncProductionModeHint);
+async function previewSelectedCreationVoice(button) {
+  if (!state.latestScriptId) {
+    toast("请先生成一条脚本，再试听音色");
+    return;
+  }
+  const script = state.scripts.find((item) => item.id === Number(state.latestScriptId));
+  if (!script) {
+    toast("没有找到当前脚本，请刷新后重试");
+    return;
+  }
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "生成中...";
+  try {
+    const savedScript = (await saveCurrentScriptEdits({ silent: true })) || script;
+    if (state.voicePreviewUrl) {
+      URL.revokeObjectURL(state.voicePreviewUrl);
+      state.voicePreviewUrl = "";
+    }
+    const audioBlob = await api.postBlob(`/scripts/${savedScript.id}/voice-preview`, {
+      production_mode: selectedCreationProductionMode(),
+      voice_id: selectedCreationVoiceId(),
+    });
+    state.voicePreviewUrl = URL.createObjectURL(audioBlob);
+    renderVoicePreview(state.voicePreviewUrl);
+  } catch (error) {
+    toast(apiErrorMessage(error, "口播试听生成失败"));
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
+}
 
 document.querySelector("#creationHumanSelect").addEventListener("change", syncCreationProductionModeWithHuman);
 
@@ -4611,12 +4622,14 @@ async function createVideoFromScript(scriptId, button) {
     target_platform: platformInput?.value || script.target_platform || "douyin",
     export_profile: defaultExportProfileForPlatform(platformInput?.value || script.target_platform || "douyin"),
     subtitle_enabled: true,
-    subtitle_style: document.querySelector("#creationSubtitleStyleSelect")?.value || "auto",
+    subtitle_style: "auto",
   };
+  const selectedVoiceId = selectedCreationVoiceId();
+  if (selectedVoiceId) payload.voice_id = selectedVoiceId;
   if (humanInput.value) {
     payload.digital_human_id = Number(humanInput.value);
   }
-  if (["digital_human", "talking_head_template"].includes(productionMode) && !payload.digital_human_id) {
+  if (["digital_human", "talking_head_template", "reference_clone"].includes(productionMode) && !payload.digital_human_id) {
     toast("数字人口播需要先选择有头像或口播源视频的数字人");
     return;
   }
@@ -4634,11 +4647,6 @@ async function createVideoFromScript(scriptId, button) {
     const endpoint = productionMode === "material_mix" ? "video-task" : "auto-video-task";
     const task = await api.post(`/scripts/${savedScript.id}/${endpoint}`, payload);
     state.latestTaskId = task.id;
-    document.querySelector("#taskForm [name='script_id']").value = task.script_id;
-    const taskHumanInput = document.querySelector("#taskForm [name='digital_human_id']");
-    if (task.digital_human_id && taskHumanInput) {
-      taskHumanInput.value = task.digital_human_id;
-    }
     toast(productionMode === "material_mix" ? `已创建素材方案任务 #${task.id}` : `已进入自动生成队列 #${task.id}`);
     await refresh();
     switchPage("tasks");
@@ -4686,48 +4694,13 @@ document.querySelector("#scriptPreviewCreation").addEventListener("submit", asyn
   await saveCurrentScriptEdits();
 });
 
-document.querySelector("#taskForm").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const payload = formData(event.currentTarget);
-  payload.script_id = Number(payload.script_id || state.latestScriptId);
-  payload.digital_human_id = payload.digital_human_id ? Number(payload.digital_human_id) : null;
-  if (!payload.export_profile) delete payload.export_profile;
-  payload.subtitle_enabled = true;
-  payload.subtitle_style = payload.subtitle_style || "auto";
-  const task = await api.post("/video-tasks", payload);
-  state.latestTaskId = task.id;
-  toast(`视频任务已创建 #${task.id}`);
-  await refresh();
-});
-
-document.querySelector("#batchCreateTasksBtn").addEventListener("click", async () => {
-  const scriptIds = [...document.querySelector("#batchScriptSelect").selectedOptions]
-    .map((option) => Number(option.value))
-    .filter(Boolean);
-  if (!scriptIds.length) {
-    toast("请先选择要批量生成视频的脚本");
-    return;
-  }
-  const humanValue = document.querySelector("#batchHumanSelect").value;
-  const productionMode = document.querySelector("#batchProductionModeSelect").value;
-  const payload = {
-    script_ids: scriptIds,
-    digital_human_id: humanValue ? Number(humanValue) : null,
-    production_mode: productionMode,
-    export_profile: document.querySelector("#batchExportProfileSelect").value || null,
-    subtitle_enabled: true,
-    subtitle_style: document.querySelector("#batchSubtitleStyleSelect").value || "auto",
-  };
-  if (!payload.export_profile) delete payload.export_profile;
-  const tasks = await api.post("/video-tasks/batch-create", payload);
-  toast(`已批量创建 ${tasks.length} 个视频任务`);
-  await refresh();
-  switchPage("tasks");
-});
-
 document.querySelector("#createTaskFromScriptBtn").addEventListener("click", async () => {
   const button = document.querySelector("#createTaskFromScriptBtn");
   await createVideoFromScript(state.latestScriptId, button);
+});
+
+document.querySelector("#previewVoiceBtn").addEventListener("click", async () => {
+  await previewSelectedCreationVoice(document.querySelector("#previewVoiceBtn"));
 });
 
 document.querySelector("#goTaskPageBtn").addEventListener("click", () => switchPage("tasks"));
@@ -4792,50 +4765,6 @@ document.querySelector("#titleSuggestionList").addEventListener("click", async (
   }
 });
 
-document.querySelector("#runTaskBtn").addEventListener("click", async () => {
-  if (!state.latestTaskId) {
-    toast("请先创建视频任务");
-    return;
-  }
-  const currentTask = state.videoTasks.find((item) => item.id === state.latestTaskId);
-  if (currentTask && !taskActionState(currentTask).canRun) {
-    toast("这个任务当前不能开始生成，请先删除成片或检查任务状态");
-    return;
-  }
-  try {
-    const task = await api.post(`/video-tasks/${state.latestTaskId}/run`);
-    toast(`任务已运行：${taskStatusLabel(task.status)}`);
-  } catch (error) {
-    toast("这个任务当前不能开始生成，请先删除成片或检查任务状态");
-  } finally {
-    await refresh();
-  }
-});
-
-document.querySelector("#batchRunSelectedTasksBtn").addEventListener("click", async () => {
-  const taskIds = [...document.querySelectorAll(".taskSelectCheckbox:checked")]
-    .map((input) => Number(input.value))
-    .filter(Boolean);
-  if (!taskIds.length) {
-    toast("请先勾选要运行的视频任务");
-    return;
-  }
-  const button = document.querySelector("#batchRunSelectedTasksBtn");
-  const originalText = button.textContent;
-  button.disabled = true;
-  button.textContent = "批量运行中...";
-  try {
-    const tasks = await api.post("/video-tasks/batch-run", { task_ids: taskIds });
-    toast(`已运行 ${tasks.length} 个视频任务`);
-    await refresh();
-  } catch (error) {
-    toast("批量运行失败，请检查任务状态或视频模型配置");
-  } finally {
-    button.disabled = false;
-    button.textContent = originalText;
-  }
-});
-
 document.querySelector("#materialList").addEventListener("click", async (event) => {
   const detailButton = event.target.closest("button[data-action='view-material-detail']");
   if (detailButton) {
@@ -4878,6 +4807,11 @@ document.querySelector("#materialList").addEventListener("click", async (event) 
 });
 
 document.querySelector("#humanList").addEventListener("click", async (event) => {
+  const authButton = event.target.closest("button[data-action='enter-volcengine-auth']");
+  if (authButton) {
+    await enterVolcengineAuth(authButton);
+    return;
+  }
   const detailButton = event.target.closest("button[data-action='view-human-detail']");
   if (detailButton) {
     openAssetDetailDrawer("human", detailButton.dataset.id);
@@ -4957,26 +4891,9 @@ document.querySelector("#assetDetailDrawer").addEventListener("click", async (ev
     }
     return;
   }
-  const createAuthButton = event.target.closest("button[data-action='create-volcengine-auth']");
-  if (createAuthButton) {
-    createAuthButton.disabled = true;
-    const originalText = createAuthButton.textContent;
-    createAuthButton.textContent = "创建中...";
-    const humanId = createAuthButton.dataset.id;
-    try {
-      const result = await api.post(`/digital-humans/${humanId}/volcengine-auth/session`, {
-        callback_url: volcengineCallbackUrl(),
-      });
-      toast("火山真人认证链接已创建");
-      await refresh();
-      openAssetDetailDrawer("human", humanId);
-      if (result.auth_url) window.open(result.auth_url, "_blank", "noopener,noreferrer");
-    } catch (error) {
-      toast(apiErrorMessage(error, "火山认证链接创建失败，请检查服务开通和 AK/SK 权限"));
-    } finally {
-      createAuthButton.disabled = false;
-      createAuthButton.textContent = originalText;
-    }
+  const enterAuthButton = event.target.closest("button[data-action='enter-volcengine-auth']");
+  if (enterAuthButton) {
+    await enterVolcengineAuth(enterAuthButton);
     return;
   }
   const syncAuthButton = event.target.closest("button[data-action='sync-volcengine-auth']");
@@ -4998,22 +4915,6 @@ document.querySelector("#assetDetailDrawer").addEventListener("click", async (ev
     }
     return;
   }
-  const openAuthButton = event.target.closest("button[data-action='open-volcengine-auth']");
-  if (openAuthButton) {
-    const url = openAuthButton.dataset.url || "";
-    if (url) window.open(url, "_blank", "noopener,noreferrer");
-    return;
-  }
-  const copyAuthButton = event.target.closest("button[data-action='copy-volcengine-auth-url']");
-  if (copyAuthButton) {
-    try {
-      await navigator.clipboard.writeText(copyAuthButton.dataset.url || "");
-      toast("认证链接已复制");
-    } catch {
-      toast(copyAuthButton.dataset.url || "");
-    }
-    return;
-  }
   const deleteHumanButton = event.target.closest("button[data-action='delete-human']");
   if (deleteHumanButton) {
     if (!window.confirm("确认删除这个数字人吗？相关视频任务会改为不露脸。")) return;
@@ -5030,6 +4931,30 @@ document.querySelector("#assetDetailDrawer").addEventListener("click", async (ev
     closeAssetDetailDrawer();
     toast("素材已删除");
     await refresh();
+  }
+});
+
+document.querySelector("#assetDetailDrawer").addEventListener("submit", async (event) => {
+  const form = event.target.closest("form[data-action='bind-manual-volcengine-asset']");
+  if (!form) return;
+  event.preventDefault();
+  const button = form.querySelector("button[type='submit']");
+  button.disabled = true;
+  button.textContent = "保存中...";
+  try {
+    await api.put(`/digital-humans/${form.dataset.id}/volcengine-asset`, {
+      asset_group_id: form.elements.asset_group_id.value,
+      asset_group_uri: form.elements.asset_group_uri.value,
+      asset_uri: form.elements.asset_uri.value,
+    });
+    toast("方舟控制台资产已绑定");
+    await refresh();
+    openAssetDetailDrawer("human", form.dataset.id);
+  } catch (error) {
+    toast(apiErrorMessage(error));
+  } finally {
+    button.disabled = false;
+    button.textContent = "保存控制台资产";
   }
 });
 
@@ -5053,9 +4978,6 @@ document.querySelector("#taskScriptList").addEventListener("click", async (event
     openTaskScriptDetailDrawer(script.id);
     return;
   }
-  if (button.dataset.action === "create-task-from-script") {
-    await createTaskFromTaskScript(script.id, button);
-  }
 });
 
 document.querySelectorAll("#taskListTasks, #taskList, #taskDetailDrawer").forEach((list) => list.addEventListener("click", async (event) => {
@@ -5073,10 +4995,6 @@ document.querySelectorAll("#taskListTasks, #taskList, #taskDetailDrawer").forEac
   }
   if (button.dataset.action === "view-task-script") {
     openTaskScriptDetailDrawer(id);
-    return;
-  }
-  if (button.dataset.action === "create-task-from-script") {
-    await createTaskFromTaskScript(id, button);
     return;
   }
   if (button.dataset.action === "edit-script-from-task-drawer") {

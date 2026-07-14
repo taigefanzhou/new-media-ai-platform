@@ -9,7 +9,7 @@
         window.location.replace("/login.html");
       }
     </script>
-    <link rel="stylesheet" href="/styles.css?v=20260710-video-recovery" />
+    <link rel="stylesheet" href="/styles.css?v=20260714-video-blueprint" />
   </head>
   <body class="auth-pending">
     <aside class="sidebar">
@@ -25,6 +25,7 @@
         <button class="navItem active" data-page="overview" data-short="台">创作工作台</button>
         <button class="navItem" data-page="creation" data-short="创">新建视频</button>
         <button class="navItem" data-page="humans" data-short="资">资产库</button>
+        <button class="navItem" type="button" onclick="window.location.href='/drama.html'" data-short="剧">短剧工作台</button>
         <button class="navItem" data-page="tasks" data-short="任">视频任务</button>
         <button class="navItem" data-page="publish" data-short="发">发布中心</button>
         <details class="navMore">
@@ -76,7 +77,7 @@
             <div>
               <p class="eyebrow">Video Generator</p>
               <h2>选择入口，生成内容</h2>
-              <p>像即梦这类视频生成工具一样，把主流程收成几个入口：输入想法、选择参考或素材、生成脚本和视频，再到任务里查看结果。</p>
+              <p>从输入主题或选择参考开始，生成脚本和视频，再到任务里查看成片。</p>
             </div>
           </div>
           <div class="workflowRail" aria-label="AI 视频生产流程">
@@ -93,10 +94,6 @@
             <article class="quickStartCard">
               <div><strong>参考链接生成</strong><span>粘贴公开视频链接，拆出结构、脚本和可复用的拍摄方法。</span></div>
               <button type="button" class="secondary" data-workbench-action="link-reference">参考</button>
-            </article>
-            <article class="quickStartCard">
-              <div><strong>数字人/素材</strong><span>管理数字人、头像、口播源和视频素材，生成时直接选择。</span></div>
-              <button type="button" class="secondary" data-workbench-action="digital-human">资产</button>
             </article>
             <article class="quickStartCard">
               <div><strong>查看生成结果</strong><span>查看脚本、分镜、视频、字幕和发布状态。</span></div>
@@ -172,6 +169,18 @@
                     <option value="en-US">英文</option>
                   </select>
                 </label>
+                <label>配音音色
+                  <select id="creationVoiceSelect">
+                    <option value="" selected>跟随数字人原声</option>
+                    <option value="longanhuan">元气自然女声</option>
+                    <option value="longanwen_v3">优雅知性女声</option>
+                    <option value="longanli_v3">利落从容女声</option>
+                    <option value="longxing_v3">温婉邻家女声</option>
+                    <option value="longwan_v3">细腻柔声女声</option>
+                    <option value="longanyang">阳光男声</option>
+                  </select>
+                </label>
+                <button id="previewVoiceBtn" type="button" class="secondary">试听</button>
                 <div class="durationField">
                   <span class="durationFieldTitle">视频时长</span>
                   <div class="durationQuickLine">
@@ -234,28 +243,6 @@
               </details>
               <div id="voicePreviewPanel" class="voicePreviewPanel hiddenPanel"></div>
               <div class="creationFooterActions">
-                <div class="productionModeBar">
-                  <label>成片方式
-                    <select id="creationProductionModeSelect">
-                      <option value="talking_head_template">数字人口播模板（目标成片）</option>
-                      <option value="material_mix">素材库混剪方案（先排素材）</option>
-                      <option value="seedance_scene">Seedance AI 实景/B-roll</option>
-                      <option value="digital_human">真人数字人口播（头像/源视频）</option>
-                      <option value="dynamic_explainer">图文草稿预览（不建议成片）</option>
-                    </select>
-                  </label>
-                  <label>字幕风格
-                    <select id="creationSubtitleStyleSelect">
-                      <option value="auto">AI 自动选择</option>
-                      <option value="business">商务清晰</option>
-                      <option value="viral">爆款大字</option>
-                      <option value="digital_human">数字人口播</option>
-                      <option value="tutorial">教程说明</option>
-                      <option value="minimal">极简底栏</option>
-                    </select>
-                  </label>
-                  <span id="productionModeHint">会生成参考视频那种口播模板：顶部标题、底部身份条、字幕和解释页。</span>
-                </div>
                 <div class="itemActions creationActions">
                   <button id="regenerateScriptBtn" type="button" class="secondary">继续生成一条</button>
                   <button id="createTaskFromScriptBtn" type="button">生成视频</button>
@@ -483,91 +470,6 @@
           </div>
           <div id="taskListTasks" class="taskTableWrap"></div>
         </section>
-        <details class="panel advancedTaskPanel">
-          <summary>高级手动操作</summary>
-          <div class="advancedTaskGrid">
-            <form id="taskForm">
-              <h2>手动创建视频任务</h2>
-              <label>脚本
-                <select name="script_id" id="taskScriptSelect">
-                  <option value="">先生成脚本</option>
-                </select>
-              </label>
-              <label>数字人
-                <select name="digital_human_id" id="taskHumanSelect">
-                  <option value="">不使用数字人露脸</option>
-                </select>
-              </label>
-              <label>成片方式
-                <select name="production_mode">
-                  <option value="talking_head_template">数字人口播模板</option>
-                  <option value="material_mix">素材库混剪方案</option>
-                  <option value="seedance_scene">Seedance AI 实景/B-roll</option>
-                  <option value="digital_human">真人数字人口播</option>
-                  <option value="dynamic_explainer">图文草稿预览</option>
-                </select>
-              </label>
-              <label>导出规格
-                <select name="export_profile" id="taskExportProfileSelect">
-                  <option value="">按脚本平台自动匹配</option>
-                </select>
-              </label>
-              <label>字幕风格
-                <select name="subtitle_style">
-                  <option value="auto">AI 自动选择</option>
-                  <option value="business">商务清晰</option>
-                  <option value="viral">爆款大字</option>
-                  <option value="digital_human">数字人口播</option>
-                  <option value="tutorial">教程说明</option>
-                  <option value="minimal">极简底栏</option>
-                </select>
-              </label>
-              <div class="actions">
-                <button type="submit">创建任务</button>
-                <button id="runTaskBtn" type="button" class="secondary">运行任务</button>
-              </div>
-            </form>
-            <div>
-              <h2>批量生成视频</h2>
-              <label>选择脚本
-                <select id="batchScriptSelect" multiple size="6"></select>
-              </label>
-              <label>数字人
-                <select id="batchHumanSelect">
-                  <option value="">不使用数字人露脸</option>
-                </select>
-              </label>
-              <label>成片方式
-                <select id="batchProductionModeSelect">
-                  <option value="talking_head_template">数字人口播模板</option>
-                  <option value="material_mix">素材库混剪方案</option>
-                  <option value="seedance_scene">Seedance AI 实景/B-roll</option>
-                  <option value="digital_human">真人数字人口播</option>
-                  <option value="dynamic_explainer">图文草稿预览</option>
-                </select>
-              </label>
-              <label>导出规格
-                <select id="batchExportProfileSelect">
-                  <option value="">按脚本平台自动匹配</option>
-                </select>
-              </label>
-              <label>字幕风格
-                <select id="batchSubtitleStyleSelect">
-                  <option value="auto">AI 自动选择</option>
-                  <option value="business">商务清晰</option>
-                  <option value="viral">爆款大字</option>
-                  <option value="digital_human">数字人口播</option>
-                  <option value="tutorial">教程说明</option>
-                  <option value="minimal">极简底栏</option>
-                </select>
-              </label>
-              <div class="actions">
-                <button id="batchCreateTasksBtn" type="button">批量创建任务</button>
-                <button id="batchRunSelectedTasksBtn" type="button" class="secondary">运行选中任务</button>
-              </div>
-            </div>
-          </div>
-        </details>
         <details class="panel advancedTaskPanel scriptArchivePanel">
           <summary>已生成脚本</summary>
           <div id="taskScriptList" class="taskTableWrap"></div>
@@ -1043,6 +945,6 @@
     </div>
 
     <div id="toast"></div>
-    <script src="/app.js?v=20260711-task-actions"></script>
+    <script src="/app.js?v=20260714-video-blueprint"></script>
   </body>
 </html>

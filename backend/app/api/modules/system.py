@@ -70,6 +70,7 @@ def list_video_production_skills() -> dict[str, object]:
             "分镜执行表",
             "素材匹配",
             "视频生成",
+            "专业剪辑",
             "字幕包装",
             "质量检查",
         ],

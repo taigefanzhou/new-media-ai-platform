@@ -698,7 +698,8 @@ async def run_reference_video_analysis(
         task.contact_sheet_path = result.contact_sheet_path
         task.dense_contact_sheet_path = result.dense_contact_sheet_path
         task.timeline_json = result.timeline_json
-        task.transcript = transcript
+        task.transcript = result.transcript or transcript
+        task.transcript_segments_json = result.transcript_segments_json
         task.script_analysis = result.script_analysis
         task.shooting_analysis = result.shooting_analysis
         task.editing_analysis = result.editing_analysis
@@ -706,6 +707,9 @@ async def run_reference_video_analysis(
         task.reuse_notes = result.reuse_notes
         task.quality_score = result.quality_score
         task.quality_summary = result.quality_summary
+        task.blueprint_json = result.blueprint_json
+        task.edit_plan_json = result.edit_plan_json
+        task.analysis_source = result.analysis_source
         task.model_enhanced = result.model_enhanced
         task.status = TaskStatus.needs_review
         estimated_completion_tokens = estimate_text_tokens(
@@ -869,6 +873,8 @@ async def generate_script_from_reference_video_analysis(
         f"拍摄方式分析：{task.shooting_analysis}\n"
         f"剪辑方式分析：{task.editing_analysis}\n"
         f"可复用模板：{task.reusable_template}\n"
+        f"结构化生产蓝图：{task.blueprint_json}\n"
+        f"智能剪辑计划：{task.edit_plan_json}\n"
         "请改写成适合酒店智能化、酒店运营或公司负责人数字人口播的原创脚本。"
     )
     active_model = _smart_model_config(session, "script", "script_generation")

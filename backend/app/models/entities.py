@@ -236,6 +236,10 @@ class ReferenceVideoAnalysis(SQLModel, table=True):
     reuse_notes: str = ""
     quality_score: float = 0
     quality_summary: str = ""
+    blueprint_json: str = ""
+    edit_plan_json: str = ""
+    transcript_segments_json: str = ""
+    analysis_source: str = "local"
     model_enhanced: bool = False
     error_message: Optional[str] = None
     owner_user_id: Optional[int] = Field(default=None, index=True)

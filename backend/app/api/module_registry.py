@@ -57,6 +57,12 @@ API_MODULES: tuple[ApiModule, ...] = (
         ),
     ),
     ApiModule(
+        key="drama",
+        label="短剧工作台",
+        description="短剧项目、角色卡、场景卡、逐镜头生产和视频任务创建。",
+        prefixes=("/drama-projects", "/drama-shots"),
+    ),
+    ApiModule(
         key="video_library",
         label="视频库与生成任务",
         description="视频任务、分段素材、成片输出、审核和发布准备。",

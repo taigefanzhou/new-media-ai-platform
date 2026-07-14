@@ -247,6 +247,12 @@ class VolcenginePortraitAuthSessionCreate(BaseModel):
     remark: str = ""
 
 
+class VolcenginePortraitAssetBind(BaseModel):
+    asset_group_id: Optional[str] = None
+    asset_group_uri: Optional[str] = None
+    asset_uri: Optional[str] = None
+
+
 class VideoTaskCreate(BaseModel):
     script_id: int
     digital_human_id: Optional[int] = None
@@ -255,6 +261,7 @@ class VideoTaskCreate(BaseModel):
     export_profile: Optional[str] = None
     subtitle_enabled: bool = True
     subtitle_style: str = "auto"
+    voice_id: Optional[str] = None
 
 
 class ScriptVideoTaskCreate(BaseModel):
@@ -264,6 +271,7 @@ class ScriptVideoTaskCreate(BaseModel):
     export_profile: Optional[str] = None
     subtitle_enabled: bool = True
     subtitle_style: str = "auto"
+    voice_id: Optional[str] = None
 
 
 class VideoTaskBatchCreateRequest(BaseModel):
@@ -274,6 +282,7 @@ class VideoTaskBatchCreateRequest(BaseModel):
     export_profile: Optional[str] = None
     subtitle_enabled: bool = True
     subtitle_style: str = "auto"
+    voice_id: Optional[str] = None
 
 
 class VideoTaskBatchRunRequest(BaseModel):

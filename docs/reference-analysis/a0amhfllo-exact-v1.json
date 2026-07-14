@@ -1,0 +1,2676 @@
+{
+  "schema_version": "1.0",
+  "reference": {
+    "id": "A0AmHfFLLO",
+    "material_id": 24,
+    "name": "视频号 A0AmHfFLLO 参考视频",
+    "source_url": "https://weixin.qq.com/sph/A0AmHfFLLO",
+    "public_media_url": "https://media.tech-ark.com/asset-uploads/02898be9e3dc41a19a760addc35e7e7d.mp4",
+    "copyright_status": "reference_only",
+    "sha256": "9912fbc00b5e67e4b158f22e04eec8abac7d88af5991da480d7e4d251b8c9143"
+  },
+  "media": {
+    "width": 1024,
+    "height": 576,
+    "fps": 24.0,
+    "duration_seconds": 338.917,
+    "frame_count": 8134,
+    "video_codec": "h264 high yuv420p bt709",
+    "audio_codec": "he-aac 48khz stereo",
+    "integrated_loudness_lufs": -11.7,
+    "loudness_range_lu": 2.8
+  },
+  "composition": {
+    "presenter_layer": {
+      "exists": false,
+      "finding": "全片逐秒扫描未发现固定主持人；人物均为酒店 B-roll 演员。"
+    },
+    "top_bar": {
+      "x": 0,
+      "y": 0,
+      "width": 1024,
+      "height": 88,
+      "fill": "#000000"
+    },
+    "title": {
+      "box": {
+        "x": 168,
+        "y": 25,
+        "width": 688,
+        "height": 54
+      },
+      "text": "「酒店24小时退房：到底谁在受益？」",
+      "font_family_match": "Noto Serif CJK SC / Songti",
+      "font_size_px_estimate": 43,
+      "color": "#8F8F8F",
+      "persistent": true
+    },
+    "footage_viewport": {
+      "x": 0,
+      "y": 88,
+      "width": 1024,
+      "height": 399,
+      "dark_overlay_alpha_estimate": 0.36
+    },
+    "waveform": {
+      "box": {
+        "x": 126,
+        "y": 150,
+        "width": 752,
+        "height": 116
+      },
+      "baseline_y": 264,
+      "color": "#FFFFFF",
+      "source": "mixed_audio_amplitude",
+      "persistent": true
+    },
+    "dialogue_a": {
+      "anchor": {
+        "x": 95,
+        "y": 300
+      },
+      "color": "#FFFFFF",
+      "stroke": "#000000",
+      "font_family_match": "Noto Serif CJK SC / Songti",
+      "font_size_px_estimate": 42
+    },
+    "dialogue_b": {
+      "anchor": {
+        "x": 447,
+        "y": 368
+      },
+      "color": "#E52D2D",
+      "stroke": "#151515",
+      "font_family_match": "Noto Serif CJK SC / Songti",
+      "font_size_px_estimate": 42
+    },
+    "bottom_bar": {
+      "x": 0,
+      "y": 487,
+      "width": 1024,
+      "height": 89,
+      "fill": "#000000"
+    },
+    "brand": {
+      "box": {
+        "x": 346,
+        "y": 510,
+        "width": 332,
+        "height": 48
+      },
+      "text": "-老丁的酒店投资圈-",
+      "white_red_split": true,
+      "persistent": true
+    }
+  },
+  "editing": {
+    "shot_count": 84,
+    "hard_cut_count": 83,
+    "average_shot_length_seconds": 4.035,
+    "transition_style": "hard_cuts_only_at_detected_boundaries",
+    "shots": [
+      {
+        "shot_id": 1,
+        "start_seconds": 0.0,
+        "end_seconds": 3.916667,
+        "start_frame": 0,
+        "end_frame_exclusive": 94,
+        "duration_seconds": 3.916667,
+        "transition_in": "start",
+        "scene_score": null,
+        "narrative_phase": "开场设问",
+        "visual_role": "客房、床品、房间设施"
+      },
+      {
+        "shot_id": 2,
+        "start_seconds": 3.916667,
+        "end_seconds": 10.583333,
+        "start_frame": 94,
+        "end_frame_exclusive": 254,
+        "duration_seconds": 6.666666,
+        "transition_in": "hard_cut",
+        "scene_score": 0.134179,
+        "narrative_phase": "开场设问",
+        "visual_role": "客房、床品、房间设施"
+      },
+      {
+        "shot_id": 3,
+        "start_seconds": 10.583333,
+        "end_seconds": 14.208333,
+        "start_frame": 254,
+        "end_frame_exclusive": 341,
+        "duration_seconds": 3.625,
+        "transition_in": "hard_cut",
+        "scene_score": 0.158189,
+        "narrative_phase": "开场设问",
+        "visual_role": "客房、床品、房间设施"
+      },
+      {
+        "shot_id": 4,
+        "start_seconds": 14.208333,
+        "end_seconds": 15.875,
+        "start_frame": 341,
+        "end_frame_exclusive": 381,
+        "duration_seconds": 1.666667,
+        "transition_in": "hard_cut",
+        "scene_score": 0.096801,
+        "narrative_phase": "开场设问",
+        "visual_role": "客房、床品、房间设施"
+      },
+      {
+        "shot_id": 5,
+        "start_seconds": 15.875,
+        "end_seconds": 20.458333,
+        "start_frame": 381,
+        "end_frame_exclusive": 491,
+        "duration_seconds": 4.583333,
+        "transition_in": "hard_cut",
+        "scene_score": 0.100654,
+        "narrative_phase": "开场设问",
+        "visual_role": "客房、床品、房间设施"
+      },
+      {
+        "shot_id": 6,
+        "start_seconds": 20.458333,
+        "end_seconds": 28.166667,
+        "start_frame": 491,
+        "end_frame_exclusive": 676,
+        "duration_seconds": 7.708334,
+        "transition_in": "hard_cut",
+        "scene_score": 0.156253,
+        "narrative_phase": "开场设问",
+        "visual_role": "客房、床品、房间设施"
+      },
+      {
+        "shot_id": 7,
+        "start_seconds": 28.166667,
+        "end_seconds": 32.5,
+        "start_frame": 676,
+        "end_frame_exclusive": 780,
+        "duration_seconds": 4.333333,
+        "transition_in": "hard_cut",
+        "scene_score": 0.158748,
+        "narrative_phase": "运营影响",
+        "visual_role": "保洁人员与清洁流程"
+      },
+      {
+        "shot_id": 8,
+        "start_seconds": 32.5,
+        "end_seconds": 35.5,
+        "start_frame": 780,
+        "end_frame_exclusive": 852,
+        "duration_seconds": 3.0,
+        "transition_in": "hard_cut",
+        "scene_score": 0.161481,
+        "narrative_phase": "运营影响",
+        "visual_role": "保洁人员与清洁流程"
+      },
+      {
+        "shot_id": 9,
+        "start_seconds": 35.5,
+        "end_seconds": 38.416667,
+        "start_frame": 852,
+        "end_frame_exclusive": 922,
+        "duration_seconds": 2.916667,
+        "transition_in": "hard_cut",
+        "scene_score": 0.133352,
+        "narrative_phase": "运营影响",
+        "visual_role": "保洁人员与清洁流程"
+      },
+      {
+        "shot_id": 10,
+        "start_seconds": 38.416667,
+        "end_seconds": 40.666667,
+        "start_frame": 922,
+        "end_frame_exclusive": 976,
+        "duration_seconds": 2.25,
+        "transition_in": "hard_cut",
+        "scene_score": 0.221142,
+        "narrative_phase": "运营影响",
+        "visual_role": "保洁人员与清洁流程"
+      },
+      {
+        "shot_id": 11,
+        "start_seconds": 40.666667,
+        "end_seconds": 45.416667,
+        "start_frame": 976,
+        "end_frame_exclusive": 1090,
+        "duration_seconds": 4.75,
+        "transition_in": "hard_cut",
+        "scene_score": 0.201556,
+        "narrative_phase": "运营影响",
+        "visual_role": "保洁人员与清洁流程"
+      },
+      {
+        "shot_id": 12,
+        "start_seconds": 45.416667,
+        "end_seconds": 48.708333,
+        "start_frame": 1090,
+        "end_frame_exclusive": 1169,
+        "duration_seconds": 3.291666,
+        "transition_in": "hard_cut",
+        "scene_score": 0.180087,
+        "narrative_phase": "运营影响",
+        "visual_role": "保洁人员与清洁流程"
+      },
+      {
+        "shot_id": 13,
+        "start_seconds": 48.708333,
+        "end_seconds": 52.0,
+        "start_frame": 1169,
+        "end_frame_exclusive": 1248,
+        "duration_seconds": 3.291667,
+        "transition_in": "hard_cut",
+        "scene_score": 0.099868,
+        "narrative_phase": "运营影响",
+        "visual_role": "客控设备、酒店空间与智能系统"
+      },
+      {
+        "shot_id": 14,
+        "start_seconds": 52.0,
+        "end_seconds": 55.208333,
+        "start_frame": 1248,
+        "end_frame_exclusive": 1325,
+        "duration_seconds": 3.208333,
+        "transition_in": "hard_cut",
+        "scene_score": 0.132728,
+        "narrative_phase": "运营影响",
+        "visual_role": "客控设备、酒店空间与智能系统"
+      },
+      {
+        "shot_id": 15,
+        "start_seconds": 55.208333,
+        "end_seconds": 57.833333,
+        "start_frame": 1325,
+        "end_frame_exclusive": 1388,
+        "duration_seconds": 2.625,
+        "transition_in": "hard_cut",
+        "scene_score": 0.14974,
+        "narrative_phase": "运营影响",
+        "visual_role": "客控设备、酒店空间与智能系统"
+      },
+      {
+        "shot_id": 16,
+        "start_seconds": 57.833333,
+        "end_seconds": 61.0,
+        "start_frame": 1388,
+        "end_frame_exclusive": 1464,
+        "duration_seconds": 3.166667,
+        "transition_in": "hard_cut",
+        "scene_score": 0.130648,
+        "narrative_phase": "运营影响",
+        "visual_role": "客控设备、酒店空间与智能系统"
+      },
+      {
+        "shot_id": 17,
+        "start_seconds": 61.0,
+        "end_seconds": 63.25,
+        "start_frame": 1464,
+        "end_frame_exclusive": 1518,
+        "duration_seconds": 2.25,
+        "transition_in": "hard_cut",
+        "scene_score": 0.08276,
+        "narrative_phase": "运营影响",
+        "visual_role": "客控设备、酒店空间与智能系统"
+      },
+      {
+        "shot_id": 18,
+        "start_seconds": 63.25,
+        "end_seconds": 65.666667,
+        "start_frame": 1518,
+        "end_frame_exclusive": 1576,
+        "duration_seconds": 2.416667,
+        "transition_in": "hard_cut",
+        "scene_score": 0.167297,
+        "narrative_phase": "运营影响",
+        "visual_role": "客控设备、酒店空间与智能系统"
+      },
+      {
+        "shot_id": 19,
+        "start_seconds": 65.666667,
+        "end_seconds": 68.666667,
+        "start_frame": 1576,
+        "end_frame_exclusive": 1648,
+        "duration_seconds": 3.0,
+        "transition_in": "hard_cut",
+        "scene_score": 0.208156,
+        "narrative_phase": "运营影响",
+        "visual_role": "客控设备、酒店空间与智能系统"
+      },
+      {
+        "shot_id": 20,
+        "start_seconds": 68.666667,
+        "end_seconds": 75.416667,
+        "start_frame": 1648,
+        "end_frame_exclusive": 1810,
+        "duration_seconds": 6.75,
+        "transition_in": "hard_cut",
+        "scene_score": 0.179719,
+        "narrative_phase": "运营影响",
+        "visual_role": "客控设备、酒店空间与智能系统"
+      },
+      {
+        "shot_id": 21,
+        "start_seconds": 75.416667,
+        "end_seconds": 79.958333,
+        "start_frame": 1810,
+        "end_frame_exclusive": 1919,
+        "duration_seconds": 4.541666,
+        "transition_in": "hard_cut",
+        "scene_score": 0.146554,
+        "narrative_phase": "运营影响",
+        "visual_role": "酒店外景、建筑与商业体"
+      },
+      {
+        "shot_id": 22,
+        "start_seconds": 79.958333,
+        "end_seconds": 82.375,
+        "start_frame": 1919,
+        "end_frame_exclusive": 1977,
+        "duration_seconds": 2.416667,
+        "transition_in": "hard_cut",
+        "scene_score": 0.107673,
+        "narrative_phase": "运营影响",
+        "visual_role": "酒店外景、建筑与商业体"
+      },
+      {
+        "shot_id": 23,
+        "start_seconds": 82.375,
+        "end_seconds": 86.541667,
+        "start_frame": 1977,
+        "end_frame_exclusive": 2077,
+        "duration_seconds": 4.166667,
+        "transition_in": "hard_cut",
+        "scene_score": 0.148724,
+        "narrative_phase": "运营影响",
+        "visual_role": "酒店外景、建筑与商业体"
+      },
+      {
+        "shot_id": 24,
+        "start_seconds": 86.541667,
+        "end_seconds": 90.333333,
+        "start_frame": 2077,
+        "end_frame_exclusive": 2168,
+        "duration_seconds": 3.791666,
+        "transition_in": "hard_cut",
+        "scene_score": 0.133523,
+        "narrative_phase": "运营影响",
+        "visual_role": "酒店外景、建筑与商业体"
+      },
+      {
+        "shot_id": 25,
+        "start_seconds": 90.333333,
+        "end_seconds": 94.291667,
+        "start_frame": 2168,
+        "end_frame_exclusive": 2263,
+        "duration_seconds": 3.958334,
+        "transition_in": "hard_cut",
+        "scene_score": 0.160605,
+        "narrative_phase": "运营影响",
+        "visual_role": "酒店外景、建筑与商业体"
+      },
+      {
+        "shot_id": 26,
+        "start_seconds": 94.291667,
+        "end_seconds": 97.916667,
+        "start_frame": 2263,
+        "end_frame_exclusive": 2350,
+        "duration_seconds": 3.625,
+        "transition_in": "hard_cut",
+        "scene_score": 0.20695,
+        "narrative_phase": "运营影响",
+        "visual_role": "酒店外景、建筑与商业体"
+      },
+      {
+        "shot_id": 27,
+        "start_seconds": 97.916667,
+        "end_seconds": 100.625,
+        "start_frame": 2350,
+        "end_frame_exclusive": 2415,
+        "duration_seconds": 2.708333,
+        "transition_in": "hard_cut",
+        "scene_score": 0.10203,
+        "narrative_phase": "有限试点",
+        "visual_role": "酒店外景、建筑与商业体"
+      },
+      {
+        "shot_id": 28,
+        "start_seconds": 100.625,
+        "end_seconds": 107.75,
+        "start_frame": 2415,
+        "end_frame_exclusive": 2586,
+        "duration_seconds": 7.125,
+        "transition_in": "hard_cut",
+        "scene_score": 0.10058,
+        "narrative_phase": "有限试点",
+        "visual_role": "酒店外景、建筑与商业体"
+      },
+      {
+        "shot_id": 29,
+        "start_seconds": 107.75,
+        "end_seconds": 110.375,
+        "start_frame": 2586,
+        "end_frame_exclusive": 2649,
+        "duration_seconds": 2.625,
+        "transition_in": "hard_cut",
+        "scene_score": 0.168646,
+        "narrative_phase": "有限试点",
+        "visual_role": "酒店外景、建筑与商业体"
+      },
+      {
+        "shot_id": 30,
+        "start_seconds": 110.375,
+        "end_seconds": 114.25,
+        "start_frame": 2649,
+        "end_frame_exclusive": 2742,
+        "duration_seconds": 3.875,
+        "transition_in": "hard_cut",
+        "scene_score": 0.171771,
+        "narrative_phase": "有限试点",
+        "visual_role": "酒店外景、建筑与商业体"
+      },
+      {
+        "shot_id": 31,
+        "start_seconds": 114.25,
+        "end_seconds": 119.291667,
+        "start_frame": 2742,
+        "end_frame_exclusive": 2863,
+        "duration_seconds": 5.041667,
+        "transition_in": "hard_cut",
+        "scene_score": 0.225956,
+        "narrative_phase": "有限试点",
+        "visual_role": "客房、餐饮空间与设备特写"
+      },
+      {
+        "shot_id": 32,
+        "start_seconds": 119.291667,
+        "end_seconds": 122.166667,
+        "start_frame": 2863,
+        "end_frame_exclusive": 2932,
+        "duration_seconds": 2.875,
+        "transition_in": "hard_cut",
+        "scene_score": 0.123066,
+        "narrative_phase": "有限试点",
+        "visual_role": "客房、餐饮空间与设备特写"
+      },
+      {
+        "shot_id": 33,
+        "start_seconds": 122.166667,
+        "end_seconds": 126.916667,
+        "start_frame": 2932,
+        "end_frame_exclusive": 3046,
+        "duration_seconds": 4.75,
+        "transition_in": "hard_cut",
+        "scene_score": 0.110868,
+        "narrative_phase": "有限试点",
+        "visual_role": "客房、餐饮空间与设备特写"
+      },
+      {
+        "shot_id": 34,
+        "start_seconds": 126.916667,
+        "end_seconds": 129.791667,
+        "start_frame": 3046,
+        "end_frame_exclusive": 3115,
+        "duration_seconds": 2.875,
+        "transition_in": "hard_cut",
+        "scene_score": 0.206637,
+        "narrative_phase": "有限试点",
+        "visual_role": "客房、餐饮空间与设备特写"
+      },
+      {
+        "shot_id": 35,
+        "start_seconds": 129.791667,
+        "end_seconds": 132.666667,
+        "start_frame": 3115,
+        "end_frame_exclusive": 3184,
+        "duration_seconds": 2.875,
+        "transition_in": "hard_cut",
+        "scene_score": 0.12323,
+        "narrative_phase": "有限试点",
+        "visual_role": "客房、餐饮空间与设备特写"
+      },
+      {
+        "shot_id": 36,
+        "start_seconds": 132.666667,
+        "end_seconds": 135.5,
+        "start_frame": 3184,
+        "end_frame_exclusive": 3252,
+        "duration_seconds": 2.833333,
+        "transition_in": "hard_cut",
+        "scene_score": 0.119119,
+        "narrative_phase": "有限试点",
+        "visual_role": "客房、餐饮空间与设备特写"
+      },
+      {
+        "shot_id": 37,
+        "start_seconds": 135.5,
+        "end_seconds": 139.458333,
+        "start_frame": 3252,
+        "end_frame_exclusive": 3347,
+        "duration_seconds": 3.958333,
+        "transition_in": "hard_cut",
+        "scene_score": 0.144351,
+        "narrative_phase": "有限试点",
+        "visual_role": "客房、餐饮空间与设备特写"
+      },
+      {
+        "shot_id": 38,
+        "start_seconds": 139.458333,
+        "end_seconds": 143.916667,
+        "start_frame": 3347,
+        "end_frame_exclusive": 3454,
+        "duration_seconds": 4.458334,
+        "transition_in": "hard_cut",
+        "scene_score": 0.193373,
+        "narrative_phase": "有限试点",
+        "visual_role": "客房、餐饮空间与设备特写"
+      },
+      {
+        "shot_id": 39,
+        "start_seconds": 143.916667,
+        "end_seconds": 156.583333,
+        "start_frame": 3454,
+        "end_frame_exclusive": 3758,
+        "duration_seconds": 12.666666,
+        "transition_in": "hard_cut",
+        "scene_score": 0.198907,
+        "narrative_phase": "成本压力",
+        "visual_role": "城市与酒店供给航拍"
+      },
+      {
+        "shot_id": 40,
+        "start_seconds": 156.583333,
+        "end_seconds": 160.333333,
+        "start_frame": 3758,
+        "end_frame_exclusive": 3848,
+        "duration_seconds": 3.75,
+        "transition_in": "hard_cut",
+        "scene_score": 0.161553,
+        "narrative_phase": "成本压力",
+        "visual_role": "城市与酒店供给航拍"
+      },
+      {
+        "shot_id": 41,
+        "start_seconds": 160.333333,
+        "end_seconds": 167.166667,
+        "start_frame": 3848,
+        "end_frame_exclusive": 4012,
+        "duration_seconds": 6.833334,
+        "transition_in": "hard_cut",
+        "scene_score": 0.132534,
+        "narrative_phase": "成本压力",
+        "visual_role": "保洁与客房服务"
+      },
+      {
+        "shot_id": 42,
+        "start_seconds": 167.166667,
+        "end_seconds": 172.291667,
+        "start_frame": 4012,
+        "end_frame_exclusive": 4135,
+        "duration_seconds": 5.125,
+        "transition_in": "hard_cut",
+        "scene_score": 0.155149,
+        "narrative_phase": "成本压力",
+        "visual_role": "保洁与客房服务"
+      },
+      {
+        "shot_id": 43,
+        "start_seconds": 172.291667,
+        "end_seconds": 174.25,
+        "start_frame": 4135,
+        "end_frame_exclusive": 4182,
+        "duration_seconds": 1.958333,
+        "transition_in": "hard_cut",
+        "scene_score": 0.160836,
+        "narrative_phase": "成本压力",
+        "visual_role": "保洁与客房服务"
+      },
+      {
+        "shot_id": 44,
+        "start_seconds": 174.25,
+        "end_seconds": 175.208333,
+        "start_frame": 4182,
+        "end_frame_exclusive": 4205,
+        "duration_seconds": 0.958333,
+        "transition_in": "hard_cut",
+        "scene_score": 0.230951,
+        "narrative_phase": "成本压力",
+        "visual_role": "保洁与客房服务"
+      },
+      {
+        "shot_id": 45,
+        "start_seconds": 175.208333,
+        "end_seconds": 176.416667,
+        "start_frame": 4205,
+        "end_frame_exclusive": 4234,
+        "duration_seconds": 1.208334,
+        "transition_in": "hard_cut",
+        "scene_score": 0.1774,
+        "narrative_phase": "成本压力",
+        "visual_role": "保洁与客房服务"
+      },
+      {
+        "shot_id": 46,
+        "start_seconds": 176.416667,
+        "end_seconds": 177.875,
+        "start_frame": 4234,
+        "end_frame_exclusive": 4269,
+        "duration_seconds": 1.458333,
+        "transition_in": "hard_cut",
+        "scene_score": 0.16025,
+        "narrative_phase": "成本压力",
+        "visual_role": "保洁与客房服务"
+      },
+      {
+        "shot_id": 47,
+        "start_seconds": 177.875,
+        "end_seconds": 180.666667,
+        "start_frame": 4269,
+        "end_frame_exclusive": 4336,
+        "duration_seconds": 2.791667,
+        "transition_in": "hard_cut",
+        "scene_score": 0.177078,
+        "narrative_phase": "成本压力",
+        "visual_role": "保洁与客房服务"
+      },
+      {
+        "shot_id": 48,
+        "start_seconds": 180.666667,
+        "end_seconds": 185.0,
+        "start_frame": 4336,
+        "end_frame_exclusive": 4440,
+        "duration_seconds": 4.333333,
+        "transition_in": "hard_cut",
+        "scene_score": 0.18313,
+        "narrative_phase": "成本压力",
+        "visual_role": "保洁与客房服务"
+      },
+      {
+        "shot_id": 49,
+        "start_seconds": 185.0,
+        "end_seconds": 188.5,
+        "start_frame": 4440,
+        "end_frame_exclusive": 4524,
+        "duration_seconds": 3.5,
+        "transition_in": "hard_cut",
+        "scene_score": 0.151004,
+        "narrative_phase": "成本压力",
+        "visual_role": "保洁与客房服务"
+      },
+      {
+        "shot_id": 50,
+        "start_seconds": 188.5,
+        "end_seconds": 191.25,
+        "start_frame": 4524,
+        "end_frame_exclusive": 4590,
+        "duration_seconds": 2.75,
+        "transition_in": "hard_cut",
+        "scene_score": 0.112572,
+        "narrative_phase": "成本压力",
+        "visual_role": "客房用品和设施特写"
+      },
+      {
+        "shot_id": 51,
+        "start_seconds": 191.25,
+        "end_seconds": 194.833333,
+        "start_frame": 4590,
+        "end_frame_exclusive": 4676,
+        "duration_seconds": 3.583333,
+        "transition_in": "hard_cut",
+        "scene_score": 0.149979,
+        "narrative_phase": "成本压力",
+        "visual_role": "客房用品和设施特写"
+      },
+      {
+        "shot_id": 52,
+        "start_seconds": 194.833333,
+        "end_seconds": 199.541667,
+        "start_frame": 4676,
+        "end_frame_exclusive": 4789,
+        "duration_seconds": 4.708334,
+        "transition_in": "hard_cut",
+        "scene_score": 0.169596,
+        "narrative_phase": "成本压力",
+        "visual_role": "客房用品和设施特写"
+      },
+      {
+        "shot_id": 53,
+        "start_seconds": 199.541667,
+        "end_seconds": 202.833333,
+        "start_frame": 4789,
+        "end_frame_exclusive": 4868,
+        "duration_seconds": 3.291666,
+        "transition_in": "hard_cut",
+        "scene_score": 0.130145,
+        "narrative_phase": "成本压力",
+        "visual_role": "客房用品和设施特写"
+      },
+      {
+        "shot_id": 54,
+        "start_seconds": 202.833333,
+        "end_seconds": 205.583333,
+        "start_frame": 4868,
+        "end_frame_exclusive": 4934,
+        "duration_seconds": 2.75,
+        "transition_in": "hard_cut",
+        "scene_score": 0.158005,
+        "narrative_phase": "成本压力",
+        "visual_role": "客房用品和设施特写"
+      },
+      {
+        "shot_id": 55,
+        "start_seconds": 205.583333,
+        "end_seconds": 210.0,
+        "start_frame": 4934,
+        "end_frame_exclusive": 5040,
+        "duration_seconds": 4.416667,
+        "transition_in": "hard_cut",
+        "scene_score": 0.158811,
+        "narrative_phase": "成本压力",
+        "visual_role": "前台、服务人员与住客互动"
+      },
+      {
+        "shot_id": 56,
+        "start_seconds": 210.0,
+        "end_seconds": 214.208333,
+        "start_frame": 5040,
+        "end_frame_exclusive": 5141,
+        "duration_seconds": 4.208333,
+        "transition_in": "hard_cut",
+        "scene_score": 0.158545,
+        "narrative_phase": "成本压力",
+        "visual_role": "前台、服务人员与住客互动"
+      },
+      {
+        "shot_id": 57,
+        "start_seconds": 214.208333,
+        "end_seconds": 219.375,
+        "start_frame": 5141,
+        "end_frame_exclusive": 5265,
+        "duration_seconds": 5.166667,
+        "transition_in": "hard_cut",
+        "scene_score": 0.147383,
+        "narrative_phase": "成本压力",
+        "visual_role": "前台、服务人员与住客互动"
+      },
+      {
+        "shot_id": 58,
+        "start_seconds": 219.375,
+        "end_seconds": 224.458333,
+        "start_frame": 5265,
+        "end_frame_exclusive": 5387,
+        "duration_seconds": 5.083333,
+        "transition_in": "hard_cut",
+        "scene_score": 0.164142,
+        "narrative_phase": "成本压力",
+        "visual_role": "前台、服务人员与住客互动"
+      },
+      {
+        "shot_id": 59,
+        "start_seconds": 224.458333,
+        "end_seconds": 226.916667,
+        "start_frame": 5387,
+        "end_frame_exclusive": 5446,
+        "duration_seconds": 2.458334,
+        "transition_in": "hard_cut",
+        "scene_score": 0.164587,
+        "narrative_phase": "成本压力",
+        "visual_role": "前台、服务人员与住客互动"
+      },
+      {
+        "shot_id": 60,
+        "start_seconds": 226.916667,
+        "end_seconds": 229.75,
+        "start_frame": 5446,
+        "end_frame_exclusive": 5514,
+        "duration_seconds": 2.833333,
+        "transition_in": "hard_cut",
+        "scene_score": 0.113273,
+        "narrative_phase": "成本压力",
+        "visual_role": "前台、服务人员与住客互动"
+      },
+      {
+        "shot_id": 61,
+        "start_seconds": 229.75,
+        "end_seconds": 232.75,
+        "start_frame": 5514,
+        "end_frame_exclusive": 5586,
+        "duration_seconds": 3.0,
+        "transition_in": "hard_cut",
+        "scene_score": 0.201358,
+        "narrative_phase": "成本压力",
+        "visual_role": "前台、服务人员与住客互动"
+      },
+      {
+        "shot_id": 62,
+        "start_seconds": 232.75,
+        "end_seconds": 235.25,
+        "start_frame": 5586,
+        "end_frame_exclusive": 5646,
+        "duration_seconds": 2.5,
+        "transition_in": "hard_cut",
+        "scene_score": 0.114771,
+        "narrative_phase": "需求真相",
+        "visual_role": "数字系统、数据界面与城市夜景"
+      },
+      {
+        "shot_id": 63,
+        "start_seconds": 235.25,
+        "end_seconds": 237.5,
+        "start_frame": 5646,
+        "end_frame_exclusive": 5700,
+        "duration_seconds": 2.25,
+        "transition_in": "hard_cut",
+        "scene_score": 0.108879,
+        "narrative_phase": "需求真相",
+        "visual_role": "数字系统、数据界面与城市夜景"
+      },
+      {
+        "shot_id": 64,
+        "start_seconds": 237.5,
+        "end_seconds": 242.541667,
+        "start_frame": 5700,
+        "end_frame_exclusive": 5821,
+        "duration_seconds": 5.041667,
+        "transition_in": "hard_cut",
+        "scene_score": 0.172371,
+        "narrative_phase": "需求真相",
+        "visual_role": "数字系统、数据界面与城市夜景"
+      },
+      {
+        "shot_id": 65,
+        "start_seconds": 242.541667,
+        "end_seconds": 245.583333,
+        "start_frame": 5821,
+        "end_frame_exclusive": 5894,
+        "duration_seconds": 3.041666,
+        "transition_in": "hard_cut",
+        "scene_score": 0.100895,
+        "narrative_phase": "需求真相",
+        "visual_role": "数字系统、数据界面与城市夜景"
+      },
+      {
+        "shot_id": 66,
+        "start_seconds": 245.583333,
+        "end_seconds": 249.666667,
+        "start_frame": 5894,
+        "end_frame_exclusive": 5992,
+        "duration_seconds": 4.083334,
+        "transition_in": "hard_cut",
+        "scene_score": 0.139219,
+        "narrative_phase": "需求真相",
+        "visual_role": "数字系统、数据界面与城市夜景"
+      },
+      {
+        "shot_id": 67,
+        "start_seconds": 249.666667,
+        "end_seconds": 251.833333,
+        "start_frame": 5992,
+        "end_frame_exclusive": 6044,
+        "duration_seconds": 2.166666,
+        "transition_in": "hard_cut",
+        "scene_score": 0.119866,
+        "narrative_phase": "需求真相",
+        "visual_role": "数字系统、数据界面与城市夜景"
+      },
+      {
+        "shot_id": 68,
+        "start_seconds": 251.833333,
+        "end_seconds": 259.583333,
+        "start_frame": 6044,
+        "end_frame_exclusive": 6230,
+        "duration_seconds": 7.75,
+        "transition_in": "hard_cut",
+        "scene_score": 0.125889,
+        "narrative_phase": "需求真相",
+        "visual_role": "会议、从业者与服务场景"
+      },
+      {
+        "shot_id": 69,
+        "start_seconds": 259.583333,
+        "end_seconds": 276.958333,
+        "start_frame": 6230,
+        "end_frame_exclusive": 6647,
+        "duration_seconds": 17.375,
+        "transition_in": "hard_cut",
+        "scene_score": 0.187696,
+        "narrative_phase": "需求真相",
+        "visual_role": "会议、从业者与服务场景"
+      },
+      {
+        "shot_id": 70,
+        "start_seconds": 276.958333,
+        "end_seconds": 281.083333,
+        "start_frame": 6647,
+        "end_frame_exclusive": 6746,
+        "duration_seconds": 4.125,
+        "transition_in": "hard_cut",
+        "scene_score": 0.167284,
+        "narrative_phase": "观点收束",
+        "visual_role": "会议、从业者与服务场景"
+      },
+      {
+        "shot_id": 71,
+        "start_seconds": 281.083333,
+        "end_seconds": 284.0,
+        "start_frame": 6746,
+        "end_frame_exclusive": 6816,
+        "duration_seconds": 2.916667,
+        "transition_in": "hard_cut",
+        "scene_score": 0.137759,
+        "narrative_phase": "观点收束",
+        "visual_role": "智能设备、前台与酒店运营"
+      },
+      {
+        "shot_id": 72,
+        "start_seconds": 284.0,
+        "end_seconds": 287.166667,
+        "start_frame": 6816,
+        "end_frame_exclusive": 6892,
+        "duration_seconds": 3.166667,
+        "transition_in": "hard_cut",
+        "scene_score": 0.100604,
+        "narrative_phase": "观点收束",
+        "visual_role": "智能设备、前台与酒店运营"
+      },
+      {
+        "shot_id": 73,
+        "start_seconds": 287.166667,
+        "end_seconds": 290.083333,
+        "start_frame": 6892,
+        "end_frame_exclusive": 6962,
+        "duration_seconds": 2.916666,
+        "transition_in": "hard_cut",
+        "scene_score": 0.163748,
+        "narrative_phase": "观点收束",
+        "visual_role": "智能设备、前台与酒店运营"
+      },
+      {
+        "shot_id": 74,
+        "start_seconds": 290.083333,
+        "end_seconds": 293.875,
+        "start_frame": 6962,
+        "end_frame_exclusive": 7053,
+        "duration_seconds": 3.791667,
+        "transition_in": "hard_cut",
+        "scene_score": 0.145002,
+        "narrative_phase": "观点收束",
+        "visual_role": "智能设备、前台与酒店运营"
+      },
+      {
+        "shot_id": 75,
+        "start_seconds": 293.875,
+        "end_seconds": 298.375,
+        "start_frame": 7053,
+        "end_frame_exclusive": 7161,
+        "duration_seconds": 4.5,
+        "transition_in": "hard_cut",
+        "scene_score": 0.119184,
+        "narrative_phase": "观点收束",
+        "visual_role": "智能设备、前台与酒店运营"
+      },
+      {
+        "shot_id": 76,
+        "start_seconds": 298.375,
+        "end_seconds": 310.75,
+        "start_frame": 7161,
+        "end_frame_exclusive": 7458,
+        "duration_seconds": 12.375,
+        "transition_in": "hard_cut",
+        "scene_score": 0.121671,
+        "narrative_phase": "观点收束",
+        "visual_role": "智能设备、前台与酒店运营"
+      },
+      {
+        "shot_id": 77,
+        "start_seconds": 310.75,
+        "end_seconds": 313.833333,
+        "start_frame": 7458,
+        "end_frame_exclusive": 7532,
+        "duration_seconds": 3.083333,
+        "transition_in": "hard_cut",
+        "scene_score": 0.135154,
+        "narrative_phase": "观点收束",
+        "visual_role": "客房、手机操作与住客场景"
+      },
+      {
+        "shot_id": 78,
+        "start_seconds": 313.833333,
+        "end_seconds": 318.333333,
+        "start_frame": 7532,
+        "end_frame_exclusive": 7640,
+        "duration_seconds": 4.5,
+        "transition_in": "hard_cut",
+        "scene_score": 0.196988,
+        "narrative_phase": "观点收束",
+        "visual_role": "客房、手机操作与住客场景"
+      },
+      {
+        "shot_id": 79,
+        "start_seconds": 318.333333,
+        "end_seconds": 320.458333,
+        "start_frame": 7640,
+        "end_frame_exclusive": 7691,
+        "duration_seconds": 2.125,
+        "transition_in": "hard_cut",
+        "scene_score": 0.173952,
+        "narrative_phase": "观点收束",
+        "visual_role": "客房、手机操作与住客场景"
+      },
+      {
+        "shot_id": 80,
+        "start_seconds": 320.458333,
+        "end_seconds": 322.75,
+        "start_frame": 7691,
+        "end_frame_exclusive": 7746,
+        "duration_seconds": 2.291667,
+        "transition_in": "hard_cut",
+        "scene_score": 0.151816,
+        "narrative_phase": "观点收束",
+        "visual_role": "客房、手机操作与住客场景"
+      },
+      {
+        "shot_id": 81,
+        "start_seconds": 322.75,
+        "end_seconds": 324.75,
+        "start_frame": 7746,
+        "end_frame_exclusive": 7794,
+        "duration_seconds": 2.0,
+        "transition_in": "hard_cut",
+        "scene_score": 0.11505,
+        "narrative_phase": "观点收束",
+        "visual_role": "客房、手机操作与住客场景"
+      },
+      {
+        "shot_id": 82,
+        "start_seconds": 324.75,
+        "end_seconds": 326.458333,
+        "start_frame": 7794,
+        "end_frame_exclusive": 7835,
+        "duration_seconds": 1.708333,
+        "transition_in": "hard_cut",
+        "scene_score": 0.131102,
+        "narrative_phase": "观点收束",
+        "visual_role": "城市夜景与节目收尾"
+      },
+      {
+        "shot_id": 83,
+        "start_seconds": 326.458333,
+        "end_seconds": 333.166667,
+        "start_frame": 7835,
+        "end_frame_exclusive": 7996,
+        "duration_seconds": 6.708334,
+        "transition_in": "hard_cut",
+        "scene_score": 0.173889,
+        "narrative_phase": "观点收束",
+        "visual_role": "城市夜景与节目收尾"
+      },
+      {
+        "shot_id": 84,
+        "start_seconds": 333.166667,
+        "end_seconds": 338.917,
+        "start_frame": 7996,
+        "end_frame_exclusive": 8134,
+        "duration_seconds": 5.750333,
+        "transition_in": "hard_cut",
+        "scene_score": 0.18277,
+        "narrative_phase": "结束语",
+        "visual_role": "城市夜景与节目收尾"
+      }
+    ]
+  },
+  "narrative_phases": [
+    {
+      "start_seconds": 0.0,
+      "end_seconds": 28.167,
+      "name": "开场设问",
+      "purpose": "24 小时退房是福利还是陷阱"
+    },
+    {
+      "start_seconds": 28.167,
+      "end_seconds": 97.917,
+      "name": "运营影响",
+      "purpose": "人力、排班、周转与不同酒店类型"
+    },
+    {
+      "start_seconds": 97.917,
+      "end_seconds": 143.917,
+      "name": "有限试点",
+      "purpose": "会员、淡季、阶梯收费与智能调度"
+    },
+    {
+      "start_seconds": 143.917,
+      "end_seconds": 233.5,
+      "name": "成本压力",
+      "purpose": "人工、清洁、能耗、房态与系统对接"
+    },
+    {
+      "start_seconds": 233.5,
+      "end_seconds": 278.667,
+      "name": "需求真相",
+      "purpose": "调查数据与真实延迟退房需求"
+    },
+    {
+      "start_seconds": 278.667,
+      "end_seconds": 335.167,
+      "name": "观点收束",
+      "purpose": "非大众刚需，应按酒店条件选择"
+    },
+    {
+      "start_seconds": 335.167,
+      "end_seconds": 338.917,
+      "name": "结束语",
+      "purpose": "感谢收听与下期再见"
+    }
+  ],
+  "audio": {
+    "format": "two-speaker conversational voiceover",
+    "transcript_source": "Qwen3-ASR-Flash, three 115-second chunks",
+    "transcript": "[000s]\n今天咱们聊一个大家可能最近在网上经常看到的一个话题，酒店到底应不应该推行这个所谓的24h退房，到底是一个福利还是一个陷阱？其实这个事情表面上看起来好像对大家住酒店很方便，但其实背后牵扯到很多酒店的盈利，包括运营成本，包括到底是不是大家真的需要这个东西。咱们先问一个比较直击核心的问题，就是这种新的模式到底给酒店的运营成本和周转效率带来什么样的变化？就是原来大家都是中午12点退，那现在你这个时间完全不固定了，那你这个酒店的保洁还有前台的排班就变得特别复杂，就你得随时有人待命，所以人力成本一下子就上去了。对，有的酒店可能因此就要多付3~4成的工资。听起来好像管理难度也加大了。对，没错，就是房间腾出来的时间也乱了套了，那你旺季的时候可能就会有很多房间白白的空在那里，然后你这个周转效率又下降了，营收就跟着受影响。再加上你这个系统什么的都要升级，能耗，包括你的这个设备的损耗也都跟着增加，就是你整个运营就变得特别有挑战。那你觉得这种24h退房的模式对不同类型的酒店会带来哪些不同的影响呢？比如说像那种主打性价比的经济连锁酒店，那他们本来就是靠这个房间的高周转来赚钱的，那你这个一旦推行24h退房，你的运营成本就会大大增加，所以他们一般是最不愿意去尝试的。高端酒店和度假酒店他们本身就是以服务和体验为主，那他们的房价里面是可以消化掉增加的这些成本的，而且他们如果配合上这种智能化的管理，其实影响也不是很大。一些那种小众的或者说这种非热门时段的酒店还可以用这个来吸引一些新的客人，但是像那种城市商务酒店，因为它的入住退住的时间很集中，所以它其实也很难去适应这个东西。酒店如果真的要推这个24h退房，怎么才能既保证服务又不至于把自己的经营拖垮呢？对，其实现在。\n\n[115s]\n那就是真正全面推行的酒店还不到1%，那很多都是在做一些有限的试点，比如说它只开放特定的房型，或者说它只在特定的淡季的时候开放，或者是说它会搭配一些会员的权益，或者是说它会有一些这种阶梯式的收费，再加上它会有一些智能的清洁的调度和一些动态的定价的系统来帮它优化这个运营，所以它其实是通过这种分层的服务和一些技术的手段来帮它既提升了体验，又不至于让自己的这个成本和效率被拉得太狠。我们来聊第二个主题，说成本飙升，推行24h退房到底会让酒店的运营压力激增到什么程度？就这个模式一上，首先就是人力成本会跳升，最直接的就是保洁和前台，就他们要倒班，对，要安排夜班，对，那这个人力成本就会增加3~4成，有些酒店甚至说光夜班的清洁他们一个月就要多花10000块钱，听起来压力确实不小。还不止，退房时间分散了之后，它这个房间就没有办法像以前一样可以流水线的去打扫了，那它的清洁效率就会下降三成左右，然后它的这个空置的时间反而拉长了，营收就直接受损了，再加上你的水电布草的消耗以及设备的损耗都是跟着全天候的运转在增加，所以运营成本整体就会被推高两成到五成，有的时候你可能房价都要涨一成多到两成多才能补回来这个亏空。哎，那你觉得24h退房在实际操作当中会遇到哪些比较难搞的管理问题？最大的问题我觉得就是退房时间不固定了之后，你这个房态是乱的，你很容易出现客人到了没房，或者说要让人家等很久，那你这个投诉，包括你要给人家赔偿，甚至要给人家免费升级，就都来了。同时呢，你这个酒店和这个在线旅游平台之间的这个信息同步也是乱的，你这个超售，或者是说你这个放房不及时，这种事情也是接二连三。\n\n[230s]\n技术对接，全都比以前复杂了很多。所以说这个酒店想推这个新的制度的话，得好好的掂量掂量自己有没有这个本事。对，那你除了这个系统要升级，要花钱，要培训员工要花钱，你还要面对就是客户的这个期望和你实际的体验之间的落差。那你没有那个技术和管理的这个底子，你真的是一推就乱的运营风险就是直线上升。那我们来进入到第三部分，来聊一聊这个需求的真相，24h退房到底是不是一个大众的刚需？最近的行业的调查是显示有差不多35%的旅客是表示愿意为这个弹性的退房去多付一点钱的，但绝大多数的人还是习惯在上午的11点到12点之间去退房。就真正有非常强的需求说我要住满24h的人其实是很少的。所以说深夜到店觉得自己吃亏的这个事儿其实没那么普遍。对，没错，就虽然说有68%的人遇到过凌晨入住然后中午要退房的这种情况，但是真正因为这个事情去投诉的还是以价格和卫生这些大头的问题为主，只有不到10%的住客是经常会需要用到延迟退房的，而且他们一般也只是要求多几个小时而已，很少有人说我要死死的要用到这个24个小时，所以这个是一个非常细分的需求，对，它只能是一个补充的选择，对，就是满足一些特殊的客人的需求。对，今天我们从这个酒店的成本、运营和客人的真实需求几个角度聊下来，其实大家也能看到就是这个24h退房这个东西看似美好，但是其实对于大部分的酒店和大部分的住客来讲可能都不是一个刚需。所以说酒店到底要不要推这个东西，还是要根据自己的实际情况来理性的判断，找到一个最适合自己的。好了，那么这期节目咱们就到这里了，感谢大家的收听，咱们下次再见，拜拜。",
+    "caption_events": [
+      {
+        "start_seconds": 0.5,
+        "speaker": "A",
+        "text": "今天咱们聊一个",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 1.5
+      },
+      {
+        "start_seconds": 1.5,
+        "speaker": "A",
+        "text": "大家可能最近在网上",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 3.0
+      },
+      {
+        "start_seconds": 3.0,
+        "speaker": "A",
+        "text": "经常看到的话题",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 4.0
+      },
+      {
+        "start_seconds": 4.0,
+        "speaker": "A",
+        "text": "酒店到底应不应该",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 5.5
+      },
+      {
+        "start_seconds": 5.5,
+        "speaker": "A",
+        "text": "推行所谓的24小时退房",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 8.5
+      },
+      {
+        "start_seconds": 8.5,
+        "speaker": "A",
+        "text": "到底是一个福利",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 9.5
+      },
+      {
+        "start_seconds": 9.5,
+        "speaker": "A",
+        "text": "还是一个陷阱",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 11.0
+      },
+      {
+        "start_seconds": 11.0,
+        "speaker": "A",
+        "text": "其实这个事情表面上看起来",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 12.5
+      },
+      {
+        "start_seconds": 12.5,
+        "speaker": "A",
+        "text": "好像对大家住酒店很方便",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 14.5
+      },
+      {
+        "start_seconds": 14.5,
+        "speaker": "A",
+        "text": "但其实背后牵扯到很多",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 16.0
+      },
+      {
+        "start_seconds": 16.0,
+        "speaker": "A",
+        "text": "酒店的盈利",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 17.0
+      },
+      {
+        "start_seconds": 17.0,
+        "speaker": "A",
+        "text": "包括运营成本",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 18.0
+      },
+      {
+        "start_seconds": 18.0,
+        "speaker": "A",
+        "text": "包括到底是不是大家",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 19.5
+      },
+      {
+        "start_seconds": 19.5,
+        "speaker": "A",
+        "text": "真的需要这个东西",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 20.5
+      },
+      {
+        "start_seconds": 20.5,
+        "speaker": "A",
+        "text": "咱们先问一个比较直击核心的问题",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 22.5
+      },
+      {
+        "start_seconds": 22.5,
+        "speaker": "A",
+        "text": "就是这种新的模式",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 24.0
+      },
+      {
+        "start_seconds": 24.0,
+        "speaker": "A",
+        "text": "到底给酒店的运营成本",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 26.0
+      },
+      {
+        "start_seconds": 26.0,
+        "speaker": "A",
+        "text": "和周转效率帶来什么样的变化",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 28.5
+      },
+      {
+        "start_seconds": 28.5,
+        "speaker": "B",
+        "text": "原来大家是中午12点退",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 30.5
+      },
+      {
+        "start_seconds": 30.5,
+        "speaker": "B",
+        "text": "现在时间完全不固定了",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 33.0
+      },
+      {
+        "start_seconds": 33.0,
+        "speaker": "B",
+        "text": "那你这个酒店的保清",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 35.5
+      },
+      {
+        "start_seconds": 35.5,
+        "speaker": "B",
+        "text": "就变得特别复杂",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 36.0
+      },
+      {
+        "start_seconds": 36.0,
+        "speaker": "B",
+        "text": "-就变得特別复杂",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 41.0
+      },
+      {
+        "start_seconds": 41.0,
+        "speaker": "B",
+        "text": "有的酒店可能因此",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 42.0
+      },
+      {
+        "start_seconds": 42.0,
+        "speaker": "B",
+        "text": "就要多付三四成的工资",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 44.0
+      },
+      {
+        "start_seconds": 44.0,
+        "speaker": "A",
+        "text": "听起来好像管理难度也加大了",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 44.0
+      },
+      {
+        "start_seconds": 44.0,
+        "speaker": "B",
+        "text": "就要多付三四成的工资",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 52.0
+      },
+      {
+        "start_seconds": 52.0,
+        "speaker": "B",
+        "text": "然后周转效率叉下降了",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 54.0
+      },
+      {
+        "start_seconds": 54.0,
+        "speaker": "B",
+        "text": "营收就跟着受影响",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 55.5
+      },
+      {
+        "start_seconds": 55.5,
+        "speaker": "B",
+        "text": "再加上系统等都婴升级",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 58.5
+      },
+      {
+        "start_seconds": 58.5,
+        "speaker": "B",
+        "text": "包括你的设备的损耗",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 63.5
+      },
+      {
+        "start_seconds": 63.5,
+        "speaker": "A",
+        "text": "那你觉得这种24小时退房的模式",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 66.0
+      },
+      {
+        "start_seconds": 66.0,
+        "speaker": "A",
+        "text": "对不同类型的酒店",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 67.5
+      },
+      {
+        "start_seconds": 67.5,
+        "speaker": "A",
+        "text": "会带来哪些不同的影响呢",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 76.5
+      },
+      {
+        "start_seconds": 76.5,
+        "speaker": "B",
+        "text": "那你一以推行24小时退房",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 80.0
+      },
+      {
+        "start_seconds": 80.0,
+        "speaker": "B",
+        "text": "所以他们一股是",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 81.0
+      },
+      {
+        "start_seconds": 81.0,
+        "speaker": "B",
+        "text": "所以他们一般是",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 81.5
+      },
+      {
+        "start_seconds": 81.5,
+        "speaker": "B",
+        "text": "最不愿意去尝试的",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 89.5
+      },
+      {
+        "start_seconds": 89.5,
+        "speaker": "B",
+        "text": "可以消化掉增加的成本",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 90.5
+      },
+      {
+        "start_seconds": 90.5,
+        "speaker": "B",
+        "text": "而且他们如果配合上",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 92.0
+      },
+      {
+        "start_seconds": 92.0,
+        "speaker": "B",
+        "text": "这种智能化的管理",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 93.0
+      },
+      {
+        "start_seconds": 93.0,
+        "speaker": "B",
+        "text": "其实影响也不是很大",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 108.0
+      },
+      {
+        "start_seconds": 108.0,
+        "speaker": "A",
+        "text": "酒店如果真的要推24小时退房",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 110.5
+      },
+      {
+        "start_seconds": 110.5,
+        "speaker": "A",
+        "text": "怎么才能既保证服务",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 112.5
+      },
+      {
+        "start_seconds": 112.5,
+        "speaker": "A",
+        "text": "又不至于把自己的经营拖垮呢",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 114.5
+      },
+      {
+        "start_seconds": 114.5,
+        "speaker": "B",
+        "text": "对其实现在就是",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 116.0
+      },
+      {
+        "start_seconds": 116.0,
+        "speaker": "B",
+        "text": "真正金面推行的酒店",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 118.5
+      },
+      {
+        "start_seconds": 118.5,
+        "speaker": "B",
+        "text": "还不到1%",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 120.5
+      },
+      {
+        "start_seconds": 120.5,
+        "speaker": "B",
+        "text": "那很多都是在做一些",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 122.5
+      },
+      {
+        "start_seconds": 122.5,
+        "speaker": "B",
+        "text": "比如说",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 123.5
+      },
+      {
+        "start_seconds": 123.5,
+        "speaker": "B",
+        "text": "世只开放特定的房型",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 125.0
+      },
+      {
+        "start_seconds": 125.0,
+        "speaker": "B",
+        "text": "或者是说这只在特定的",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 126.0
+      },
+      {
+        "start_seconds": 126.0,
+        "speaker": "B",
+        "text": "淡季的时候开放",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 126.5
+      },
+      {
+        "start_seconds": 126.5,
+        "speaker": "B",
+        "text": "淡李的时候开放",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 129.5
+      },
+      {
+        "start_seconds": 129.5,
+        "speaker": "B",
+        "text": "会员的权益",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 133.0
+      },
+      {
+        "start_seconds": 133.0,
+        "speaker": "B",
+        "text": "再加上它会有一些",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 134.0
+      },
+      {
+        "start_seconds": 134.0,
+        "speaker": "B",
+        "text": "智能的清清调度",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 135.0
+      },
+      {
+        "start_seconds": 135.0,
+        "speaker": "B",
+        "text": "智能的清浩调度",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 135.5
+      },
+      {
+        "start_seconds": 135.5,
+        "speaker": "B",
+        "text": "和一些动态定价的系统",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 138.0
+      },
+      {
+        "start_seconds": 138.0,
+        "speaker": "B",
+        "text": "来帮飞优化这个运营",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 139.5
+      },
+      {
+        "start_seconds": 139.5,
+        "speaker": "B",
+        "text": "所以它其实是通过这种",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 141.5
+      },
+      {
+        "start_seconds": 141.5,
+        "speaker": "B",
+        "text": "分层的服务",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 142.5
+      },
+      {
+        "start_seconds": 142.5,
+        "speaker": "B",
+        "text": "和一些技术的手段来帮仑",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 145.5
+      },
+      {
+        "start_seconds": 145.5,
+        "speaker": "B",
+        "text": "以不至于让自己的这个",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 147.0
+      },
+      {
+        "start_seconds": 147.0,
+        "speaker": "B",
+        "text": "成本和效率被拉得太狠",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 149.5
+      },
+      {
+        "start_seconds": 149.5,
+        "speaker": "A",
+        "text": "我们来聊第二个主题",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 150.5
+      },
+      {
+        "start_seconds": 150.5,
+        "speaker": "A",
+        "text": "说成本飙升",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 151.5
+      },
+      {
+        "start_seconds": 151.5,
+        "speaker": "A",
+        "text": "推行24小时退房",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 153.0
+      },
+      {
+        "start_seconds": 153.0,
+        "speaker": "A",
+        "text": "到底会让酒店的运营压力",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 155.5
+      },
+      {
+        "start_seconds": 155.5,
+        "speaker": "A",
+        "text": "激增到什么程度",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 160.5
+      },
+      {
+        "start_seconds": 160.5,
+        "speaker": "B",
+        "text": "最直接的是保洁和前台",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 162.5
+      },
+      {
+        "start_seconds": 162.5,
+        "speaker": "B",
+        "text": "就他们要倒班",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 163.5
+      },
+      {
+        "start_seconds": 163.5,
+        "speaker": "B",
+        "text": "要安排夜班",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 165.0
+      },
+      {
+        "start_seconds": 165.0,
+        "speaker": "B",
+        "text": "那这个人力成本就会增加",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 166.5
+      },
+      {
+        "start_seconds": 166.5,
+        "speaker": "B",
+        "text": "3-4成",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 167.5
+      },
+      {
+        "start_seconds": 167.5,
+        "speaker": "B",
+        "text": "有些酒店甚至说",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 168.5
+      },
+      {
+        "start_seconds": 168.5,
+        "speaker": "B",
+        "text": "光夜班的清洁",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 170.0
+      },
+      {
+        "start_seconds": 170.0,
+        "speaker": "B",
+        "text": "他们一个月就要多花",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 170.5
+      },
+      {
+        "start_seconds": 170.5,
+        "speaker": "B",
+        "text": "1万块钱",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 171.5
+      },
+      {
+        "start_seconds": 171.5,
+        "speaker": "A",
+        "text": "听起来压力确实不小",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 172.5
+      },
+      {
+        "start_seconds": 172.5,
+        "speaker": "B",
+        "text": "还不止",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 173.0
+      },
+      {
+        "start_seconds": 173.0,
+        "speaker": "B",
+        "text": "退房时间分散了之后",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 175.0
+      },
+      {
+        "start_seconds": 175.0,
+        "speaker": "B",
+        "text": "他这个房问就没有办法",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 176.0
+      },
+      {
+        "start_seconds": 176.0,
+        "speaker": "B",
+        "text": "像以前一样",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 177.0
+      },
+      {
+        "start_seconds": 177.0,
+        "speaker": "B",
+        "text": "可以流水线的去打扫了",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 178.0
+      },
+      {
+        "start_seconds": 178.0,
+        "speaker": "B",
+        "text": "清浩效率就会下降",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 180.0
+      },
+      {
+        "start_seconds": 180.0,
+        "speaker": "B",
+        "text": "三成旅价",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 182.5
+      },
+      {
+        "start_seconds": 182.5,
+        "speaker": "B",
+        "text": "反而拉长了",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 185.0
+      },
+      {
+        "start_seconds": 185.0,
+        "speaker": "B",
+        "text": "厚加上水电布草的消耗",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 187.0
+      },
+      {
+        "start_seconds": 187.0,
+        "speaker": "B",
+        "text": "再加上水电布草的消耗",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 187.5
+      },
+      {
+        "start_seconds": 187.5,
+        "speaker": "B",
+        "text": "以及设备的攒糖",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 188.5
+      },
+      {
+        "start_seconds": 188.5,
+        "speaker": "B",
+        "text": "都是跟着",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 189.5
+      },
+      {
+        "start_seconds": 189.5,
+        "speaker": "B",
+        "text": "全天候的运转在增加",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 191.5
+      },
+      {
+        "start_seconds": 191.5,
+        "speaker": "B",
+        "text": "所以运营成本",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 192.5
+      },
+      {
+        "start_seconds": 192.5,
+        "speaker": "B",
+        "text": "整体就会被推高",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 194.0
+      },
+      {
+        "start_seconds": 194.0,
+        "speaker": "B",
+        "text": "两成到五成",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 195.0
+      },
+      {
+        "start_seconds": 195.0,
+        "speaker": "B",
+        "text": "有的时候你可能",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 196.0
+      },
+      {
+        "start_seconds": 196.0,
+        "speaker": "B",
+        "text": "房价都要涨",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 197.0
+      },
+      {
+        "start_seconds": 197.0,
+        "speaker": "B",
+        "text": "一成多到两成多",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 200.0
+      },
+      {
+        "start_seconds": 200.0,
+        "speaker": "A",
+        "text": "那你觉得24小时退房",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 202.0
+      },
+      {
+        "start_seconds": 202.0,
+        "speaker": "A",
+        "text": "在实际操作当中",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 204.0
+      },
+      {
+        "start_seconds": 204.0,
+        "speaker": "A",
+        "text": "比较难搞的管理问题",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 210.0
+      },
+      {
+        "start_seconds": 210.0,
+        "speaker": "B",
+        "text": "你很容易出现",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 212.0
+      },
+      {
+        "start_seconds": 212.0,
+        "speaker": "B",
+        "text": "谷人到了没房",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 212.5
+      },
+      {
+        "start_seconds": 212.5,
+        "speaker": "B",
+        "text": "符人到了没房",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 213.0
+      },
+      {
+        "start_seconds": 213.0,
+        "speaker": "B",
+        "text": "或者说要让人家等很久",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 214.5
+      },
+      {
+        "start_seconds": 214.5,
+        "speaker": "B",
+        "text": "那你这个投诉",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 215.5
+      },
+      {
+        "start_seconds": 215.5,
+        "speaker": "B",
+        "text": "包括你要给人家赔偿",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 217.0
+      },
+      {
+        "start_seconds": 217.0,
+        "speaker": "B",
+        "text": "甚至要给人家免费升级",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 219.0
+      },
+      {
+        "start_seconds": 219.0,
+        "speaker": "B",
+        "text": "就都来了",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 219.5
+      },
+      {
+        "start_seconds": 219.5,
+        "speaker": "B",
+        "text": "同时",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 222.5
+      },
+      {
+        "start_seconds": 222.5,
+        "speaker": "B",
+        "text": "之间的信息同步也是乱的",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 224.5
+      },
+      {
+        "start_seconds": 224.5,
+        "speaker": "B",
+        "text": "你这介超售",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 225.0
+      },
+      {
+        "start_seconds": 225.0,
+        "speaker": "B",
+        "text": "你这个超售",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 226.0
+      },
+      {
+        "start_seconds": 226.0,
+        "speaker": "B",
+        "text": "或者是说你放房不及时",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 228.5
+      },
+      {
+        "start_seconds": 228.5,
+        "speaker": "B",
+        "text": "这科事情也是",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 229.5
+      },
+      {
+        "start_seconds": 229.5,
+        "speaker": "B",
+        "text": "接二连三",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 231.5
+      },
+      {
+        "start_seconds": 231.5,
+        "speaker": "B",
+        "text": "金都比以前复杂了很多",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 233.0
+      },
+      {
+        "start_seconds": 233.0,
+        "speaker": "A",
+        "text": "所以说",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 233.5
+      },
+      {
+        "start_seconds": 233.5,
+        "speaker": "A",
+        "text": "酒店想推新的制度",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 235.5
+      },
+      {
+        "start_seconds": 235.5,
+        "speaker": "A",
+        "text": "得好好的掂量",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 236.5
+      },
+      {
+        "start_seconds": 236.5,
+        "speaker": "A",
+        "text": "自己有没有这个本事",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 237.5
+      },
+      {
+        "start_seconds": 237.5,
+        "speaker": "B",
+        "text": "对",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 238.0
+      },
+      {
+        "start_seconds": 238.0,
+        "speaker": "B",
+        "text": "除了系统要升级花钱",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 240.5
+      },
+      {
+        "start_seconds": 240.5,
+        "speaker": "B",
+        "text": "培训员工要花钱",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 241.5
+      },
+      {
+        "start_seconds": 241.5,
+        "speaker": "B",
+        "text": "你还要面对就是",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 243.5
+      },
+      {
+        "start_seconds": 243.5,
+        "speaker": "B",
+        "text": "将户的这个期望",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 244.0
+      },
+      {
+        "start_seconds": 244.0,
+        "speaker": "B",
+        "text": "和实际体验之间的落差",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 250.0
+      },
+      {
+        "start_seconds": 250.0,
+        "speaker": "B",
+        "text": "运营风险直线上升",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 252.0
+      },
+      {
+        "start_seconds": 252.0,
+        "speaker": "A",
+        "text": "那我们来进入到第三部分",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 254.0
+      },
+      {
+        "start_seconds": 254.0,
+        "speaker": "A",
+        "text": "来聊一聊这个需求的真相",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 255.5
+      },
+      {
+        "start_seconds": 255.5,
+        "speaker": "A",
+        "text": "24小时退房",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 257.5
+      },
+      {
+        "start_seconds": 257.5,
+        "speaker": "A",
+        "text": "到底是不是一个大众的刚需",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 260.0
+      },
+      {
+        "start_seconds": 260.0,
+        "speaker": "B",
+        "text": "最近的行业调查是显示",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 262.0
+      },
+      {
+        "start_seconds": 262.0,
+        "speaker": "B",
+        "text": "有差不多35%的旅客",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 264.5
+      },
+      {
+        "start_seconds": 264.5,
+        "speaker": "B",
+        "text": "是表示愿意为",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 265.5
+      },
+      {
+        "start_seconds": 265.5,
+        "speaker": "B",
+        "text": "这个弹性的退房",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 266.5
+      },
+      {
+        "start_seconds": 266.5,
+        "speaker": "B",
+        "text": "去多付一点钱的",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 267.5
+      },
+      {
+        "start_seconds": 267.5,
+        "speaker": "B",
+        "text": "但绝大多数的人",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 268.0
+      },
+      {
+        "start_seconds": 268.0,
+        "speaker": "B",
+        "text": "個绝大多数的人",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 268.5
+      },
+      {
+        "start_seconds": 268.5,
+        "speaker": "B",
+        "text": "但绝大多数的人",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 269.0
+      },
+      {
+        "start_seconds": 269.0,
+        "speaker": "B",
+        "text": "还是习惯在上午的",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 270.5
+      },
+      {
+        "start_seconds": 270.5,
+        "speaker": "B",
+        "text": "11-12点之间去退房",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 272.5
+      },
+      {
+        "start_seconds": 272.5,
+        "speaker": "B",
+        "text": "真正有非常强的需求",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 274.5
+      },
+      {
+        "start_seconds": 274.5,
+        "speaker": "B",
+        "text": "说我要住满24小时的人",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 276.0
+      },
+      {
+        "start_seconds": 276.0,
+        "speaker": "B",
+        "text": "其实是很少的",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 277.5
+      },
+      {
+        "start_seconds": 277.5,
+        "speaker": "A",
+        "text": "所以说",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 278.0
+      },
+      {
+        "start_seconds": 278.0,
+        "speaker": "A",
+        "text": "深夜到店觉得自己吃亏的这个事",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 280.0
+      },
+      {
+        "start_seconds": 280.0,
+        "speaker": "A",
+        "text": "其实没那么普遍",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 282.5
+      },
+      {
+        "start_seconds": 282.5,
+        "speaker": "B",
+        "text": "虽然说有68%的人",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 286.5
+      },
+      {
+        "start_seconds": 286.5,
+        "speaker": "B",
+        "text": "然后中午要退房",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 288.0
+      },
+      {
+        "start_seconds": 288.0,
+        "speaker": "B",
+        "text": "真正因为这个事情投源",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 290.5
+      },
+      {
+        "start_seconds": 290.5,
+        "speaker": "B",
+        "text": "还是以价格和卫生",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 293.0
+      },
+      {
+        "start_seconds": 293.0,
+        "speaker": "B",
+        "text": "这些大头的问题力士",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 294.0
+      },
+      {
+        "start_seconds": 294.0,
+        "speaker": "B",
+        "text": "只有不到10%的住客",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 296.0
+      },
+      {
+        "start_seconds": 296.0,
+        "speaker": "B",
+        "text": "是经常用到延迟退房",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 298.5
+      },
+      {
+        "start_seconds": 298.5,
+        "speaker": "B",
+        "text": "而且他们一般也只是",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 300.5
+      },
+      {
+        "start_seconds": 300.5,
+        "speaker": "B",
+        "text": "要求多儿个小时而已",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 301.5
+      },
+      {
+        "start_seconds": 301.5,
+        "speaker": "B",
+        "text": "就很少有人说",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 302.5
+      },
+      {
+        "start_seconds": 302.5,
+        "speaker": "B",
+        "text": "我要死死的用到24个小时",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 305.0
+      },
+      {
+        "start_seconds": 305.0,
+        "speaker": "B",
+        "text": "所以这个是一个",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 310.5
+      },
+      {
+        "start_seconds": 310.5,
+        "speaker": "B",
+        "text": "_特妹的答人的需求",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 311.0
+      },
+      {
+        "start_seconds": 311.0,
+        "speaker": "A",
+        "text": "今天我们从这个",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 312.5
+      },
+      {
+        "start_seconds": 312.5,
+        "speaker": "A",
+        "text": "酒店的成本",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 314.5
+      },
+      {
+        "start_seconds": 314.5,
+        "speaker": "A",
+        "text": "和客人的真实需求",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 316.5
+      },
+      {
+        "start_seconds": 316.5,
+        "speaker": "A",
+        "text": "几个角度聊下来",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 318.5
+      },
+      {
+        "start_seconds": 318.5,
+        "speaker": "A",
+        "text": "24小时退房这个东西",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 321.5
+      },
+      {
+        "start_seconds": 321.5,
+        "speaker": "A",
+        "text": "但是其实",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 322.5
+      },
+      {
+        "start_seconds": 322.5,
+        "speaker": "A",
+        "text": "对于大部分的酒店",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 324.0
+      },
+      {
+        "start_seconds": 324.0,
+        "speaker": "A",
+        "text": "和大部分的住客来讲",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 325.0
+      },
+      {
+        "start_seconds": 325.0,
+        "speaker": "A",
+        "text": "可能都不是一个刚需",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 326.5
+      },
+      {
+        "start_seconds": 326.5,
+        "speaker": "A",
+        "text": "所以说",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 327.0
+      },
+      {
+        "start_seconds": 327.0,
+        "speaker": "A",
+        "text": "酒店到底要不要推这个东西",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 329.0
+      },
+      {
+        "start_seconds": 329.0,
+        "speaker": "A",
+        "text": "还是要根据自己的实际情况",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 330.5
+      },
+      {
+        "start_seconds": 330.5,
+        "speaker": "A",
+        "text": "来理性的判断",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 332.0
+      },
+      {
+        "start_seconds": 332.0,
+        "speaker": "A",
+        "text": "找到一个最适合自己的",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 333.5
+      },
+      {
+        "start_seconds": 333.5,
+        "speaker": "B",
+        "text": "好了那么这期节目",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 334.5
+      },
+      {
+        "start_seconds": 334.5,
+        "speaker": "B",
+        "text": "咱们就到这里了",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 335.5
+      },
+      {
+        "start_seconds": 335.5,
+        "speaker": "B",
+        "text": "感谢大家的收听",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 336.5
+      },
+      {
+        "start_seconds": 336.5,
+        "speaker": "B",
+        "text": "咱们下次再见",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 338.0
+      },
+      {
+        "start_seconds": 338.0,
+        "speaker": "B",
+        "text": "拜拜",
+        "timing_precision_seconds": 0.5,
+        "source": "burned_caption_ocr",
+        "end_seconds": 338.917
+      }
+    ],
+    "caption_event_count": 181,
+    "silences": [
+      {
+        "start": 27.85725,
+        "end": 28.075333
+      },
+      {
+        "start": 148.772667,
+        "end": 149.038604
+      },
+      {
+        "start": 251.685521,
+        "end": 251.986646
+      },
+      {
+        "start": 338.575688,
+        "end": 338.961333
+      }
+    ],
+    "bgm_finding": "未检测到可明确分离的配乐段；主体是近乎连续的双人对白。",
+    "sfx_finding": "未发现稳定的转场音效事件；节奏主要由对白、波形和硬切承担。"
+  },
+  "replication": {
+    "pixel_identical_without_original_assets": false,
+    "structure_identical": true,
+    "critical_constraint": "参考片没有主持人层，因此黄丽不能作为人物替换；加入黄丽会改变原构图。",
+    "recommended_product_mode": "A/B 音频访谈 + 授权酒店 B-roll + 固定节目包装",
+    "do_not_use": [
+      "动作模仿",
+      "人像融合",
+      "单张人像驱动"
+    ],
+    "required_pipeline": [
+      "生成双人对话脚本并标注 A/B 轮次",
+      "分别合成两种可区分的自然音色",
+      "按语音时间轴生成真实振幅波形",
+      "按语义检索 owned/licensed 酒店 B-roll",
+      "按 3-5 秒平均镜头长度硬切",
+      "后期固定渲染标题、A/B 字幕和品牌栏",
+      "进行版权、字幕、音画同步和黑帧质检"
+    ]
+  },
+  "evidence": {
+    "contact_sheets": "../../.codex-preview/he-yiyi-a0am/engineering-analysis/second-grid-01.jpg ... second-grid-14.jpg",
+    "representative_frames": [
+      "frame-1.png",
+      "frame-100.png",
+      "frame-200.png",
+      "frame-300.png",
+      "frame-337.png"
+    ],
+    "raw_caption_ocr": "../../.codex-preview/he-yiyi-a0am/engineering-analysis/subtitle-ocr-raw.json",
+    "scene_metadata": "../../.codex-preview/he-yiyi-a0am/a0am-analysis-out/scene-metadata.txt",
+    "waveform": "../../.codex-preview/he-yiyi-a0am/engineering-analysis/audio-waveform.png",
+    "spectrogram": "../../.codex-preview/he-yiyi-a0am/a0am-analysis-out/audio-spectrogram.png"
+  }
+}

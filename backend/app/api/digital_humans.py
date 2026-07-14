@@ -19,7 +19,7 @@ from app.api.system_models import _active_volcengine_jimeng_credential
 from app.core.auth import current_user
 from app.core.db import get_session
 from app.models.entities import DigitalHuman, Material, MaterialKind, PlatformCredential, User, VideoTask
-from app.schemas.requests import DigitalHumanCreate, VolcenginePortraitAuthSessionCreate
+from app.schemas.requests import DigitalHumanCreate, VolcenginePortraitAssetBind, VolcenginePortraitAuthSessionCreate
 
 
 def _credential_note_value(credential: PlatformCredential | None, key: str) -> str | None:
@@ -351,6 +351,31 @@ async def create_volcengine_portrait_auth_session(
     session.commit()
     session.refresh(human)
     return _human_portrait_auth_state(human)
+
+
+def bind_volcengine_portrait_asset(
+    human_id: int,
+    payload: VolcenginePortraitAssetBind,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> DigitalHuman:
+    human = session.get(DigitalHuman, human_id)
+    _ensure_record_access(human, user, "Digital human", write=True)
+    group_id = (payload.asset_group_id or "").strip() or None
+    group_uri = (payload.asset_group_uri or "").strip() or None
+    asset_uri = (payload.asset_uri or "").strip() or None
+    if not group_id and not group_uri:
+        raise HTTPException(status_code=400, detail="请填写方舟控制台中的 Asset Group ID 或 Asset Group URI。")
+    human.volcengine_asset_group_id = group_id
+    human.volcengine_asset_group_uri = group_uri
+    human.volcengine_asset_uri = asset_uri
+    human.volcengine_auth_status = "active"
+    human.volcengine_auth_result_code = "manual_console"
+    human.volcengine_auth_payload = "控制台人工授权后手动绑定"
+    session.add(human)
+    session.commit()
+    session.refresh(human)
+    return human
 
 
 async def sync_volcengine_portrait_auth_session(

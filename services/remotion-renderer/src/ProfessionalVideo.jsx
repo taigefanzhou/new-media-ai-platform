@@ -66,7 +66,64 @@ function fitModeStyle(width, height) {
   };
 }
 
-export function ProfessionalVideo({
+function highlightedCue(text) {
+  const keywords = /(收益|利润|满房|节能|入住率|成本|效率|溢价|智能客控|数字化)/g;
+  const highlighted = /^(收益|利润|满房|节能|入住率|成本|效率|溢价|智能客控|数字化)$/;
+  return String(text || "").split(keywords).map((part, index) =>
+    highlighted.test(part) ? <span key={`${part}-${index}`} style={{color: "#ffd54a"}}>{part}</span> : part,
+  );
+}
+
+function HeYiyiHotelVideo({title, hook, voiceover, sourceVideo, brandName, scenes, brollVideos}) {
+  const frame = useCurrentFrame();
+  const {durationInFrames, fps, width, height} = useVideoConfig();
+  const progress = Math.min(1, frame / Math.max(1, durationInFrames - 1));
+  const cue = currentCue(voiceover || hook, progress);
+  const brollList = Array.isArray(brollVideos) ? brollVideos : [];
+  const firstInsert = brollList.length > 0 && progress >= 0.065 && progress < 0.115;
+  const fullScreenInsert = brollList.length > 0 && progress >= 0.27 && progress < 0.325;
+  const systemInsert = brollList.length > 0 && progress >= 0.47 && progress < 0.61;
+  const activeBroll = brollList.length ? brollList[Math.min(brollList.length - 1, fullScreenInsert ? 0 : 1)] : "";
+  const cleanTitle = String(title || hook || "酒店数字化").replace(/^\d+[.、]\s*/, "").replace(/[？?！!。]/g, "");
+  const titleLine1 = cleanTitle.includes("酒店") ? "酒店客控" : cleanTitle.slice(0, 6);
+  const titleLine2 = "一招制胜";
+  const videoStyle = fitModeStyle(width, height);
+
+  return (
+    <AbsoluteFill style={{backgroundColor: "#111", fontFamily: '"Noto Sans CJK SC", sans-serif', letterSpacing: 0}}>
+      {sourceVideo ? <Video src={sourceVideo} muted={false} style={{position: "absolute", ...videoStyle}} /> : null}
+
+      {activeBroll && fullScreenInsert ? (
+        <Video src={activeBroll} muted loop style={{position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover"}} />
+      ) : null}
+      {activeBroll && (firstInsert || systemInsert) ? (
+        <div style={{position: "absolute", left: firstInsert ? 0 : 48, right: firstInsert ? 0 : 48, top: firstInsert ? 0 : 210, height: firstInsert ? "48%" : "43%", overflow: "hidden", boxShadow: "0 14px 34px rgba(0,0,0,.38)"}}>
+          <Video src={activeBroll} muted loop style={{position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover"}} />
+        </div>
+      ) : null}
+
+      {!firstInsert && !fullScreenInsert && !systemInsert ? (
+        <div style={{position: "absolute", left: 30, top: 38, color: "#fff8df", fontFamily: '"Noto Serif CJK SC", serif', fontSize: 96, lineHeight: 1.02, fontWeight: 900, whiteSpace: "nowrap", textShadow: "4px 5px 0 rgba(28,20,12,.9), 0 0 6px rgba(0,0,0,.65)"}}>
+          <div>{titleLine1}</div>
+          <div>{titleLine2}</div>
+        </div>
+      ) : null}
+
+      {durationInFrames >= fps * 20 && progress < 0.13 && !firstInsert ? (
+        <div style={{position: "absolute", left: 52, top: 590, color: "#89c8ff", fontSize: 34, lineHeight: 1.28, fontWeight: 900, textShadow: "0 3px 4px rgba(0,0,0,.8)"}}>
+          <div>× 别只看设备</div>
+          <div>× 先算经营账</div>
+        </div>
+      ) : null}
+
+      <div style={{position: "absolute", left: 34, right: 34, bottom: 136, color: "white", fontSize: 46, lineHeight: 1.2, fontWeight: 700, textAlign: "center", textShadow: "0 3px 4px #000, 0 0 3px #000"}}>
+        {highlightedCue(cue)}
+      </div>
+    </AbsoluteFill>
+  );
+}
+
+function BusinessVideo({
   title,
   hook,
   voiceover,
@@ -274,4 +331,8 @@ export function ProfessionalVideo({
       </div>
     </AbsoluteFill>
   );
+}
+
+export function ProfessionalVideo(props) {
+  return props.template === "he_yiyi_hotel" ? <HeYiyiHotelVideo {...props} /> : <BusinessVideo {...props} />;
 }

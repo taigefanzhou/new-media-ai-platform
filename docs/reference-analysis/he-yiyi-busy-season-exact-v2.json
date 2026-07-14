@@ -1,0 +1,854 @@
+{
+  "key": "he_yiyi_exact_v2",
+  "source_material_id": 12,
+  "source_analysis_id": 8,
+  "source_sha256": "cf78b5a33ac6d095de96073efc8f11c92a18a69ea1cb20f559673bd120e4a314",
+  "canvas": {
+    "width": 576,
+    "height": 1024,
+    "fps": 25,
+    "frame_count": 1766,
+    "duration_seconds": 70.64,
+    "pixel_format": "yuv420p",
+    "color_space": "bt709"
+  },
+  "audio": {
+    "codec": "aac_he_v2",
+    "sample_rate": 44100,
+    "channels": 2,
+    "integrated_lufs": -13.1,
+    "loudness_range_lu": 2.9,
+    "policy": "retain_source_audio_bit_exact_until_final_mux",
+    "transcript": "所有的酒店人，请你们停止悲伤，停止焦虑，好好把握一下接下来几个节假日的收益点。五一劳动节有五天假，记得去上线你们的连住套餐优惠，可以拉长用户的酒店入住天数，这样子的话可以提高你的平均ADR，而不是说前面几天有人住，后面几天就没人住了，或者大家要换酒店住。六月的端午三天假一定是以周边的亲子游为主的，搭配节日增值套餐加价售卖，以亲子为主，大家一定要注意以亲子游为主，用低成本的组合提高我们的客单价。七八月暑期全程一定要阶梯动态式的调价，要锁定好我们的长住订单，稳定好全年的满房出租率以及你们的高收益。九月的中秋节三天假，这个时候你们的套房以及你们的景观房要做单独的溢价，利润差能拉30%以上。十月的国庆有七天假，这个时候是我们全年的流量顶峰，全渠道一定要严格去管理好你们的价格，记住是全渠道，分时段调价，锁库存，这个时候利润一定要拉满。酒店人坚持住。",
+    "speech_end_seconds": 67.68,
+    "voice_gender": "female",
+    "voice_f0_median_hz_estimate": 216.2,
+    "voice_f0_p10_p90_hz_estimate": [
+      152.4,
+      340.4
+    ],
+    "speech_rate_chars_per_minute_estimate": 303,
+    "continuous_mix_range_seconds": [
+      0.125,
+      67.876
+    ],
+    "cta_silences": [
+      [
+        67.875873,
+        68.389456
+      ],
+      [
+        68.502063,
+        69.016417
+      ],
+      [
+        69.128934,
+        69.974104
+      ]
+    ],
+    "publish_voice_policy": "Use the latest authorized Huang Li female voice and force-align it to the reference caption cadence; retain original music/SFX only when licensed."
+  },
+  "person_geometry": {
+    "coordinate_system": "top_left_pixels_576x1024",
+    "camera": "locked_eye_level",
+    "presenter_body_box_estimate": [
+      55,
+      365,
+      530,
+      1024
+    ],
+    "presenter_head_box_estimate": [
+      202,
+      363,
+      391,
+      620
+    ],
+    "face_detection_median_box": [
+      226.11,
+      423.17,
+      143.1,
+      143.1
+    ],
+    "face_detection_p10_p90": {
+      "x": [
+        213.95,
+        241.75
+      ],
+      "y": [
+        403.06,
+        455.08
+      ],
+      "width": [
+        133.96,
+        151.43
+      ],
+      "height": [
+        133.96,
+        151.43
+      ]
+    },
+    "yaw_radians_detected": [
+      -0.1312,
+      0.1135
+    ],
+    "replacement_required_ranges_half_open": [
+      [
+        0,
+        491
+      ],
+      [
+        614,
+        839
+      ],
+      [
+        871,
+        1108
+      ],
+      [
+        1165,
+        1316
+      ],
+      [
+        1437,
+        1692
+      ]
+    ],
+    "presenter_visible_frame_count": 1359,
+    "presenter_visible_ratio": 0.7695
+  },
+  "segments": [
+    {
+      "frames": [
+        0,
+        3
+      ],
+      "seconds": [
+        0.0,
+        0.16
+      ],
+      "type": "intro_blur",
+      "person_visible": true,
+      "operation": "replace_person_preserve_intro_motion"
+    },
+    {
+      "frames": [
+        4,
+        137
+      ],
+      "seconds": [
+        0.16,
+        5.52
+      ],
+      "type": "presenter",
+      "person_visible": true,
+      "operation": "replace_person_restore_original_title_and_subtitle"
+    },
+    {
+      "frames": [
+        138,
+        195
+      ],
+      "seconds": [
+        5.52,
+        7.84
+      ],
+      "type": "presenter_top_overlay_labor_day",
+      "person_visible": true,
+      "operation": "replace_person_restore_original_top_overlay_and_subtitle"
+    },
+    {
+      "frames": [
+        196,
+        210
+      ],
+      "seconds": [
+        7.84,
+        8.44
+      ],
+      "type": "presenter",
+      "person_visible": true,
+      "operation": "replace_person_restore_original_title_and_subtitle"
+    },
+    {
+      "frames": [
+        211,
+        274
+      ],
+      "seconds": [
+        8.44,
+        11.0
+      ],
+      "type": "presenter_top_overlay_booking",
+      "person_visible": true,
+      "operation": "replace_person_restore_original_top_overlay_and_subtitle"
+    },
+    {
+      "frames": [
+        275,
+        490
+      ],
+      "seconds": [
+        11.0,
+        19.64
+      ],
+      "type": "presenter",
+      "person_visible": true,
+      "operation": "replace_person_restore_original_title_and_subtitle"
+    },
+    {
+      "frames": [
+        491,
+        548
+      ],
+      "seconds": [
+        19.64,
+        21.96
+      ],
+      "type": "fullscreen_broll_labor_day",
+      "person_visible": false,
+      "operation": "retain_source_frames"
+    },
+    {
+      "frames": [
+        549,
+        580
+      ],
+      "seconds": [
+        21.96,
+        23.24
+      ],
+      "type": "fullscreen_broll_travel",
+      "person_visible": false,
+      "operation": "retain_source_frames"
+    },
+    {
+      "frames": [
+        581,
+        613
+      ],
+      "seconds": [
+        23.24,
+        24.56
+      ],
+      "type": "fullscreen_broll_family",
+      "person_visible": false,
+      "operation": "retain_source_frames"
+    },
+    {
+      "frames": [
+        614,
+        627
+      ],
+      "seconds": [
+        24.56,
+        25.12
+      ],
+      "type": "presenter",
+      "person_visible": true,
+      "operation": "replace_person_restore_original_title_and_subtitle"
+    },
+    {
+      "frames": [
+        628,
+        676
+      ],
+      "seconds": [
+        25.12,
+        27.08
+      ],
+      "type": "presenter_top_overlay_booking",
+      "person_visible": true,
+      "operation": "replace_person_restore_original_top_overlay_and_subtitle"
+    },
+    {
+      "frames": [
+        677,
+        838
+      ],
+      "seconds": [
+        27.08,
+        33.56
+      ],
+      "type": "presenter",
+      "person_visible": true,
+      "operation": "replace_person_restore_original_title_and_subtitle"
+    },
+    {
+      "frames": [
+        839,
+        870
+      ],
+      "seconds": [
+        33.56,
+        34.84
+      ],
+      "type": "fullscreen_broll_summer",
+      "person_visible": false,
+      "operation": "retain_source_frames"
+    },
+    {
+      "frames": [
+        871,
+        889
+      ],
+      "seconds": [
+        34.84,
+        35.6
+      ],
+      "type": "presenter",
+      "person_visible": true,
+      "operation": "replace_person_restore_original_title_and_subtitle"
+    },
+    {
+      "frames": [
+        890,
+        952
+      ],
+      "seconds": [
+        35.6,
+        38.12
+      ],
+      "type": "presenter_top_overlay_system_a",
+      "person_visible": true,
+      "operation": "replace_person_restore_original_top_overlay_and_subtitle"
+    },
+    {
+      "frames": [
+        953,
+        1000
+      ],
+      "seconds": [
+        38.12,
+        40.04
+      ],
+      "type": "presenter_top_overlay_system_b",
+      "person_visible": true,
+      "operation": "replace_person_restore_original_top_overlay_and_subtitle"
+    },
+    {
+      "frames": [
+        1001,
+        1030
+      ],
+      "seconds": [
+        40.04,
+        41.24
+      ],
+      "type": "presenter_top_overlay_system_c",
+      "person_visible": true,
+      "operation": "replace_person_restore_original_top_overlay_and_subtitle"
+    },
+    {
+      "frames": [
+        1031,
+        1107
+      ],
+      "seconds": [
+        41.24,
+        44.32
+      ],
+      "type": "presenter_top_overlay_system_d",
+      "person_visible": true,
+      "operation": "replace_person_restore_original_top_overlay_and_subtitle"
+    },
+    {
+      "frames": [
+        1108,
+        1164
+      ],
+      "seconds": [
+        44.32,
+        46.6
+      ],
+      "type": "fullscreen_broll_mid_autumn",
+      "person_visible": false,
+      "operation": "retain_source_frames"
+    },
+    {
+      "frames": [
+        1165,
+        1253
+      ],
+      "seconds": [
+        46.6,
+        50.16
+      ],
+      "type": "presenter",
+      "person_visible": true,
+      "operation": "replace_person_restore_original_title_and_subtitle"
+    },
+    {
+      "frames": [
+        1254,
+        1315
+      ],
+      "seconds": [
+        50.16,
+        52.64
+      ],
+      "type": "presenter_keyword_cards",
+      "person_visible": true,
+      "operation": "replace_person_restore_original_cards_title_and_subtitle"
+    },
+    {
+      "frames": [
+        1316,
+        1436
+      ],
+      "seconds": [
+        52.64,
+        57.48
+      ],
+      "type": "fullscreen_broll_national_day",
+      "person_visible": false,
+      "operation": "retain_source_frames"
+    },
+    {
+      "frames": [
+        1437,
+        1572
+      ],
+      "seconds": [
+        57.48,
+        62.92
+      ],
+      "type": "presenter",
+      "person_visible": true,
+      "operation": "replace_person_restore_original_title_and_subtitle"
+    },
+    {
+      "frames": [
+        1573,
+        1657
+      ],
+      "seconds": [
+        62.92,
+        66.32
+      ],
+      "type": "presenter_channel_cards",
+      "person_visible": true,
+      "operation": "replace_person_restore_original_cards_title_and_subtitle"
+    },
+    {
+      "frames": [
+        1658,
+        1691
+      ],
+      "seconds": [
+        66.32,
+        67.68
+      ],
+      "type": "presenter_close",
+      "person_visible": true,
+      "operation": "replace_person_restore_original_title_and_subtitle"
+    },
+    {
+      "frames": [
+        1692,
+        1765
+      ],
+      "seconds": [
+        67.68,
+        70.64
+      ],
+      "type": "black_cta",
+      "person_visible": false,
+      "operation": "retain_source_frames_and_audio"
+    }
+  ],
+  "layer_order": [
+    "reconstructed_locked_camera_background",
+    "huangli_motion_driven_person",
+    "source_broll_or_source_overlay_pixels",
+    "source_title_subtitle_and_cards",
+    "source_audio"
+  ],
+  "quality_gates": {
+    "frame_count_exact": 1766,
+    "audio_sync_tolerance_ms": 40,
+    "cut_tolerance_frames": 0,
+    "background_similarity_min": 0.97,
+    "person_identity_consistency_min": 0.9,
+    "text_pixel_difference_max": 0.01,
+    "identity_asset_uri_exact": "asset://asset-20260711223536-zgjjn",
+    "face_center_tolerance_px": 8,
+    "face_scale_tolerance_ratio": 0.05,
+    "caption_sync_tolerance_ms": 120,
+    "forbidden_material_ids": [
+      10,
+      25,
+      31
+    ]
+  },
+  "schema_revision": 2,
+  "reference": {
+    "material_id": 12,
+    "analysis_id": 8,
+    "name": "视频号参考：何依依-YIYI-酒店旺季心法",
+    "source_url": "https://weixin.qq.com/sph/AX291CjzJB",
+    "copyright_status": "reference_only"
+  },
+  "target_identity": {
+    "digital_human_id": 6,
+    "name": "黄丽的数字人",
+    "role": "泰格方舟品牌顾问",
+    "identity_source": "volcengine_enterprise_asset",
+    "asset_group_id": "group-20260711223057-gddps",
+    "asset_uri": "asset://asset-20260711223536-zgjjn",
+    "asset_status": "active",
+    "verified_appearance": "shoulder-length side-parted hair, green top, necklace, natural skin texture",
+    "appearance_policy": "preserve enterprise asset exactly; do not force the old navy TECHARK polo or restyle hair",
+    "latest_asset_sample_geometry": {
+      "normalized_face_box": [
+        0.3114,
+        0.3301,
+        0.3169,
+        0.1783
+      ],
+      "normalized_face_center": [
+        0.4699,
+        0.4192
+      ],
+      "finding": "correct identity, but the generated presenter is standing and framed 27.5% too large, 4.7% left and 6.4% high"
+    },
+    "required_framing_correction_1080x1920": {
+      "person_scale": 0.784,
+      "translate_x_px": 51,
+      "translate_y_px": 123,
+      "target_normalized_face_box": [
+        0.3926,
+        0.4133,
+        0.2484,
+        0.1397
+      ],
+      "target_normalized_face_center": [
+        0.5168,
+        0.4831
+      ]
+    },
+    "required": true,
+    "forbidden_direct_inputs": [
+      {
+        "material_id": 10,
+        "reason": "旧静态头像，不是最新企业数字资产"
+      },
+      {
+        "material_id": 25,
+        "reason": "旧何依依机位合成头像，人物过大、偏右且手臂截断"
+      },
+      {
+        "material_id": 31,
+        "reason": "旧融合样片，继承素材 #25 的构图问题"
+      }
+    ]
+  },
+  "graphics": {
+    "persistent_title": {
+      "text": [
+        "旺季心法",
+        "一招制胜"
+      ],
+      "box_estimate": [
+        95,
+        120,
+        495,
+        325
+      ],
+      "font_match": "Chinese display calligraphy / heavy serif",
+      "fill": "warm_white",
+      "shadow": "hard_black_offset",
+      "render_policy": "restore_after_presenter_generation"
+    },
+    "subtitle": {
+      "baseline_y_estimate": 846,
+      "safe_box": [
+        70,
+        805,
+        506,
+        895
+      ],
+      "font_match": "Noto Serif CJK SC SemiBold / Songti",
+      "primary": "#FFFFFF",
+      "highlight": "#F2D64B",
+      "outline": "#1A1A1A",
+      "max_lines": 1,
+      "timing_precision_seconds": 0.5,
+      "events": [
+        {
+          "start_seconds": 0.5,
+          "end_seconds": 1.0,
+          "text": "所有的酒店人"
+        },
+        {
+          "start_seconds": 1.0,
+          "end_seconds": 2.0,
+          "text": "请你们停止悲伤"
+        },
+        {
+          "start_seconds": 2.0,
+          "end_seconds": 3.5,
+          "text": "停止焦虑"
+        },
+        {
+          "start_seconds": 3.5,
+          "end_seconds": 4.0,
+          "text": "好好把握一下"
+        },
+        {
+          "start_seconds": 4.0,
+          "end_seconds": 4.5,
+          "text": "接下来"
+        },
+        {
+          "start_seconds": 4.5,
+          "end_seconds": 6.0,
+          "text": "几个节假日的收益点"
+        },
+        {
+          "start_seconds": 6.0,
+          "end_seconds": 7.5,
+          "text": "五一劳动节有5天假"
+        },
+        {
+          "start_seconds": 7.5,
+          "end_seconds": 9.0,
+          "text": "记得去上线"
+        },
+        {
+          "start_seconds": 9.0,
+          "end_seconds": 11.0,
+          "text": "你们的连住套餐优惠"
+        },
+        {
+          "start_seconds": 11.0,
+          "end_seconds": 12.5,
+          "text": "可以拉长用户的酒店"
+        },
+        {
+          "start_seconds": 12.5,
+          "end_seconds": 13.0,
+          "text": "入住天数"
+        },
+        {
+          "start_seconds": 13.0,
+          "end_seconds": 14.0,
+          "text": "这样子的话"
+        },
+        {
+          "start_seconds": 14.0,
+          "end_seconds": 15.5,
+          "text": "可以提高你的平均ADR"
+        },
+        {
+          "start_seconds": 15.5,
+          "end_seconds": 16.0,
+          "text": "而不是说"
+        },
+        {
+          "start_seconds": 16.0,
+          "end_seconds": 17.5,
+          "text": "前面几天有人住"
+        },
+        {
+          "start_seconds": 17.5,
+          "end_seconds": 18.5,
+          "text": "后面几天就没人住了"
+        },
+        {
+          "start_seconds": 18.5,
+          "end_seconds": 20.5,
+          "text": "或者大家要换酒店住"
+        },
+        {
+          "start_seconds": 20.5,
+          "end_seconds": 22.0,
+          "text": "6月端午三天假"
+        },
+        {
+          "start_seconds": 22.0,
+          "end_seconds": 23.0,
+          "text": "一定是"
+        },
+        {
+          "start_seconds": 23.0,
+          "end_seconds": 24.5,
+          "text": "以周边的亲子游为主的"
+        },
+        {
+          "start_seconds": 24.5,
+          "end_seconds": 26.5,
+          "text": "搭配节日增值套餐"
+        },
+        {
+          "start_seconds": 26.5,
+          "end_seconds": 27.5,
+          "text": "加价售卖"
+        },
+        {
+          "start_seconds": 27.5,
+          "end_seconds": 29.0,
+          "text": "以亲子为主"
+        },
+        {
+          "start_seconds": 29.0,
+          "end_seconds": 30.0,
+          "text": "大家一定要注意"
+        },
+        {
+          "start_seconds": 30.0,
+          "end_seconds": 31.0,
+          "text": "以亲子游为主"
+        },
+        {
+          "start_seconds": 31.0,
+          "end_seconds": 32.5,
+          "text": "用低成本的组合"
+        },
+        {
+          "start_seconds": 32.5,
+          "end_seconds": 34.0,
+          "text": "提高我们的客单价"
+        },
+        {
+          "start_seconds": 34.0,
+          "end_seconds": 35.0,
+          "text": "七八月暑期"
+        },
+        {
+          "start_seconds": 35.0,
+          "end_seconds": 37.0,
+          "text": "全程一定要阶梯"
+        },
+        {
+          "start_seconds": 37.0,
+          "end_seconds": 38.5,
+          "text": "动态式的调价"
+        },
+        {
+          "start_seconds": 38.5,
+          "end_seconds": 39.0,
+          "text": "要锁定好"
+        },
+        {
+          "start_seconds": 39.0,
+          "end_seconds": 40.5,
+          "text": "我们的长住订单"
+        },
+        {
+          "start_seconds": 40.5,
+          "end_seconds": 42.5,
+          "text": "稳定好全年的满房"
+        },
+        {
+          "start_seconds": 42.5,
+          "end_seconds": 43.0,
+          "text": "出租率"
+        },
+        {
+          "start_seconds": 43.0,
+          "end_seconds": 45.0,
+          "text": "以及你们的高收益"
+        },
+        {
+          "start_seconds": 45.0,
+          "end_seconds": 47.0,
+          "text": "9月中秋节三天假"
+        },
+        {
+          "start_seconds": 47.0,
+          "end_seconds": 48.0,
+          "text": "这个时候你们的套房"
+        },
+        {
+          "start_seconds": 48.0,
+          "end_seconds": 49.0,
+          "text": "以及你们的景观房"
+        },
+        {
+          "start_seconds": 49.0,
+          "end_seconds": 50.5,
+          "text": "要做单独的溢价"
+        },
+        {
+          "start_seconds": 50.5,
+          "end_seconds": 53.0,
+          "text": "利润差能拉30%以上"
+        },
+        {
+          "start_seconds": 53.0,
+          "end_seconds": 55.5,
+          "text": "10月的国庆有7天假"
+        },
+        {
+          "start_seconds": 55.5,
+          "end_seconds": 57.5,
+          "text": "是我们全年的流量顶峰"
+        },
+        {
+          "start_seconds": 57.5,
+          "end_seconds": 59.5,
+          "text": "全渠道一定要全渠道"
+        },
+        {
+          "start_seconds": 59.5,
+          "end_seconds": 61.0,
+          "text": "一定要严格去管理好"
+        },
+        {
+          "start_seconds": 61.0,
+          "end_seconds": 62.5,
+          "text": "你们的价格"
+        },
+        {
+          "start_seconds": 62.5,
+          "end_seconds": 63.0,
+          "text": "记住是全渠道"
+        },
+        {
+          "start_seconds": 63.0,
+          "end_seconds": 64.5,
+          "text": "分时段调价"
+        },
+        {
+          "start_seconds": 64.5,
+          "end_seconds": 65.5,
+          "text": "锁库存这个时候"
+        },
+        {
+          "start_seconds": 65.5,
+          "end_seconds": 66.5,
+          "text": "利润一定要拉满"
+        },
+        {
+          "start_seconds": 66.5,
+          "end_seconds": 67.68,
+          "text": "酒店人坚持住"
+        }
+      ]
+    },
+    "overlay_policy": "All source title, caption, holiday card and system screenshot pixels render above the generated presenter layer."
+  },
+  "generation_contract": {
+    "identity_reference": "asset://asset-20260711223536-zgjjn",
+    "motion_reference": "slice source material #12 by presenter-visible ranges into 5-10 second reference-video chunks",
+    "background": "reconstructed clean plate from the locked original camera",
+    "framing": "locked tripod, seated medium shot in beige armchair; face center 51.68% across and 48.31% down; face width 24.84% of canvas",
+    "set": "warm wood wall, illuminated award shelf on the left, tall green plant on the right, beige chair, dome camera near top center",
+    "clean_plate_prompt": "no text, no subtitles, no logo, no watermark, fixed camera, preserve authorized identity",
+    "post_layers": [
+      "source-derived title",
+      "owned/licensed B-roll",
+      "system screenshots",
+      "new force-aligned captions",
+      "owned CTA"
+    ],
+    "voice": "authorized Huang Li female voice; median F0 target about 216 Hz; cadence target about 303 Chinese chars/minute",
+    "segment_strategy": "Generate only presenter-visible ranges; retain or replace non-presenter B-roll directly in the compositor.",
+    "do_not_use": [
+      "material #25",
+      "material #31",
+      "whole-video Seedance regeneration",
+      "Aliyun 480P portrait fallback"
+    ]
+  }
+}

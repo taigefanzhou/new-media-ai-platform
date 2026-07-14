@@ -6,6 +6,7 @@ from app.api.digital_humans import (
     create_digital_human,
     create_digital_human_with_assets,
     create_volcengine_portrait_auth_session,
+    bind_volcengine_portrait_asset,
     delete_digital_human,
     get_volcengine_portrait_auth_status,
     list_digital_humans,
@@ -22,6 +23,7 @@ router.post("/digital-humans", response_model=DigitalHuman)(create_digital_human
 router.post("/digital-humans/create-with-assets", response_model=DigitalHuman)(create_digital_human_with_assets)
 router.get("/digital-humans", response_model=list[DigitalHuman])(list_digital_humans)
 router.post("/digital-humans/{human_id}/volcengine-auth/session")(create_volcengine_portrait_auth_session)
+router.put("/digital-humans/{human_id}/volcengine-asset")(bind_volcengine_portrait_asset)
 router.post("/digital-humans/{human_id}/volcengine-auth/sync")(sync_volcengine_portrait_auth_session)
 router.get("/digital-humans/{human_id}/volcengine-auth/status")(get_volcengine_portrait_auth_status)
 router.get("/volcengine/portrait-auth/callback", name="volcengine_portrait_auth_callback")(volcengine_portrait_auth_callback)

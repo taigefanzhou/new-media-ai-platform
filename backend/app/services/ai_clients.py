@@ -152,7 +152,7 @@ class ScriptGenerator:
                 "严格按 duration_seconds 控制口播长度：30秒约120字中文，60秒约220字中文，180秒约650字中文，360秒约1200字中文",
                 "如果 duration_seconds 大于等于60秒，脚本必须是完整连贯结构，不能重复堆砌；按问题、误区、方案、案例、总结推进",
                 "storyboard_plan 必须是数组，每段 10-20 秒，180秒至少9段，360秒至少18段",
-                "storyboard_plan 每项必须包含：start_second,end_second,shot_type,visual,person_action,screen_text,asset_or_background,ai_prompt,needs_lip_sync",
+                "storyboard_plan 每项必须包含：start_second,end_second,shot_type,visual,person_action,screen_text,asset_or_background,ai_prompt,needs_lip_sync,edit_intent,transition,audio_cue,color_note,caption_emphasis",
                 "分镜要能真正执行：说明镜头如何动、画面元素如何变化、屏幕文字如何出现；不能只写“继续讲解”",
                 "所有画面策划必须符合 export_profile；最终画幅按 final_width/final_height 输出，视频生成提示词按 video_generation_ratio 生成",
                 "ai_prompt 始终使用英文，适合 Seedance 或其他视频模型；必须包含目标画幅、自然皮肤、真实灯光、非塑料感、非机械感、clean plate、no on-screen text、no watermark、consistent background 等真实口播要求",
@@ -176,6 +176,11 @@ class ScriptGenerator:
                         "asset_or_background": "需要的素材或背景",
                         "ai_prompt": "English prompt for this shot",
                         "needs_lip_sync": True,
+                        "edit_intent": "该镜头在叙事中的作用",
+                        "transition": "hard_cut / J_cut / L_cut / dissolve",
+                        "audio_cue": "旁白、环境声、BGM或音效节点",
+                        "color_note": "曝光、白平衡、肤色和镜头匹配要求",
+                        "caption_emphasis": ["关键词"],
                     }
                 ],
                 "seedance_prompt": "英文视频生成提示词，9:16，专业商务风",
@@ -396,6 +401,11 @@ class ScriptGenerator:
                         "smooth motion, clean plate, no on-screen text, professional lighting, no plastic skin, no robotic pose, no watermark"
                     ),
                     "needs_lip_sync": shot_type == "talking_head",
+                    "edit_intent": "开场建立主题" if index == 0 else "收束行动建议" if index == segment_count - 1 else "推进当前信息并提供视觉证据",
+                    "transition": "hard_cut",
+                    "audio_cue": "narration_priority",
+                    "color_note": "match exposure and white balance; preserve natural skin tone",
+                    "caption_emphasis": [],
                 }
             )
         return plan
@@ -425,6 +435,11 @@ class ScriptGenerator:
                     "asset_or_background": str(item.get("asset_or_background") or ""),
                     "ai_prompt": str(item.get("ai_prompt") or item.get("prompt") or ""),
                     "needs_lip_sync": bool(item.get("needs_lip_sync", item.get("shot_type") == "talking_head")),
+                    "edit_intent": str(item.get("edit_intent") or "推进当前信息并保持叙事连续"),
+                    "transition": str(item.get("transition") or "hard_cut"),
+                    "audio_cue": str(item.get("audio_cue") or "narration_priority"),
+                    "color_note": str(item.get("color_note") or "match exposure and white balance; preserve natural skin tone"),
+                    "caption_emphasis": item.get("caption_emphasis") if isinstance(item.get("caption_emphasis"), list) else [],
                 }
             )
         return normalized or self._plan_from_storyboard_lines(storyboard, duration_seconds)
@@ -485,6 +500,11 @@ class ScriptGenerator:
                     "asset_or_background": "business hotel scene",
                     "ai_prompt": f"Vertical 9:16 realistic business hotel video, {line}, smooth camera motion, clean plate, no on-screen text, no watermark",
                     "needs_lip_sync": index in (0, len(lines) - 1),
+                    "edit_intent": "开场建立主题" if index == 0 else "收束行动建议" if index == len(lines) - 1 else "推进解释并提供视觉变化",
+                    "transition": "hard_cut",
+                    "audio_cue": "narration_priority",
+                    "color_note": "match exposure and white balance; preserve natural skin tone",
+                    "caption_emphasis": [],
                 }
             )
         return plan
@@ -824,6 +844,12 @@ class MediaGenerationClient:
                     "screen_text": str(item.get("screen_text") or ""),
                     "asset_or_background": str(item.get("asset_or_background") or ""),
                     "needs_lip_sync": bool(item.get("needs_lip_sync", False)),
+                    "reference_material_id": item.get("reference_material_id"),
+                    "edit_intent": str(item.get("edit_intent") or ""),
+                    "transition": str(item.get("transition") or "hard_cut"),
+                    "audio_cue": str(item.get("audio_cue") or ""),
+                    "color_note": str(item.get("color_note") or ""),
+                    "caption_emphasis": item.get("caption_emphasis") if isinstance(item.get("caption_emphasis"), list) else [],
                 }
             )
         return plan
@@ -866,7 +892,7 @@ class MediaGenerationClient:
             str(output_path),
         ]
         subprocess.run(command, check=True, capture_output=True)
-        return self._export_to_profile(str(output_path), export_profile)
+        return str(output_path)
 
     async def compose_scene_video(
         self,
@@ -1177,7 +1203,7 @@ class MediaGenerationClient:
         duration_seconds: int = 30,
         export_profile: str | None = None,
     ) -> str:
-        from moviepy.editor import AudioFileClip, VideoClip
+        from moviepy.editor import AudioClip, AudioFileClip, CompositeAudioClip, VideoClip
         from PIL import Image, ImageDraw, ImageFilter
         import numpy as np
 
@@ -1339,6 +1365,176 @@ class MediaGenerationClient:
         audio.close()
         clip.close()
         return self._export_to_profile(str(output_path), export_profile)
+
+    async def compose_wechat_reference_template(
+        self,
+        voiceover: str,
+        storyboard_plan: str | list[dict[str, object]] | None,
+        audio_path: str,
+        title: str,
+        duration_seconds: int = 60,
+        export_profile: str | None = None,
+    ) -> str:
+        from moviepy.editor import AudioClip, AudioFileClip, CompositeAudioClip, VideoClip
+        from PIL import Image, ImageDraw, ImageFilter, ImageFont
+        import numpy as np
+
+        audio = AudioFileClip(audio_path)
+        duration = min(max(audio.duration, 6), max(duration_seconds, 6))
+        output_path = self._asset_path("final", "wechat-reference-template.mp4")
+        frame_size = (1280, 720)
+        serif_path = "/usr/share/fonts/opentype/noto/NotoSerifCJK-Bold.ttc"
+        serif = lambda size: ImageFont.truetype(serif_path, size=size) if Path(serif_path).exists() else self._load_font(size)
+        title_font = serif(40)
+        subtitle_font = serif(44)
+        label_font = serif(42)
+        brand_font = serif(28)
+        red = (220, 38, 38)
+        white = (248, 248, 244)
+        subtitle_phrases: list[str] = []
+        for _, _, sentence in self._subtitle_events(voiceover, duration):
+            clean = sentence.strip("。！？；，,.!?; ")
+            chunks = [
+                clean[index:index + 14].strip("。！？；，,.!?; ")
+                for index in range(0, len(clean), 14)
+                if clean[index:index + 14].strip("。！？；，,.!?; ")
+            ]
+            if len(chunks) > 1 and len(chunks[-1]) < 6:
+                tail = chunks.pop()
+                chunks[-1] += tail
+            subtitle_phrases.extend(chunks)
+        subtitle_phrases = subtitle_phrases or [title]
+        display_title = re.sub(r"^\s*\d+[.、]\s*", "", title).strip() or title
+
+        def wrap_text(text: str, limit: int, max_lines: int) -> list[str]:
+            lines: list[str] = []
+            current = ""
+            for char in str(text or "").replace("\n", " "):
+                current += char
+                if len(current) >= limit:
+                    lines.append(current)
+                    current = ""
+            if current:
+                lines.append(current)
+            return lines[:max_lines]
+
+        def dialog_for_time(t: float) -> tuple[str, str]:
+            index = min(len(subtitle_phrases) - 1, int(t / 4.0))
+            phrase = subtitle_phrases[index]
+            return (phrase, "") if index % 2 == 0 else ("", phrase)
+
+        def text_width(draw, text: str, font, stroke: int = 0) -> int:
+            bbox = draw.textbbox((0, 0), text, font=font, stroke_width=stroke)
+            return bbox[2] - bbox[0]
+
+        def draw_center(draw, text: str, y: int, font, fill=white, stroke: int = 0):
+            width = text_width(draw, text, font, stroke)
+            draw.text(
+                ((frame_size[0] - width) // 2, y),
+                text,
+                font=font,
+                fill=fill,
+                stroke_width=stroke,
+                stroke_fill=(0, 0, 0),
+            )
+
+        def draw_center_fit(draw, text: str, y: int, font, fill=white, max_width: int = 610, stroke: int = 0):
+            value = str(text or "")
+            while value and text_width(draw, value, font, stroke) > max_width:
+                value = value[:-1]
+            draw_center(draw, value, y, font, fill, stroke)
+
+        def draw_text_fit(draw, xy: tuple[int, int], text: str, font, fill=white, max_width: int = 560, stroke: int = 0):
+            value = str(text or "")
+            while value and text_width(draw, value, font, stroke) > max_width:
+                value = value[:-1]
+            draw.text(
+                xy,
+                value,
+                font=font,
+                fill=fill,
+                stroke_width=stroke,
+                stroke_fill=(0, 0, 0),
+            )
+
+        def draw_wave(draw, t: float):
+            mid_y = 330
+            draw.line((150, mid_y, 1130, mid_y), fill=(255, 255, 255), width=1)
+            for index in range(76):
+                x = 380 + index * 7
+                height = 8 + int(118 * abs(math.sin(t * 3.2 + index * 0.43)) * (1 - index / 105))
+                draw.rounded_rectangle((x, mid_y - height, x + 4, mid_y), radius=2, fill=white)
+
+        def draw_hotel_scene(canvas, t: float):
+            scene = Image.new("RGB", (1280, 522), (82, 64, 45))
+            draw = ImageDraw.Draw(scene)
+            for y in range(522):
+                shade = int(54 + y * 0.045)
+                draw.line((0, y, 1280, y), fill=(shade + 22, shade + 10, shade))
+            draw.polygon([(0, 80), (500, 210), (0, 522)], fill=(48, 42, 37))
+            draw.rectangle((720, 74, 1280, 522), fill=(70, 58, 46))
+            draw.rectangle((110, 258, 850, 454), fill=(180, 164, 138))
+            draw.rectangle((150, 296, 810, 432), fill=(222, 212, 190))
+            draw.rectangle((840, 160, 1130, 350), fill=(28, 43, 48))
+            draw.rectangle((870, 188, 1100, 308), fill=(58, 120, 116))
+            draw.rectangle((840, 368, 1220, 522), fill=(105, 86, 63))
+            scene = Image.blend(scene.filter(ImageFilter.GaussianBlur(radius=2)), Image.new("RGB", scene.size), 0.34)
+            canvas.paste(scene, (0, 88))
+
+        def draw_dialog(draw, t: float):
+            first, second = dialog_for_time(t)
+            draw_text_fit(draw, (96, 380), f"A: {first}", subtitle_font, white, 1050, 3)
+            draw.text((510, 480), f"B: {second}", font=label_font, fill=red, stroke_width=2, stroke_fill=(0, 0, 0))
+
+        def make_frame(t: float):
+            canvas = Image.new("RGB", frame_size, (0, 0, 0))
+            draw = ImageDraw.Draw(canvas)
+            draw_hotel_scene(canvas, t)
+            draw_wave(draw, t)
+            draw_dialog(draw, t)
+            draw_center_fit(draw, f"「{display_title}」", 18, title_font, white, 1080, 2)
+            brand = "酒店智能客控方案"
+            left = (1280 - text_width(draw, brand, brand_font)) // 2
+            draw.rectangle((0, 610, 1280, 720), fill=(0, 0, 0))
+            draw.text((left - 24, 654), "—", font=brand_font, fill=white)
+            draw.text((left, 654), brand[:4], font=brand_font, fill=white)
+            draw.text((left + text_width(draw, brand[:4], brand_font), 654), brand[4:], font=brand_font, fill=red)
+            draw.text((left + text_width(draw, brand, brand_font) + 2, 654), "—", font=brand_font, fill=white)
+            return np.array(canvas)
+
+        def bgm_frame(t):
+            values = np.asarray(t)
+            fade = np.minimum(1, np.minimum(values / 2.5, (duration - values) / 2.5))
+            fade = np.maximum(0, fade)
+            pad = (
+                0.018 * np.sin(2 * np.pi * 146.83 * values)
+                + 0.012 * np.sin(2 * np.pi * 220.00 * values)
+                + 0.007 * np.sin(2 * np.pi * 329.63 * values)
+            ) * fade
+            if np.isscalar(t):
+                return [float(pad), float(pad)]
+            return np.column_stack([pad, pad])
+
+        voice_track = audio.subclip(0, duration).volumex(1.0)
+        music_track = AudioClip(bgm_frame, duration=duration, fps=44100)
+        mixed_audio = CompositeAudioClip([music_track, voice_track])
+        clip = VideoClip(make_frame, duration=duration).set_audio(mixed_audio)
+        clip.write_videofile(
+            str(output_path),
+            fps=20,
+            codec="libx264",
+            audio_codec="aac",
+            preset="ultrafast",
+            bitrate="2400k",
+            threads=2,
+            verbose=False,
+            logger=None,
+        )
+        mixed_audio.close()
+        music_track.close()
+        audio.close()
+        clip.close()
+        return str(output_path)
 
     async def _synthesize_dashscope_cosyvoice(
         self,
@@ -1986,10 +2182,13 @@ class MediaGenerationClient:
             raise RuntimeError("Seedance API Key 未配置，无法生成真实视频。")
 
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-        payload = {
-            "model": model_name,
-            "content": self._seedance_content(prompt, duration_seconds, export_profile, reference_media),
-        }
+        payload = self._seedance_request_payload(
+            model_name,
+            prompt,
+            duration_seconds,
+            export_profile,
+            reference_media,
+        )
         async with httpx.AsyncClient(timeout=180, trust_env=False) as client:
             async def seedance_request(method: str, url: str, stage: str, **kwargs) -> httpx.Response:
                 for attempt in range(3):
@@ -2238,6 +2437,10 @@ class MediaGenerationClient:
             "/System/Library/Fonts/PingFang.ttc",
             "/System/Library/Fonts/STHeiti Light.ttc",
             "/Library/Fonts/Arial Unicode.ttf",
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
+            "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         ):
             if Path(path).exists():
                 return ImageFont.truetype(path, size=size)
@@ -2355,12 +2558,30 @@ class MediaGenerationClient:
         duration_seconds: int = 5,
         export_profile: str | None = None,
     ) -> str:
-        safe_duration = max(5, min(10, duration_seconds))
+        del duration_seconds, export_profile
+        return re.sub(r"\s*--(?:ratio|resolution|dur|fps)\s+\S+", "", prompt).strip()
+
+    def _seedance_request_payload(
+        self,
+        model_name: str,
+        prompt: str,
+        duration_seconds: int,
+        export_profile: str | None,
+        reference_media: list[dict[str, object]] | None = None,
+    ) -> dict[str, object]:
         profile = resolve_export_profile(export_profile)
-        controls = f"--ratio {profile.generation_ratio} --resolution 720p --dur {safe_duration} --fps 24"
-        if "--ratio" in prompt or "--resolution" in prompt or "--dur" in prompt:
-            return prompt
-        return f"{prompt.strip()} {controls}"
+        normalized_model = model_name.lower()
+        supports_1080p = "fast" not in normalized_model and "mini" not in normalized_model
+        resolution = "1080p" if supports_1080p and max(profile.width, profile.height) >= 1920 else "720p"
+        return {
+            "model": model_name,
+            "content": self._seedance_content(prompt, duration_seconds, export_profile, reference_media),
+            "duration": max(4, min(15, int(round(duration_seconds)))),
+            "ratio": profile.generation_ratio,
+            "resolution": resolution,
+            "generate_audio": False,
+            "watermark": False,
+        }
 
     def _seedance_content(
         self,
@@ -2381,18 +2602,20 @@ class MediaGenerationClient:
     def _seedance_reference_content_item(self, item: dict[str, object]) -> dict[str, object] | None:
         source_url = str(item.get("source_url") or "").strip()
         file_path = str(item.get("file_path") or "").strip()
+        kind = str(item.get("kind") or "").lower()
+        if source_url.startswith("asset://"):
+            return {"type": "image_url", "image_url": {"url": source_url}, "role": "reference_image"}
         media_url = self._public_media_url(source_url) or self._public_media_url(file_path)
         if not media_url:
             return None
 
-        kind = str(item.get("kind") or "").lower()
         mime_type = mimetypes.guess_type(media_url)[0] or mimetypes.guess_type(file_path)[0] or ""
         if kind in {"image", "portrait", "product"} or mime_type.startswith("image/"):
-            return {"type": "image_url", "image_url": {"url": media_url}}
+            return {"type": "image_url", "image_url": {"url": media_url}, "role": "reference_image"}
         if kind in {"video", "reference", "avatar_source"} or mime_type.startswith("video/"):
             return {"type": "video_url", "video_url": {"url": media_url}, "role": "reference_video"}
         if mime_type.startswith("audio/"):
-            return {"type": "audio_url", "audio_url": {"url": media_url}}
+            return {"type": "audio_url", "audio_url": {"url": media_url}, "role": "reference_audio"}
         return None
 
     def _seedance_video_url(self, task_data: dict[str, object]) -> Optional[str]:

@@ -1,0 +1,78 @@
+{
+  "key": "he_yiyi_exact_v1",
+  "source_material_id": 12,
+  "source_analysis_id": 8,
+  "source_sha256": "cf78b5a33ac6d095de96073efc8f11c92a18a69ea1cb20f559673bd120e4a314",
+  "canvas": {
+    "width": 576,
+    "height": 1024,
+    "fps": 25,
+    "frame_count": 1766,
+    "duration_seconds": 70.64,
+    "pixel_format": "yuv420p",
+    "color_space": "bt709"
+  },
+  "audio": {
+    "codec": "aac_he_v2",
+    "sample_rate": 44100,
+    "channels": 2,
+    "integrated_lufs": -13.1,
+    "loudness_range_lu": 2.9,
+    "policy": "retain_source_audio_bit_exact_until_final_mux"
+  },
+  "person_geometry": {
+    "camera": "locked_eye_level",
+    "visible_body_box": [70, 125, 530, 1024],
+    "face_box_typical": [220, 145, 385, 345],
+    "replacement_required_ranges": [
+      [4, 490],
+      [614, 838],
+      [871, 1107],
+      [1165, 1315],
+      [1437, 1691]
+    ]
+  },
+  "segments": [
+    {"frames": [0, 3], "seconds": [0.0, 0.16], "type": "intro_blur", "person_visible": true, "operation": "replace_person_preserve_intro_motion"},
+    {"frames": [4, 137], "seconds": [0.16, 5.52], "type": "presenter", "person_visible": true, "operation": "replace_person_restore_original_title_and_subtitle"},
+    {"frames": [138, 195], "seconds": [5.52, 7.84], "type": "presenter_top_overlay_labor_day", "person_visible": true, "operation": "replace_person_restore_original_top_overlay_and_subtitle"},
+    {"frames": [196, 210], "seconds": [7.84, 8.44], "type": "presenter", "person_visible": true, "operation": "replace_person_restore_original_title_and_subtitle"},
+    {"frames": [211, 274], "seconds": [8.44, 11.0], "type": "presenter_top_overlay_booking", "person_visible": true, "operation": "replace_person_restore_original_top_overlay_and_subtitle"},
+    {"frames": [275, 490], "seconds": [11.0, 19.64], "type": "presenter", "person_visible": true, "operation": "replace_person_restore_original_title_and_subtitle"},
+    {"frames": [491, 548], "seconds": [19.64, 21.96], "type": "fullscreen_broll_labor_day", "person_visible": false, "operation": "retain_source_frames"},
+    {"frames": [549, 580], "seconds": [21.96, 23.24], "type": "fullscreen_broll_travel", "person_visible": false, "operation": "retain_source_frames"},
+    {"frames": [581, 613], "seconds": [23.24, 24.56], "type": "fullscreen_broll_family", "person_visible": false, "operation": "retain_source_frames"},
+    {"frames": [614, 627], "seconds": [24.56, 25.12], "type": "presenter", "person_visible": true, "operation": "replace_person_restore_original_title_and_subtitle"},
+    {"frames": [628, 676], "seconds": [25.12, 27.08], "type": "presenter_top_overlay_booking", "person_visible": true, "operation": "replace_person_restore_original_top_overlay_and_subtitle"},
+    {"frames": [677, 838], "seconds": [27.08, 33.56], "type": "presenter", "person_visible": true, "operation": "replace_person_restore_original_title_and_subtitle"},
+    {"frames": [839, 870], "seconds": [33.56, 34.84], "type": "fullscreen_broll_summer", "person_visible": false, "operation": "retain_source_frames"},
+    {"frames": [871, 889], "seconds": [34.84, 35.6], "type": "presenter", "person_visible": true, "operation": "replace_person_restore_original_title_and_subtitle"},
+    {"frames": [890, 952], "seconds": [35.6, 38.12], "type": "presenter_top_overlay_system_a", "person_visible": true, "operation": "replace_person_restore_original_top_overlay_and_subtitle"},
+    {"frames": [953, 1000], "seconds": [38.12, 40.04], "type": "presenter_top_overlay_system_b", "person_visible": true, "operation": "replace_person_restore_original_top_overlay_and_subtitle"},
+    {"frames": [1001, 1030], "seconds": [40.04, 41.24], "type": "presenter_top_overlay_system_c", "person_visible": true, "operation": "replace_person_restore_original_top_overlay_and_subtitle"},
+    {"frames": [1031, 1107], "seconds": [41.24, 44.32], "type": "presenter_top_overlay_system_d", "person_visible": true, "operation": "replace_person_restore_original_top_overlay_and_subtitle"},
+    {"frames": [1108, 1164], "seconds": [44.32, 46.6], "type": "fullscreen_broll_mid_autumn", "person_visible": false, "operation": "retain_source_frames"},
+    {"frames": [1165, 1253], "seconds": [46.6, 50.16], "type": "presenter", "person_visible": true, "operation": "replace_person_restore_original_title_and_subtitle"},
+    {"frames": [1254, 1315], "seconds": [50.16, 52.64], "type": "presenter_keyword_cards", "person_visible": true, "operation": "replace_person_restore_original_cards_title_and_subtitle"},
+    {"frames": [1316, 1436], "seconds": [52.64, 57.48], "type": "fullscreen_broll_national_day", "person_visible": false, "operation": "retain_source_frames"},
+    {"frames": [1437, 1572], "seconds": [57.48, 62.92], "type": "presenter", "person_visible": true, "operation": "replace_person_restore_original_title_and_subtitle"},
+    {"frames": [1573, 1657], "seconds": [62.92, 66.32], "type": "presenter_channel_cards", "person_visible": true, "operation": "replace_person_restore_original_cards_title_and_subtitle"},
+    {"frames": [1658, 1691], "seconds": [66.32, 67.68], "type": "presenter_close", "person_visible": true, "operation": "replace_person_restore_original_title_and_subtitle"},
+    {"frames": [1692, 1765], "seconds": [67.68, 70.64], "type": "black_cta", "person_visible": false, "operation": "retain_source_frames_and_audio"}
+  ],
+  "layer_order": [
+    "reconstructed_locked_camera_background",
+    "huangli_motion_driven_person",
+    "source_broll_or_source_overlay_pixels",
+    "source_title_subtitle_and_cards",
+    "source_audio"
+  ],
+  "quality_gates": {
+    "frame_count_exact": 1766,
+    "audio_sync_tolerance_ms": 40,
+    "cut_tolerance_frames": 0,
+    "background_similarity_min": 0.97,
+    "person_identity_consistency_min": 0.9,
+    "text_pixel_difference_max": 0.01
+  }
+}

@@ -15,6 +15,22 @@ class VideoProductionSkill:
 
 VIDEO_PRODUCTION_SKILLS: tuple[VideoProductionSkill, ...] = (
     VideoProductionSkill(
+        key="he_yiyi_hotel_talking",
+        label="何依依酒店干货口播",
+        source="参考拆解 #8 / 素材 #12",
+        summary="固定机位竖版人物口播，顶部常驻两行主题、底部单行逐句字幕，并在参考时间点穿插自有酒店实景和系统画面。",
+        workflow_rules=(
+            "画幅固定 9:16；人物使用已授权数字人和重建的干净机位底图，参考人物与原文字层不进入成片。",
+            "时间轴按固定人物、顶部短插、固定人物、全屏实景、固定人物、顶部系统画面、固定人物收束执行。",
+            "配音先生成，数字人口型、单行字幕、B-roll、音乐和轻转场音效跟随参考时间比例。",
+        ),
+        quality_checks=(
+            "人物身份和音色一致，口型稳定，背景不跳变。",
+            "字幕不遮脸、不溢出，关键词高亮与口播同步。",
+            "只使用 owned/licensed 素材，成片包含有效视频和音轨且无异常黑帧。",
+        ),
+    ),
+    VideoProductionSkill(
         key="reference_video_analysis",
         label="参考视频拆解",
         source="OpenMontage / mcptube-vision / VideoAgent",
@@ -63,6 +79,24 @@ VIDEO_PRODUCTION_SKILLS: tuple[VideoProductionSkill, ...] = (
         ),
     ),
     VideoProductionSkill(
+        key="jianying_professional_editing",
+        label="剪映专业剪辑导演",
+        source="项目 Skill / CapCut 官方 / Adobe J-L Cut / DaVinci 专业训练",
+        summary="先生成可审计的剪辑决策表，再按粗剪、声音衔接、B-roll、字幕、音频、轻调色和质检顺序完成剪映成片。",
+        workflow_rules=(
+            "前3秒先给结果、冲突、异常或利益点；删除问候、Logo片头、重复表达和无效停顿。",
+            "每个分镜补齐 edit_intent、transition、audio_cue、color_note、caption_emphasis；无法说明叙事作用的镜头删除。",
+            "对话和旁白跨镜头优先使用 J/L Cut；B-roll 与当前台词语义一致，显式转场只用于时间、空间或情绪变化。",
+            "Mac 剪映10.9只通过真实 UI 执行，不读写加密草稿；素材必须从缩略图中心长按拖入主时间线。",
+        ),
+        quality_checks=(
+            "静音查看前三秒仍能理解主题、受众和继续观看的理由。",
+            "人物、旁白、字幕、B-roll、音乐和音效节点同步，BGM不遮盖人声。",
+            "调色和美颜保持真实身份、年龄感和肤色，镜头间无明显跳色。",
+            "无黑帧、空轨、重复镜头、字幕遮脸、爆音、第三方水印或参考素材搬运。",
+        ),
+    ),
+    VideoProductionSkill(
         key="video_quality_guard",
         label="视频质检",
         source="VBench / VideoScore2 / 本系统事故记录",
@@ -91,7 +125,7 @@ def skill_prompt_payload() -> dict[str, object]:
         "enabled": True,
         "skills": video_skill_manifest(),
         "global_rules": [
-            "生成链路必须先结构化，再生成媒体：参考拆解 -> 原创脚本 -> 分镜执行表 -> 素材匹配 -> 视频生成 -> 字幕包装 -> 质量检查。",
+            "生成链路必须先结构化，再生成媒体：参考拆解 -> 原创脚本 -> 分镜执行表 -> 素材匹配 -> 视频生成 -> 专业剪辑 -> 字幕包装 -> 质量检查。",
             "不能把参考视频的原文、人物、商家信息或画面直接搬进新视频。",
             "所有视频模型 prompt 都应优先生成干净底片，字幕和标题由系统后期完成。",
             "当选择数字人口播时，性别、音色和数字人身份必须一致，不能用女性音频驱动男性数字人。",
@@ -105,9 +139,58 @@ def script_generation_requirements() -> list[str]:
         "如果 topic 包含参考视频分析，必须只学习结构、节奏、镜头功能、字幕方式，不复刻原视频文案或人物画面。",
         "storyboard_plan 每段必须能被素材匹配器检索：asset_or_background 写具体素材类型、场景、产品或背景。",
         "每个 ai_prompt 必须包含 clean plate / no on-screen text / no watermark / consistent background / natural human motion。",
+        "每段 storyboard_plan 必须补齐专业剪辑字段：edit_intent、transition、audio_cue、color_note、caption_emphasis。",
+        "transition 默认 hard_cut；只有时间、空间或情绪变化时才使用显式转场，对话和旁白跨镜头优先计划 J/L Cut。",
         "字幕内容只能进入 screen_text 和后期字幕，不允许写入视频模型画面内文字。",
         "数字人口播必须保持人物、性别、声音、动作和背景稳定，不能无理由切换多个背景。",
+        "酒店干货口播默认按何依依参考模板组织：定向喊话和利益点 -> 痛点 -> 方法引入 -> 2-4 个动作 -> 真实证据 -> 注意事项 -> 行动引导。",
     ]
+
+
+def he_yiyi_hotel_template_manifest() -> dict[str, object]:
+    return {
+        "key": "he_yiyi_hotel_v1",
+        "reference_analysis_id": 8,
+        "reference_material_id": 12,
+        "engineering_timeline": "docs/reference-analysis/he-yiyi-busy-season-exact-v2.json",
+        "canvas": {"width": 1080, "height": 1920, "fps": 25, "aspect_ratio": "9:16"},
+        "sections": (
+            ("固定机位开场", 0, 4, "digital_human"),
+            ("顶部短插画面", 4, 8, "owned_broll_overlay"),
+            ("固定机位铺垫", 8, 19, "digital_human"),
+            ("全屏实景转场", 19, 23, "owned_broll_fullscreen"),
+            ("固定机位方法", 23, 33, "digital_human"),
+            ("顶部系统画面", 33, 43, "owned_system_overlay"),
+            ("固定机位收束", 43, 71, "digital_human"),
+        ),
+        "identity": {
+            "source": "active_volcengine_enterprise_asset_only",
+            "fallback": "forbidden",
+            "forbidden_material_ids": (10, 25, 31),
+        },
+        "face_alignment": {
+            "reference_canvas": (576, 1024),
+            "median_face_box": (226.11, 423.17, 143.10, 143.10),
+            "center_tolerance_px": 8,
+            "scale_tolerance_ratio": 0.05,
+        },
+        "title": {"font": "Noto Serif CJK SC", "lines": 2, "position": "top_left", "persistent": True},
+        "subtitle": {
+            "font": "Noto Serif CJK SC",
+            "lines": 1,
+            "position": "bottom_center",
+            "highlight": "#F2D64B",
+            "sync_tolerance_ms": 120,
+        },
+        "audio": {
+            "voice_gender": "female",
+            "voice_f0_median_hz": 216.2,
+            "speech_rate_chars_per_minute": 303,
+            "music": "licensed_reference_or_owned_tempo_match",
+            "transition_sfx": True,
+        },
+        "asset_policy": "owned_or_licensed_only",
+    }
 
 
 def reference_analysis_requirements() -> list[str]:
