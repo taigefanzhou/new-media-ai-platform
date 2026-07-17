@@ -304,7 +304,7 @@ class ReferenceVideoAnalyzer:
                         review, review_usage = await self._call_openai_compatible_vision(
                             review_prompt,
                             image_path,
-                            max_tokens=2500,
+                            max_tokens=3000,
                         )
                     parsed = self._merge_deep_review_payload(parsed, review)
                     usage = self._sum_usage(usage, review_usage)
@@ -437,9 +437,10 @@ class ReferenceVideoAnalyzer:
                 "duration_seconds": duration_seconds,
                 "first_pass": snapshot,
                 "requirements": [
-                    "重点复查开场钩子、关键转折、证据展示、高潮和行动引导，最多返回 8 个关键时刻。",
+                    "重点复查开场钩子、关键转折、证据展示、高潮和行动引导，最多返回 5 个关键时刻。",
                     "每个关键时刻必须给出明确时间范围，以及口播、视觉、画面文字、声音四类证据；没有证据的字段留空。",
                     "抽帧不能独立证明声音变化；声音证据只能引用第一轮转写或分析，否则写入 missing_evidence。",
+                    "保持简洁：每个文本字段不超过 80 个中文字符，不重复第一轮长文；retention_curve 最多 6 段，contradictions 最多 3 条，missing_evidence 最多 5 条。",
                     "retention_score 只是基于内容结构的留存作用强度，不得声称是真实播放数据。",
                     "发现第一轮结论与视频不一致时写入 contradictions，并给出修正结论。",
                     "replication_plan 只复用结构、节奏和镜头方法，必须替换原文、人物、商家、音乐、标识和原画面。",
