@@ -273,13 +273,10 @@ class ReferenceVideoAnalyzer:
         try:
             if self._is_volcengine_ark(provider):
                 try:
-                    parsed, usage = await asyncio.wait_for(
-                        self._call_volcengine_video_understanding(
-                            prompt,
-                            video_path,
-                            local_result.duration_seconds,
-                        ),
-                        timeout=15,
+                    parsed, usage = await self._call_volcengine_video_understanding(
+                        prompt,
+                        video_path,
+                        local_result.duration_seconds,
                     )
                     source = "full_video"
                 except Exception:
