@@ -2504,6 +2504,7 @@ function analysisMetricsHtml(analysis) {
   const sourceLabel = {
     full_video_deep: "完整视频双轮复核",
     full_video: "完整视频理解",
+    contact_sheet_deep: "密集抽帧双轮复核",
     contact_sheet: "抽帧模型增强",
   }[analysis.analysis_source] || (analysis.model_enhanced ? "抽帧模型增强" : "本地基础");
   return `

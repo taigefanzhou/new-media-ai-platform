@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import sys
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
+
+import httpx
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -114,6 +118,30 @@ def main() -> None:
         {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
         {"prompt_tokens": 20, "completion_tokens": 8, "total_tokens": 28},
     )["total_tokens"] == 43
+    timeout = httpx.ReadTimeout("", request=httpx.Request("POST", "https://example.com"))
+    assert (str(timeout).strip() or timeout.__class__.__name__) == "ReadTimeout"
+
+    class FallbackAnalyzer(ReferenceVideoAnalyzer):
+        vision_calls = 0
+
+        async def _call_volcengine_video_understanding(self, *args):
+            raise httpx.ReadTimeout("", request=httpx.Request("POST", "https://example.com"))
+
+        async def _call_openai_compatible_vision(self, prompt, image_path):
+            self.vision_calls += 1
+            if self.vision_calls == 1:
+                return {"quality_score": 90, "reference_blueprint": {}, "timeline": []}, {"total_tokens": 10}
+            return {"review_summary": "抽帧证据复核完成", "critical_moments": []}, {"total_tokens": 5}
+
+    fallback = asyncio.run(
+        FallbackAnalyzer(config)._enhance_with_model(
+            Path("reference.mp4"),
+            replace(local, analysis_source="local", model_enhanced=False),
+            "",
+        )
+    )
+    assert fallback.analysis_source == "contact_sheet_deep"
+    assert fallback.total_tokens == 15
 
     estimated = analyzer._default_transcript_segments("第一句。第二句！", 10)
     assert len(estimated) == 2

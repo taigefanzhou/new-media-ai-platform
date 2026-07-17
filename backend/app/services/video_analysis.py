@@ -272,18 +272,42 @@ class ReferenceVideoAnalyzer:
         image_path = Path(local_result.dense_contact_sheet_path or local_result.contact_sheet_path)
         try:
             if self._is_volcengine_ark(provider):
-                parsed, usage = await self._call_volcengine_video_understanding(prompt, video_path, local_result.duration_seconds)
-                local_result.analysis_source = (
-                    "full_video_deep" if parsed.pop("_deep_review_completed", False) else "full_video"
-                )
+                try:
+                    parsed, usage = await self._call_volcengine_video_understanding(
+                        prompt,
+                        video_path,
+                        local_result.duration_seconds,
+                    )
+                    source = "full_video"
+                except Exception:
+                    parsed, usage = await self._call_openai_compatible_vision(prompt, image_path)
+                    source = "contact_sheet"
             elif "gemini" in provider:
                 parsed, usage = await self._call_gemini_video_understanding(prompt, image_path)
-                local_result.analysis_source = "contact_sheet"
+                source = "contact_sheet"
             else:
                 parsed, usage = await self._call_openai_compatible_vision(prompt, image_path)
-                local_result.analysis_source = "contact_sheet"
+                source = "contact_sheet"
+
+            should_review = local_result.duration_seconds <= 180 or self._safe_score(
+                parsed.get("quality_score"), default=0
+            ) < 82
+            if should_review:
+                try:
+                    review_prompt = self._deep_review_prompt(parsed, local_result.duration_seconds)
+                    if "gemini" in provider:
+                        review, review_usage = await self._call_gemini_video_understanding(review_prompt, image_path)
+                    else:
+                        review, review_usage = await self._call_openai_compatible_vision(review_prompt, image_path)
+                    parsed = self._merge_deep_review_payload(parsed, review)
+                    usage = self._sum_usage(usage, review_usage)
+                    source += "_deep"
+                except Exception:
+                    pass
+            local_result.analysis_source = source
         except Exception as exc:
-            raise RuntimeError(f"视频理解模型增强失败，未使用本地结果代替真实模型：{exc}") from exc
+            detail = str(exc).strip() or exc.__class__.__name__
+            raise RuntimeError(f"视频理解模型增强失败，未使用本地结果代替真实模型：{detail}") from exc
 
         return self._merge_model_analysis(local_result, parsed, usage)
 
@@ -401,13 +425,14 @@ class ReferenceVideoAnalyzer:
         }
         return json.dumps(
             {
-                "task": "对第一轮参考视频拆解做证据复核。重新查看视频，只保留能由具体时间段、画面或声音支持的结论。",
+                "task": "对第一轮参考视频拆解做证据复核。重新查看按时间排列的密集抽帧，只保留能由具体时间段、画面或已有转写支持的结论。",
                 "video_type": "短视频" if duration_seconds <= 180 else "长视频",
                 "duration_seconds": duration_seconds,
                 "first_pass": snapshot,
                 "requirements": [
                     "重点复查开场钩子、关键转折、证据展示、高潮和行动引导，最多返回 8 个关键时刻。",
                     "每个关键时刻必须给出明确时间范围，以及口播、视觉、画面文字、声音四类证据；没有证据的字段留空。",
+                    "抽帧不能独立证明声音变化；声音证据只能引用第一轮转写或分析，否则写入 missing_evidence。",
                     "retention_score 只是基于内容结构的留存作用强度，不得声称是真实播放数据。",
                     "发现第一轮结论与视频不一致时写入 contradictions，并给出修正结论。",
                     "replication_plan 只复用结构、节奏和镜头方法，必须替换原文、人物、商家、音乐、标识和原画面。",
@@ -530,7 +555,7 @@ class ReferenceVideoAnalyzer:
         mime_type = mimetypes.guess_type(video_path.name)[0] or "video/mp4"
         fps = 1.0 if duration_seconds <= 120 else 0.5 if duration_seconds <= 600 else 0.3
         file_id = ""
-        async with httpx.AsyncClient(timeout=300, trust_env=False) as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(150, connect=30), trust_env=False) as client:
             try:
                 with video_path.open("rb") as source:
                     upload = await client.post(
@@ -562,6 +587,8 @@ class ReferenceVideoAnalyzer:
                     headers={**headers, "Content-Type": "application/json"},
                     json={
                         "model": self.model_config.model_name,
+                        "thinking": {"type": "disabled"},
+                        "max_output_tokens": 6000,
                         "input": [
                             {
                                 "role": "user",
@@ -582,47 +609,6 @@ class ReferenceVideoAnalyzer:
                     "completion_tokens": usage_data.get("output_tokens") or 0,
                     "total_tokens": usage_data.get("total_tokens") or 0,
                 }
-                should_review = duration_seconds <= 180 or self._safe_score(
-                    parsed.get("quality_score"), default=0
-                ) < 82
-                try:
-                    if not should_review:
-                        return parsed, usage
-                    review_response = await client.post(
-                        api_base + "/responses",
-                        headers={**headers, "Content-Type": "application/json"},
-                        json={
-                            "model": self.model_config.model_name,
-                            "input": [
-                                {
-                                    "role": "user",
-                                    "content": [
-                                        {"type": "input_video", "file_id": file_id},
-                                        {
-                                            "type": "input_text",
-                                            "text": self._deep_review_prompt(parsed, duration_seconds),
-                                        },
-                                    ],
-                                }
-                            ],
-                        },
-                    )
-                    review_response.raise_for_status()
-                    review_data = review_response.json()
-                    review = self._loads_json_loose(self._responses_output_text(review_data))
-                    parsed = self._merge_deep_review_payload(parsed, review)
-                    review_usage_data = review_data.get("usage") or {}
-                    usage = self._sum_usage(
-                        usage,
-                        {
-                            "prompt_tokens": review_usage_data.get("input_tokens") or 0,
-                            "completion_tokens": review_usage_data.get("output_tokens") or 0,
-                            "total_tokens": review_usage_data.get("total_tokens") or 0,
-                        },
-                    )
-                    parsed["_deep_review_completed"] = True
-                except Exception:
-                    pass
             finally:
                 if file_id:
                     try:
@@ -680,8 +666,9 @@ class ReferenceVideoAnalyzer:
             "response_format": {"type": "json_object"},
         }
         async with httpx.AsyncClient(timeout=180) as client:
+            endpoint = api_base if api_base.endswith("/chat/completions") else api_base + "/chat/completions"
             response = await client.post(
-                api_base + "/chat/completions",
+                endpoint,
                 headers={"Authorization": f"Bearer {api_key}"},
                 json=payload,
             )
