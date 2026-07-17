@@ -279,7 +279,7 @@ class ReferenceVideoAnalyzer:
                             video_path,
                             local_result.duration_seconds,
                         ),
-                        timeout=120,
+                        timeout=45,
                     )
                     source = "full_video"
                 except Exception:
@@ -615,8 +615,8 @@ class ReferenceVideoAnalyzer:
             finally:
                 if file_id:
                     try:
-                        await client.delete(api_base + f"/files/{file_id}", headers=headers)
-                    except httpx.HTTPError:
+                        await client.delete(api_base + f"/files/{file_id}", headers=headers, timeout=5)
+                    except (httpx.HTTPError, asyncio.CancelledError):
                         pass
         return parsed, usage
 
@@ -668,7 +668,9 @@ class ReferenceVideoAnalyzer:
             "temperature": 0.2,
             "response_format": {"type": "json_object"},
         }
-        async with httpx.AsyncClient(timeout=180) as client:
+        if self._is_volcengine_ark((self.model_config.provider or "").lower()):
+            payload.update({"thinking": {"type": "disabled"}, "max_tokens": 6000})
+        async with httpx.AsyncClient(timeout=120) as client:
             endpoint = api_base if api_base.endswith("/chat/completions") else api_base + "/chat/completions"
             response = await client.post(
                 endpoint,
