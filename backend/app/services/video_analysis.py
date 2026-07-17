@@ -279,9 +279,16 @@ class ReferenceVideoAnalyzer:
                         local_result.duration_seconds,
                     )
                     source = "full_video"
-                except Exception:
-                    parsed, usage = await self._call_openai_compatible_vision(prompt, image_path)
-                    source = "contact_sheet"
+                except Exception as video_exc:
+                    try:
+                        parsed, usage = await self._call_openai_compatible_vision(prompt, image_path)
+                        source = "contact_sheet"
+                    except Exception as image_exc:
+                        video_detail = str(video_exc).strip() or video_exc.__class__.__name__
+                        image_detail = str(image_exc).strip() or image_exc.__class__.__name__
+                        raise RuntimeError(
+                            f"完整视频通道失败：{video_detail}；抽帧通道失败：{image_detail}"
+                        ) from image_exc
             elif "gemini" in provider:
                 parsed, usage = await self._call_gemini_video_understanding(prompt, image_path)
                 source = "contact_sheet"
@@ -555,10 +562,12 @@ class ReferenceVideoAnalyzer:
     ) -> tuple[dict, dict]:
         if video_path.stat().st_size > 512 * 1024 * 1024:
             raise RuntimeError("参考视频超过方舟 Files API 的 512MB 上限，请先压缩或配置 TOS 大文件存储。")
+        if video_path.stat().st_size <= 20 * 1024 * 1024:
+            return await self._call_volcengine_inline_video(prompt, video_path, duration_seconds)
         api_base = self._ark_api_base(self.model_config.api_base)
         headers = {"Authorization": f"Bearer {self.model_config.api_key}"}
         mime_type = mimetypes.guess_type(video_path.name)[0] or "video/mp4"
-        fps = 1.0 if duration_seconds <= 120 else 0.5 if duration_seconds <= 600 else 0.3
+        fps = 0.5 if duration_seconds <= 30 else 0.3 if duration_seconds <= 180 else 0.2
         file_id = ""
         async with httpx.AsyncClient(timeout=httpx.Timeout(150, connect=30), trust_env=False) as client:
             try:
@@ -620,6 +629,53 @@ class ReferenceVideoAnalyzer:
                         await client.delete(api_base + f"/files/{file_id}", headers=headers, timeout=5)
                     except (httpx.HTTPError, asyncio.CancelledError):
                         pass
+        return parsed, usage
+
+    async def _call_volcengine_inline_video(
+        self,
+        prompt: str,
+        video_path: Path,
+        duration_seconds: float,
+    ) -> tuple[dict, dict]:
+        api_base = self._ark_api_base(self.model_config.api_base)
+        mime_type = mimetypes.guess_type(video_path.name)[0] or "video/mp4"
+        video_data = base64.b64encode(video_path.read_bytes()).decode("ascii")
+        fps = 0.5 if duration_seconds <= 30 else 0.3 if duration_seconds <= 180 else 0.2
+        async with httpx.AsyncClient(timeout=httpx.Timeout(300, connect=30), trust_env=False) as client:
+            response = await client.post(
+                api_base + "/responses",
+                headers={
+                    "Authorization": f"Bearer {self.model_config.api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": self.model_config.model_name,
+                    "thinking": {"type": "disabled"},
+                    "max_output_tokens": 5000,
+                    "input": [
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "input_video",
+                                    "video_url": f"data:{mime_type};base64,{video_data}",
+                                    "fps": fps,
+                                },
+                                {"type": "input_text", "text": prompt},
+                            ],
+                        }
+                    ],
+                },
+            )
+            response.raise_for_status()
+            data = response.json()
+        parsed = self._loads_json_loose(self._responses_output_text(data))
+        usage_data = data.get("usage") or {}
+        usage = {
+            "prompt_tokens": usage_data.get("input_tokens") or 0,
+            "completion_tokens": usage_data.get("output_tokens") or 0,
+            "total_tokens": usage_data.get("total_tokens") or 0,
+        }
         return parsed, usage
 
     def _ark_api_base(self, api_base: str) -> str:

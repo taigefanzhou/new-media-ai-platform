@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import sys
+import tempfile
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -181,6 +182,19 @@ def main() -> None:
     )
     assert fallback.analysis_source == "contact_sheet_deep"
     assert fallback.total_tokens == 15
+
+    class InlineAnalyzer(ReferenceVideoAnalyzer):
+        async def _call_volcengine_inline_video(self, prompt, video_path, duration_seconds):
+            return {"quality_score": 90}, {"total_tokens": 1}
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        small_video = Path(tmp_dir) / "small.mp4"
+        small_video.write_bytes(b"video")
+        parsed, usage = asyncio.run(
+            InlineAnalyzer(config)._call_volcengine_video_understanding("test", small_video, 30)
+        )
+    assert parsed["quality_score"] == 90
+    assert usage["total_tokens"] == 1
 
     estimated = analyzer._default_transcript_segments("第一句。第二句！", 10)
     assert len(estimated) == 2
