@@ -279,7 +279,7 @@ class ReferenceVideoAnalyzer:
                             video_path,
                             local_result.duration_seconds,
                         ),
-                        timeout=45,
+                        timeout=15,
                     )
                     source = "full_video"
                 except Exception:
@@ -301,7 +301,11 @@ class ReferenceVideoAnalyzer:
                     if "gemini" in provider:
                         review, review_usage = await self._call_gemini_video_understanding(review_prompt, image_path)
                     else:
-                        review, review_usage = await self._call_openai_compatible_vision(review_prompt, image_path)
+                        review, review_usage = await self._call_openai_compatible_vision(
+                            review_prompt,
+                            image_path,
+                            max_tokens=2500,
+                        )
                     parsed = self._merge_deep_review_payload(parsed, review)
                     usage = self._sum_usage(usage, review_usage)
                     source += "_deep"
@@ -645,7 +649,12 @@ class ReferenceVideoAnalyzer:
             raise RuntimeError("方舟 Responses API 未返回视频分析文本")
         return "\n".join(parts)
 
-    async def _call_openai_compatible_vision(self, prompt: str, image_path: Path) -> tuple[dict, dict]:
+    async def _call_openai_compatible_vision(
+        self,
+        prompt: str,
+        image_path: Path,
+        max_tokens: int = 5000,
+    ) -> tuple[dict, dict]:
         api_base = self.model_config.api_base.rstrip("/")
         api_key = self.model_config.api_key
         model_name = self.model_config.model_name
@@ -669,7 +678,7 @@ class ReferenceVideoAnalyzer:
             "response_format": {"type": "json_object"},
         }
         if self._is_volcengine_ark((self.model_config.provider or "").lower()):
-            payload.update({"thinking": {"type": "disabled"}, "max_tokens": 6000})
+            payload.update({"thinking": {"type": "disabled"}, "max_tokens": max_tokens})
         async with httpx.AsyncClient(timeout=120) as client:
             endpoint = api_base if api_base.endswith("/chat/completions") else api_base + "/chat/completions"
             response = await client.post(

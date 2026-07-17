@@ -127,7 +127,7 @@ def main() -> None:
         async def _call_volcengine_video_understanding(self, *args):
             raise httpx.ReadTimeout("", request=httpx.Request("POST", "https://example.com"))
 
-        async def _call_openai_compatible_vision(self, prompt, image_path):
+        async def _call_openai_compatible_vision(self, prompt, image_path, max_tokens=5000):
             self.vision_calls += 1
             if self.vision_calls == 1:
                 return {"quality_score": 90, "reference_blueprint": {}, "timeline": []}, {"total_tokens": 10}
