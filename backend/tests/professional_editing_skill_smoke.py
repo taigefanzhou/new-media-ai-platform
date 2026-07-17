@@ -15,7 +15,9 @@ from app.api.modules.system import list_video_production_skills
 def main() -> None:
     skills = {item["key"]: item for item in video_skill_manifest()}
     editor = skills["jianying_professional_editing"]
+    reference_analysis = skills["reference_video_analysis"]
     assert "J/L Cut" in " ".join(editor["workflow_rules"])
+    assert "证据" in " ".join(reference_analysis["workflow_rules"])
     assert "专业剪辑" in list_video_production_skills()["pipeline"]
 
     plan = ScriptGenerator()._normalize_storyboard_plan(
@@ -40,6 +42,7 @@ def main() -> None:
     skill_root = ROOT.parent / "skills" / "jianying-professional-editor"
     assert (skill_root / "SKILL.md").exists()
     assert (skill_root / "references" / "editing-rules.md").exists()
+    assert (ROOT.parent / "skills" / "reference-video-deep-analysis" / "SKILL.md").exists()
 
     print("professional editing skill smoke ok")
 

@@ -273,7 +273,9 @@ class ReferenceVideoAnalyzer:
         try:
             if self._is_volcengine_ark(provider):
                 parsed, usage = await self._call_volcengine_video_understanding(prompt, video_path, local_result.duration_seconds)
-                local_result.analysis_source = "full_video"
+                local_result.analysis_source = (
+                    "full_video_deep" if parsed.pop("_deep_review_completed", False) else "full_video"
+                )
             elif "gemini" in provider:
                 parsed, usage = await self._call_gemini_video_understanding(prompt, image_path)
                 local_result.analysis_source = "contact_sheet"
@@ -318,6 +320,8 @@ class ReferenceVideoAnalyzer:
                     "reference_blueprint 必须是结构化对象，完整记录内容策略、视觉、字幕、音频和合规边界。",
                     "edit_plan 必须按时间顺序给出可执行剪辑动作，可直接交给系统内 Remotion/FFmpeg 渲染。",
                     "如果能听清视频音频，transcript 必须给出完整口播，transcript_segments 必须给出对应时间段；已有 transcript 只能作为校对参考。",
+                    "每个镜头结论必须尽量绑定口播、画面文字、人物动作或声音证据，并给出 0-100 置信度；看不清或听不清时明确标记。",
+                    "区分内容吸引力和客观播放数据：只能分析留存作用与风险，不得伪造真实完播率或用户数据。",
                     "必须输出严格 JSON，不要使用 Markdown。",
                 ],
                 "json_schema": {
@@ -368,6 +372,11 @@ class ReferenceVideoAnalyzer:
                             "audio": "口播、音乐、环境声和音效",
                             "material_role": "数字人、产品、场景、证据或过渡素材",
                             "engagement_reason": "这一段为什么能留住观众",
+                            "evidence": "支撑判断的口播、画面文字、人物动作或声音证据",
+                            "retention_score": "0-100 留存作用强度，不代表真实平台数据",
+                            "confidence": "0-100 判断置信度",
+                            "weakness": "这一段可能流失观众的原因",
+                            "optimization": "保持原意时可执行的优化动作",
                             "editing_note": "剪辑手法",
                             "reuse_instruction": "原创复用方式",
                         }
@@ -376,6 +385,133 @@ class ReferenceVideoAnalyzer:
             },
             ensure_ascii=False,
         )
+
+    def _deep_review_prompt(self, primary: dict[str, object], duration_seconds: float) -> str:
+        timeline = primary.get("timeline") if isinstance(primary.get("timeline"), list) else []
+        transcript_segments = (
+            primary.get("transcript_segments") if isinstance(primary.get("transcript_segments"), list) else []
+        )
+        snapshot = {
+            "script_analysis": str(primary.get("script_analysis") or "")[:3000],
+            "shooting_analysis": str(primary.get("shooting_analysis") or "")[:2000],
+            "editing_analysis": str(primary.get("editing_analysis") or "")[:2000],
+            "reference_blueprint": primary.get("reference_blueprint") or {},
+            "timeline": timeline[:60],
+            "transcript_segments": transcript_segments[:80],
+        }
+        return json.dumps(
+            {
+                "task": "对第一轮参考视频拆解做证据复核。重新查看视频，只保留能由具体时间段、画面或声音支持的结论。",
+                "video_type": "短视频" if duration_seconds <= 180 else "长视频",
+                "duration_seconds": duration_seconds,
+                "first_pass": snapshot,
+                "requirements": [
+                    "重点复查开场钩子、关键转折、证据展示、高潮和行动引导，最多返回 8 个关键时刻。",
+                    "每个关键时刻必须给出明确时间范围，以及口播、视觉、画面文字、声音四类证据；没有证据的字段留空。",
+                    "retention_score 只是基于内容结构的留存作用强度，不得声称是真实播放数据。",
+                    "发现第一轮结论与视频不一致时写入 contradictions，并给出修正结论。",
+                    "replication_plan 只复用结构、节奏和镜头方法，必须替换原文、人物、商家、音乐、标识和原画面。",
+                    "看不清、听不清或无法确认时写入 missing_evidence，不得臆测。",
+                    "必须输出严格 JSON，不要 Markdown。",
+                ],
+                "json_schema": {
+                    "review_summary": "中文总结这条视频为什么有效、哪里薄弱以及最值得复用的方法",
+                    "evidence_coverage_score": "0-100，结论被音视频证据覆盖的程度",
+                    "confidence_score": "0-100，本次复核整体置信度",
+                    "critical_moments": [
+                        {
+                            "start_second": 0,
+                            "end_second": 3,
+                            "role": "hook / turn / proof / climax / cta",
+                            "evidence": {
+                                "transcript": "对应口播",
+                                "visual": "对应画面和人物动作",
+                                "on_screen_text": "画面文字",
+                                "audio": "音乐、音效或声音变化",
+                            },
+                            "retention_score": "0-100 留存作用强度",
+                            "retention_reason": "为何可能让观众继续观看",
+                            "weakness": "可能造成流失的因素",
+                            "recommendation": "可执行优化建议",
+                            "confidence": "0-100",
+                        }
+                    ],
+                    "retention_curve": [
+                        {
+                            "start_second": 0,
+                            "end_second": 3,
+                            "stage": "钩子",
+                            "strength": "strong / medium / weak",
+                            "reason": "判断依据",
+                        }
+                    ],
+                    "contradictions": [
+                        {"first_pass_claim": "第一轮结论", "evidence": "反证", "correction": "修正结论"}
+                    ],
+                    "missing_evidence": ["无法确认的内容"],
+                    "replication_plan": {
+                        "opening_template": "原创开场结构",
+                        "narrative_steps": ["原创叙事步骤"],
+                        "shot_rhythm": "镜头节奏规则",
+                        "caption_rules": ["字幕规则"],
+                        "audio_rules": ["声音规则"],
+                        "must_replace": ["必须替换的参考视频元素"],
+                    },
+                },
+            },
+            ensure_ascii=False,
+        )
+
+    def _merge_deep_review_payload(
+        self,
+        primary: dict[str, object],
+        review: dict[str, object],
+    ) -> dict[str, object]:
+        if not review:
+            return primary
+        blueprint = primary.get("reference_blueprint")
+        if not isinstance(blueprint, dict):
+            blueprint = {}
+        blueprint["deep_review"] = review
+        primary["reference_blueprint"] = blueprint
+
+        moments = review.get("critical_moments")
+        timeline = primary.get("timeline")
+        if not isinstance(moments, list) or not isinstance(timeline, list):
+            return primary
+        valid_moments = [item for item in moments if isinstance(item, dict)]
+        for segment in timeline:
+            if not isinstance(segment, dict):
+                continue
+            start = float(segment.get("start_second") or 0)
+            end = float(segment.get("end_second") or start)
+            overlaps = [
+                item
+                for item in valid_moments
+                if float(item.get("end_second") or 0) > start
+                and float(item.get("start_second") or 0) < end
+            ]
+            if not overlaps:
+                continue
+            moment = max(
+                overlaps,
+                key=lambda item: min(end, float(item.get("end_second") or end))
+                - max(start, float(item.get("start_second") or start)),
+            )
+            segment["evidence"] = moment.get("evidence") or segment.get("evidence") or ""
+            for key in ("retention_score", "confidence", "weakness"):
+                if moment.get(key) not in (None, ""):
+                    segment[key] = moment[key]
+            if moment.get("recommendation"):
+                segment["optimization"] = moment["recommendation"]
+        return primary
+
+    @staticmethod
+    def _sum_usage(*usage_items: dict[str, object]) -> dict[str, int]:
+        return {
+            key: sum(int(item.get(key) or 0) for item in usage_items)
+            for key in ("prompt_tokens", "completion_tokens", "total_tokens")
+        }
 
     def _is_volcengine_ark(self, provider: str) -> bool:
         api_base = (self.model_config.api_base or "").lower() if self.model_config else ""
@@ -439,19 +575,61 @@ class ReferenceVideoAnalyzer:
                 )
                 response.raise_for_status()
                 data = response.json()
+                parsed = self._loads_json_loose(self._responses_output_text(data))
+                usage_data = data.get("usage") or {}
+                usage = {
+                    "prompt_tokens": usage_data.get("input_tokens") or 0,
+                    "completion_tokens": usage_data.get("output_tokens") or 0,
+                    "total_tokens": usage_data.get("total_tokens") or 0,
+                }
+                should_review = duration_seconds <= 180 or self._safe_score(
+                    parsed.get("quality_score"), default=0
+                ) < 82
+                try:
+                    if not should_review:
+                        return parsed, usage
+                    review_response = await client.post(
+                        api_base + "/responses",
+                        headers={**headers, "Content-Type": "application/json"},
+                        json={
+                            "model": self.model_config.model_name,
+                            "input": [
+                                {
+                                    "role": "user",
+                                    "content": [
+                                        {"type": "input_video", "file_id": file_id},
+                                        {
+                                            "type": "input_text",
+                                            "text": self._deep_review_prompt(parsed, duration_seconds),
+                                        },
+                                    ],
+                                }
+                            ],
+                        },
+                    )
+                    review_response.raise_for_status()
+                    review_data = review_response.json()
+                    review = self._loads_json_loose(self._responses_output_text(review_data))
+                    parsed = self._merge_deep_review_payload(parsed, review)
+                    review_usage_data = review_data.get("usage") or {}
+                    usage = self._sum_usage(
+                        usage,
+                        {
+                            "prompt_tokens": review_usage_data.get("input_tokens") or 0,
+                            "completion_tokens": review_usage_data.get("output_tokens") or 0,
+                            "total_tokens": review_usage_data.get("total_tokens") or 0,
+                        },
+                    )
+                    parsed["_deep_review_completed"] = True
+                except Exception:
+                    pass
             finally:
                 if file_id:
                     try:
                         await client.delete(api_base + f"/files/{file_id}", headers=headers)
                     except httpx.HTTPError:
                         pass
-        usage_data = data.get("usage") or {}
-        usage = {
-            "prompt_tokens": usage_data.get("input_tokens") or 0,
-            "completion_tokens": usage_data.get("output_tokens") or 0,
-            "total_tokens": usage_data.get("total_tokens") or 0,
-        }
-        return self._loads_json_loose(self._responses_output_text(data)), usage
+        return parsed, usage
 
     def _ark_api_base(self, api_base: str) -> str:
         normalized = api_base.rstrip("/")

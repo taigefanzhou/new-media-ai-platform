@@ -2501,15 +2501,32 @@ function renderReferenceMaterials(materials = state.materials) {
 }
 
 function analysisMetricsHtml(analysis) {
+  const sourceLabel = {
+    full_video_deep: "完整视频双轮复核",
+    full_video: "完整视频理解",
+    contact_sheet: "抽帧模型增强",
+  }[analysis.analysis_source] || (analysis.model_enhanced ? "抽帧模型增强" : "本地基础");
   return `
     <div class="analysisMetrics">
       <span>${Number(analysis.duration_seconds || 0).toFixed(1)} 秒</span>
       <span>${analysis.width || "-"}x${analysis.height || "-"}</span>
       <span>${analysis.scene_count || 0} 个视觉段落</span>
       <span>平均 ${Number(analysis.avg_shot_seconds || 0).toFixed(1)} 秒/段</span>
-      <span>${analysis.analysis_source === "full_video" ? "完整视频理解" : analysis.model_enhanced ? "抽帧模型增强" : "本地基础"} · ${Number(analysis.quality_score || 0).toFixed(0)} 分</span>
+      <span>${sourceLabel} · ${Number(analysis.quality_score || 0).toFixed(0)} 分</span>
     </div>
   `;
+}
+
+function analysisEvidenceText(value) {
+  if (!value) return "-";
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.filter(Boolean).join("；") || "-";
+  if (typeof value !== "object") return String(value);
+  const labels = { transcript: "口播", visual: "画面", on_screen_text: "文字", audio: "声音" };
+  return Object.entries(value)
+    .filter(([, item]) => item)
+    .map(([key, item]) => `${labels[key] || key}：${item}`)
+    .join("\n") || "-";
 }
 
 function renderAnalysisDetailDrawer(analysisId) {
@@ -2526,6 +2543,16 @@ function renderAnalysisDetailDrawer(analysisId) {
   const transcript = latestTranscriptionForMaterial(analysis.material_id);
   const timeline = parseAnalysisTimeline(analysis);
   const blueprint = parseJsonObject(analysis.blueprint_json);
+  const deepReview = blueprint.deep_review && typeof blueprint.deep_review === "object"
+    ? blueprint.deep_review
+    : {};
+  const criticalMoments = Array.isArray(deepReview.critical_moments) ? deepReview.critical_moments : [];
+  const retentionCurve = Array.isArray(deepReview.retention_curve) ? deepReview.retention_curve : [];
+  const contradictions = Array.isArray(deepReview.contradictions) ? deepReview.contradictions : [];
+  const missingEvidence = Array.isArray(deepReview.missing_evidence) ? deepReview.missing_evidence : [];
+  const replicationPlan = deepReview.replication_plan && typeof deepReview.replication_plan === "object"
+    ? deepReview.replication_plan
+    : {};
   const editPlan = parseJsonArray(analysis.edit_plan_json);
   const canGenerate = analysis.status === "approved";
   const canApprove = analysis.status !== "approved" && analysis.status !== "failed";
@@ -2564,6 +2591,51 @@ function renderAnalysisDetailDrawer(analysisId) {
           <div><h3>声音设计</h3><pre>${escapeHtml(blueprint.audio_style || "-")}</pre></div>
           <div><h3>叙事结构</h3><pre>${escapeHtml(Array.isArray(blueprint.narrative_structure) ? blueprint.narrative_structure.join("\n") : blueprint.narrative_structure || "-")}</pre></div>
         </div>
+      </details>
+    ` : ""}
+    ${Object.keys(deepReview).length ? `
+      <details class="analysisTimelineDetails" open>
+        <summary>证据复核与留存诊断</summary>
+        <div class="analysisQuality">
+          ${escapeHtml(deepReview.review_summary || "已完成关键片段证据复核。")}
+          · 证据覆盖 ${Number(deepReview.evidence_coverage_score || 0).toFixed(0)} 分
+          · 置信度 ${Number(deepReview.confidence_score || 0).toFixed(0)} 分
+        </div>
+        ${criticalMoments.length ? `
+          <div class="settingsTableWrap">
+            <table class="compactTable analysisTimelineTable">
+              <thead><tr><th>时间/作用</th><th>音视频证据</th><th>留存作用</th><th>薄弱点</th><th>优化建议</th></tr></thead>
+              <tbody>
+                ${criticalMoments.slice(0, 8).map((item) => `
+                  <tr>
+                    <td>${Number(item.start_second || 0).toFixed(1)}-${Number(item.end_second || 0).toFixed(1)}s<br>${escapeHtml(item.role || "关键节点")}</td>
+                    <td><pre>${escapeHtml(analysisEvidenceText(item.evidence))}</pre></td>
+                    <td>${Number(item.retention_score || 0).toFixed(0)} 分<br>${escapeHtml(item.retention_reason || "-")}</td>
+                    <td>${escapeHtml(item.weakness || "-")}</td>
+                    <td>${escapeHtml(item.recommendation || "-")}<div class="recordMeta">置信度 ${Number(item.confidence || 0).toFixed(0)} 分</div></td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          </div>
+        ` : ""}
+        ${retentionCurve.length ? `
+          <div class="analysisMetrics">
+            ${retentionCurve.slice(0, 12).map((item) => `<span>${Number(item.start_second || 0).toFixed(1)}-${Number(item.end_second || 0).toFixed(1)}s · ${escapeHtml(item.stage || "阶段")} · ${escapeHtml(item.strength || "-")}</span>`).join("")}
+          </div>
+        ` : ""}
+        ${Object.keys(replicationPlan).length ? `
+          <div class="analysisGrid drawerAnalysisGrid">
+            <div><h3>原创开场结构</h3><pre>${escapeHtml(replicationPlan.opening_template || "-")}</pre></div>
+            <div><h3>镜头节奏</h3><pre>${escapeHtml(replicationPlan.shot_rhythm || "-")}</pre></div>
+            <div><h3>原创叙事步骤</h3><pre>${escapeHtml(analysisEvidenceText(replicationPlan.narrative_steps))}</pre></div>
+            <div><h3>必须替换</h3><pre>${escapeHtml(analysisEvidenceText(replicationPlan.must_replace))}</pre></div>
+            <div><h3>字幕规则</h3><pre>${escapeHtml(analysisEvidenceText(replicationPlan.caption_rules))}</pre></div>
+            <div><h3>声音规则</h3><pre>${escapeHtml(analysisEvidenceText(replicationPlan.audio_rules))}</pre></div>
+          </div>
+        ` : ""}
+        ${contradictions.length ? `<pre class="analysisReuseNotes">复核修正\n${escapeHtml(contradictions.map((item) => `${item.first_pass_claim || "原结论"} → ${item.correction || "待修正"}（${item.evidence || "无证据"}）`).join("\n"))}</pre>` : ""}
+        ${missingEvidence.length ? `<div class="recordMeta">无法确认：${escapeHtml(missingEvidence.join("；"))}</div>` : ""}
       </details>
     ` : ""}
     ${timeline.length ? `

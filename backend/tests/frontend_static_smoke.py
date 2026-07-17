@@ -55,6 +55,7 @@ def main() -> None:
         "#scriptDetailPanel",
         "generateOneMoreScript",
         "createAndRunTranscription",
+        "证据复核与留存诊断",
     ):
         assert js_token in js, f"missing JS token: {js_token}"
 

@@ -32,16 +32,20 @@ VIDEO_PRODUCTION_SKILLS: tuple[VideoProductionSkill, ...] = (
     ),
     VideoProductionSkill(
         key="reference_video_analysis",
-        label="参考视频拆解",
-        source="OpenMontage / mcptube-vision / VideoAgent",
-        summary="分析参考视频的逐字稿、节奏、关键帧、镜头角色和字幕方式，只学习结构，不搬运原文或画面。",
+        label="参考视频深度拆解 V2",
+        source="DeepVideoDiscovery / Shot2Story / video-use / 本系统证据复核",
+        summary="先完成全片脚本与镜头拆解，再复查钩子、转折、证据、高潮和行动引导，把结论绑定到时间点和音视频证据。",
         workflow_rules=(
-            "拆解 transcript、hook、scene pacing、keyframes、shot roles、caption style。",
+            "第一轮拆解 transcript、hook、scene pacing、keyframes、shot roles、caption style 和 edit plan。",
+            "第二轮重新查看关键片段，核对口播、画面文字、人物动作和声音证据；看不清或听不清时明确标记。",
+            "留存评分只表达内容结构的作用强度，不伪造真实播放、完播或用户行为数据。",
             "输出可复用模板时必须区分可学习结构和不可搬运内容。",
             "参考素材仅作为结构/节奏/镜头语言来源，不能直接生成同款文案或复刻人物画面。",
         ),
         quality_checks=(
             "是否识别开头钩子、视觉变化频率和镜头功能。",
+            "关键结论是否具备时间范围、音视频证据和置信度。",
+            "是否发现并修正第一轮与视频证据矛盾的结论。",
             "是否明确标注不可搬运的原视频元素。",
             "是否能直接指导原创脚本和分镜生成。",
         ),
@@ -195,7 +199,9 @@ def he_yiyi_hotel_template_manifest() -> dict[str, object]:
 
 def reference_analysis_requirements() -> list[str]:
     return [
-        "按参考视频拆解 Skill 输出：hook、节奏、镜头角色、字幕样式、关键帧、可复用模板。",
+        "按参考视频深度拆解 V2 输出：hook、节奏、镜头角色、字幕样式、关键帧、证据、置信度和可复用模板。",
+        "短视频执行全片拆解和关键片段复核；长视频先全局扫描，再重点回查钩子、转折、证据、高潮和 CTA。",
+        "所有吸引力或留存判断必须说明对应时间点和音视频依据，不得伪造真实平台数据。",
         "明确区分可学习和不可搬运：结构可学，原文、人物、商家、画面不可搬。",
         "给出原创复用方式：如何换成自己的行业素材、口播观点、背景和字幕策略。",
         "输出质量分时参考 VBench/VideoScore2 思路：结构可用性、视觉可读性、脚本对齐、物理/动作合理性。",

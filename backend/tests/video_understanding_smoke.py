@@ -36,6 +36,9 @@ def main() -> None:
     assert analyzer._responses_output_text(
         {"output": [{"content": [{"type": "output_text", "text": '{"quality_score": 91}'}]}]}
     ) == '{"quality_score": 91}'
+    review_prompt = json.loads(analyzer._deep_review_prompt({"timeline": []}, 60))
+    assert review_prompt["video_type"] == "短视频"
+    assert "critical_moments" in review_prompt["json_schema"]
 
     local = ReferenceAnalysisResult(
         duration_seconds=12,
@@ -84,6 +87,33 @@ def main() -> None:
     assert json.loads(merged.blueprint_json)["audience"] == "酒店负责人"
     assert json.loads(merged.edit_plan_json)[0]["action"] == "keep"
     assert json.loads(merged.transcript_segments_json)[0]["estimated"] is False
+
+    reviewed = analyzer._merge_deep_review_payload(
+        {
+            "reference_blueprint": {"hook": "问题开场"},
+            "timeline": [{"start_second": 0, "end_second": 5}],
+        },
+        {
+            "review_summary": "钩子有证据支持",
+            "critical_moments": [
+                {
+                    "start_second": 0,
+                    "end_second": 3,
+                    "evidence": {"transcript": "你是不是也遇到这个问题"},
+                    "retention_score": 88,
+                    "confidence": 92,
+                    "recommendation": "前三秒直接展示结果",
+                }
+            ],
+        },
+    )
+    assert reviewed["reference_blueprint"]["deep_review"]["review_summary"] == "钩子有证据支持"
+    assert reviewed["timeline"][0]["retention_score"] == 88
+    assert reviewed["timeline"][0]["optimization"] == "前三秒直接展示结果"
+    assert analyzer._sum_usage(
+        {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+        {"prompt_tokens": 20, "completion_tokens": 8, "total_tokens": 28},
+    )["total_tokens"] == 43
 
     estimated = analyzer._default_transcript_segments("第一句。第二句！", 10)
     assert len(estimated) == 2
