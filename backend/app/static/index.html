@@ -756,13 +756,10 @@
               <div class="resolverPresetPanel">
                 <strong>常用预设</strong>
                 <div class="resolverPresetActions">
-                  <button type="button" class="secondary" data-action="fill-link-resolver-preset" data-preset="wechat-public">视频号公开测试</button>
-                  <button type="button" class="secondary" data-action="fill-link-resolver-preset" data-preset="wechat-justone">Just One 视频号</button>
-                  <button type="button" class="secondary" data-action="fill-link-resolver-preset" data-preset="wechat-self-hosted">视频号自有服务</button>
                   <button type="button" class="secondary" data-action="fill-link-resolver-preset" data-preset="trending-tikhub">TikHub 抖音主题采集</button>
                   <button type="button" class="secondary" data-action="fill-link-resolver-preset" data-preset="volcengine-jimeng-digital-human">火山即梦 AK/SK</button>
                 </div>
-                <p>预设会自动填好平台、用途、接口地址和备注；正式使用建议换成你自己的解析服务地址。</p>
+                <p>预设会自动填好平台、用途、接口地址和备注。</p>
               </div>
               <label>配置名称<input name="display_name" value="短视频链接解析接口" /></label>
               <label>平台
@@ -778,7 +775,6 @@
               </label>
               <label>用途
                 <select name="purpose">
-                  <option value="link_resolver">链接解析/下载</option>
                   <option value="trending">主题采集</option>
                   <option value="digital_human">数字人生成</option>
                   <option value="publishing">自动发布</option>
@@ -799,31 +795,6 @@
               <h2>采集接入配置</h2>
               <div id="platformCredentialList" class="list"></div>
             </div>
-          </section>
-          <section class="panel">
-            <div class="sectionHeader compactSectionHeader">
-              <div>
-                <h2>链接解析测试</h2>
-                <p>用于确认普通视频号、抖音分享链接是否能解析出真实视频文件。</p>
-              </div>
-            </div>
-            <form id="linkResolverTestForm" class="linkResolverTestForm">
-              <label>测试链接
-                <input name="source_url" value="https://weixin.qq.com/sph/A3XPm3Xckr" />
-              </label>
-              <label>平台
-                <select name="platform">
-                  <option value="auto">自动识别</option>
-                  <option value="wechat_channels">视频号</option>
-                  <option value="douyin">抖音</option>
-                  <option value="xiaohongshu">小红书</option>
-                  <option value="kuaishou">快手</option>
-                  <option value="manual">通用/其他</option>
-                </select>
-              </label>
-              <button type="submit">测试解析</button>
-            </form>
-            <div id="linkResolverTestResult" class="linkResolverTestResult">填好链接解析服务后，可以在这里验证是否真的可用。</div>
           </section>
         </section>
 

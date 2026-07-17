@@ -304,6 +304,21 @@ def _link_resolver_credentials(session: Session, platform: str) -> list[LinkReso
     ).all()
     allowed_platforms = {platform, "manual"}
     result = []
+    settings = get_settings()
+    if platform == "wechat_channels" and settings.wechat_channels_resolver_api_base:
+        result.append(
+            LinkResolverCredential(
+                platform="wechat_channels",
+                display_name="系统内置解析",
+                api_base=settings.wechat_channels_resolver_api_base,
+                access_token=settings.wechat_channels_resolver_access_token or "",
+                notes=(
+                    f"provider={settings.wechat_channels_resolver_provider}\n"
+                    "timeout=12\n"
+                    "visibility=internal"
+                ),
+            )
+        )
     for credential in credentials:
         credential_platform = (
             credential.platform.value if hasattr(credential.platform, "value") else str(credential.platform)

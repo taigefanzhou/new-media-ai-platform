@@ -566,7 +566,11 @@ def list_platform_credentials(
             PlatformCredential.created_at.desc(),
         )
     ).all()
-    return [_platform_credential_public(item) for item in credentials]
+    return [
+        _platform_credential_public(item)
+        for item in credentials
+        if item.purpose != "link_resolver"
+    ]
 
 
 def create_platform_credential(

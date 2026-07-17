@@ -113,42 +113,6 @@ const settingsSections = {
 };
 
 const linkResolverPresets = {
-  "wechat-public": {
-    display_name: "视频号公开测试解析",
-    platform: "wechat_channels",
-    purpose: "link_resolver",
-    api_base: "https://sph.litao.workers.dev/api/fetch_video_profile",
-    client_id: "",
-    client_secret: "",
-    access_token: "",
-    refresh_token: "",
-    webhook_url: "",
-    notes: "method=post\ntimeout=8\n返回结构：data.feedInfo.h264VideoInfo.videoUrl / data.feedInfo.videoUrl\n用途：临时验证视频号链接是否可解析，正式使用请换成自有服务。",
-  },
-  "wechat-justone": {
-    display_name: "Just One 视频号解析",
-    platform: "wechat_channels",
-    purpose: "link_resolver",
-    api_base: "http://47.117.133.51:30015",
-    client_id: "",
-    client_secret: "",
-    access_token: "",
-    refresh_token: "",
-    webhook_url: "",
-    notes: "method=get\nprovider=justone\ntimeout=12\n说明：需要在 Access Token 填 Just One token；后端会走视频号 basic-info + download-url 两步解析。",
-  },
-  "wechat-self-hosted": {
-    display_name: "视频号自有解析服务",
-    platform: "wechat_channels",
-    purpose: "link_resolver",
-    api_base: "",
-    client_id: "",
-    client_secret: "",
-    access_token: "",
-    refresh_token: "",
-    webhook_url: "",
-    notes: "method=post\ntimeout=12\n返回结构：data.feedInfo.h264VideoInfo.videoUrl / data.feedInfo.videoUrl\n说明：请填写你自己的解析接口地址；8099 已收回为服务器内部素材上传端口，不再作为公网解析入口。",
-  },
   "trending-tikhub": {
     display_name: "TikHub 抖音主题采集",
     platform: "douyin",
@@ -5324,52 +5288,6 @@ document.querySelector("#platformCredentialList").addEventListener("click", asyn
     const credential = await api.post(`/settings/platform-credentials/${button.dataset.id}/activate`);
     toast(`${credential.display_name} 已启用`);
     await refresh();
-  }
-});
-
-document.querySelector("#linkResolverTestForm").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const button = form.querySelector("button[type='submit']");
-  const resultTarget = document.querySelector("#linkResolverTestResult");
-  const originalText = button.textContent;
-  button.disabled = true;
-  button.textContent = "测试中...";
-  if (resultTarget) {
-    resultTarget.className = "linkResolverTestResult";
-    resultTarget.textContent = "正在解析链接...";
-  }
-  try {
-    const result = await api.post("/settings/link-resolver/test", formData(form));
-    const statusText = result.can_download ? "可解析并可下载" : result.can_resolve ? "已解析但下载待确认" : "未解析出视频";
-    const statusClass = result.can_download ? "ok" : result.can_resolve ? "pending" : "blocked";
-    if (resultTarget) {
-      const diagnostics = Array.isArray(result.diagnostics) && result.diagnostics.length
-        ? `<ul class="diagnosticList">${result.diagnostics
-            .slice(0, 4)
-            .map((item) => `<li>${escapeHtml(item)}</li>`)
-            .join("")}</ul>`
-        : "";
-      resultTarget.className = `linkResolverTestResult ${statusClass}`;
-      resultTarget.innerHTML = `
-        <strong>${statusText}</strong>
-        <span>平台：${platformLabel(result.platform)} · 解析器：${escapeHtml(result.resolver || "-")} · 已启用解析服务 ${Number(result.configured_resolver_count || 0)} 个</span>
-        ${result.title ? `<span>标题：${escapeHtml(result.title)}</span>` : ""}
-        ${result.media_url_preview ? `<span>视频地址：${escapeHtml(result.media_url_preview)}</span>` : ""}
-        <p>${escapeHtml(result.message || "")}</p>
-        ${diagnostics}
-      `;
-    }
-    toast(statusText);
-  } catch (error) {
-    if (resultTarget) {
-      resultTarget.className = "linkResolverTestResult blocked";
-      resultTarget.innerHTML = `<strong>测试失败</strong><p>${escapeHtml(error.message || "请检查链接或接口配置")}</p>`;
-    }
-    toast("链接解析测试失败");
-  } finally {
-    button.disabled = false;
-    button.textContent = originalText;
   }
 });
 

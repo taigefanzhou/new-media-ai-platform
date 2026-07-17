@@ -25,23 +25,17 @@ Content-Type: application/json
 - `download_url`
 - 其他嵌套字段中的 `finder.video.qq.com/.../stodownload` 地址
 
-## 后台配置
+## 服务端配置
 
-进入：
-
-```text
-系统设置 -> 短视频采集接入
-```
-
-点击“视频号公开测试”或“视频号自有服务”，系统会自动填好：
+解析能力只在服务端配置，不在业务页面展示供应方、接口地址或 Token：
 
 ```text
-平台：视频号
-用途：链接解析/下载
-备注：method=post
+WECHAT_CHANNELS_RESOLVER_API_BASE=http://47.117.133.51:30015
+WECHAT_CHANNELS_RESOLVER_ACCESS_TOKEN=<authorized token>
+WECHAT_CHANNELS_RESOLVER_PROVIDER=justone
 ```
 
-保存后，用“链接解析测试”验证。
+运营人员只需在“参考拆解”粘贴视频号链接，系统会自动完成解析和下载。
 
 ## 临时测试接口
 
@@ -51,7 +45,7 @@ Content-Type: application/json
 https://sph.litao.workers.dev/api/fetch_video_profile
 ```
 
-公开站点适合验证流程，不建议作为长期生产依赖。
+公开站点适合本地验证流程，不作为生产依赖。
 
 ## 正式自有接口
 

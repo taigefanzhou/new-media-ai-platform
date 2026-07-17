@@ -16,7 +16,8 @@ os.chdir(ROOT)
 sys.path.insert(0, str(ROOT))
 
 from app.services.video_analysis import ReferenceAnalysisResult, ReferenceVideoAnalyzer  # noqa: E402
-from app.api.reference_learning import _supports_ytdlp  # noqa: E402
+from app.api.reference_learning import _link_resolver_credentials, _supports_ytdlp  # noqa: E402
+from app.core.config import get_settings  # noqa: E402
 from app.services.link_resolver import detect_short_video_platform  # noqa: E402
 
 
@@ -27,6 +28,33 @@ def main() -> None:
     assert not _supports_ytdlp("https://example.com/video/123")
     assert detect_short_video_platform("https://b23.tv/example") == "bilibili"
     assert detect_short_video_platform("https://youtu.be/example") == "youtube"
+
+    settings = get_settings()
+    original_resolver = (
+        settings.wechat_channels_resolver_api_base,
+        settings.wechat_channels_resolver_access_token,
+        settings.wechat_channels_resolver_provider,
+    )
+    settings.wechat_channels_resolver_api_base = "http://resolver.internal"
+    settings.wechat_channels_resolver_access_token = "test-token"
+    settings.wechat_channels_resolver_provider = "justone"
+
+    class EmptySession:
+        def exec(self, statement):
+            return self
+
+        def all(self):
+            return []
+
+    internal_credentials = _link_resolver_credentials(EmptySession(), "wechat_channels")
+    assert len(internal_credentials) == 1
+    assert internal_credentials[0].access_token == "test-token"
+    assert "visibility=internal" in internal_credentials[0].notes
+    (
+        settings.wechat_channels_resolver_api_base,
+        settings.wechat_channels_resolver_access_token,
+        settings.wechat_channels_resolver_provider,
+    ) = original_resolver
 
     config = SimpleNamespace(
         provider="volcengine-ark",
