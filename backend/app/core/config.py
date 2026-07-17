@@ -49,9 +49,7 @@ class Settings(BaseSettings):
     trending_search_api_base: Optional[str] = None
     trending_search_api_key: Optional[str] = None
 
-    wechat_channels_resolver_api_base: Optional[str] = None
-    wechat_channels_resolver_access_token: Optional[str] = None
-    wechat_channels_resolver_provider: str = "justone"
+    wechat_channels_resolver_cookie: Optional[str] = None
 
     asr_provider: str = "mock"
     asr_api_base: Optional[str] = None

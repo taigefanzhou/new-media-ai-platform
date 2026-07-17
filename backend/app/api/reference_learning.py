@@ -305,15 +305,15 @@ def _link_resolver_credentials(session: Session, platform: str) -> list[LinkReso
     allowed_platforms = {platform, "manual"}
     result = []
     settings = get_settings()
-    if platform == "wechat_channels" and settings.wechat_channels_resolver_api_base:
+    if platform == "wechat_channels" and settings.wechat_channels_resolver_cookie:
         result.append(
             LinkResolverCredential(
                 platform="wechat_channels",
                 display_name="系统内置解析",
-                api_base=settings.wechat_channels_resolver_api_base,
-                access_token=settings.wechat_channels_resolver_access_token or "",
+                api_base="https://yuanbao.tencent.com",
+                access_token=settings.wechat_channels_resolver_cookie,
                 notes=(
-                    f"provider={settings.wechat_channels_resolver_provider}\n"
+                    "provider=yuanbao\n"
                     "timeout=12\n"
                     "visibility=internal"
                 ),

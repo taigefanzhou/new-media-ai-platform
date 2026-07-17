@@ -365,24 +365,20 @@ Generic resolver responses may return common fields such as:
 }
 ```
 
-Just One WeChat Channels configuration:
+Internal WeChat Channels configuration:
 
 ```text
 platform: wechat_channels
 purpose: link_resolver
-api_base: http://47.117.133.51:30015
-access_token: <Just One token>
+api_base: https://yuanbao.tencent.com
+access_token: <Yuanbao web cookie>
 notes:
-  provider=justone
+  provider=yuanbao
   timeout=12
+  visibility=internal
 ```
 
-The backend calls:
-
-```text
-GET {api_base}/api/weixin-channels/get-video-basic-info/v1
-GET {api_base}/api/weixin-channels/get-video-download-url/v1
-```
+The integration runs the authorized open-source parsing flow inside the backend and does not call a paid resolver API.
 
 The app stores unresolved links as reference-only materials instead of pretending that the video file was downloaded. The link resolver test endpoint returns `diagnostics` so operators can tell whether a failure is caused by an unreachable resolver, missing token, timeout, or a resolver response without a video URL.
 

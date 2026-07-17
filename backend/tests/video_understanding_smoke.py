@@ -18,7 +18,7 @@ sys.path.insert(0, str(ROOT))
 from app.services.video_analysis import ReferenceAnalysisResult, ReferenceVideoAnalyzer  # noqa: E402
 from app.api.reference_learning import _link_resolver_credentials, _supports_ytdlp  # noqa: E402
 from app.core.config import get_settings  # noqa: E402
-from app.services.link_resolver import detect_short_video_platform  # noqa: E402
+from app.services.link_resolver import LinkResolverCredential, ShortVideoLinkResolver, detect_short_video_platform  # noqa: E402
 
 
 def main() -> None:
@@ -30,14 +30,8 @@ def main() -> None:
     assert detect_short_video_platform("https://youtu.be/example") == "youtube"
 
     settings = get_settings()
-    original_resolver = (
-        settings.wechat_channels_resolver_api_base,
-        settings.wechat_channels_resolver_access_token,
-        settings.wechat_channels_resolver_provider,
-    )
-    settings.wechat_channels_resolver_api_base = "http://resolver.internal"
-    settings.wechat_channels_resolver_access_token = "test-token"
-    settings.wechat_channels_resolver_provider = "justone"
+    original_cookie = settings.wechat_channels_resolver_cookie
+    settings.wechat_channels_resolver_cookie = "test-cookie"
 
     class EmptySession:
         def exec(self, statement):
@@ -48,13 +42,30 @@ def main() -> None:
 
     internal_credentials = _link_resolver_credentials(EmptySession(), "wechat_channels")
     assert len(internal_credentials) == 1
-    assert internal_credentials[0].access_token == "test-token"
+    assert internal_credentials[0].access_token == "test-cookie"
+    assert "provider=yuanbao" in internal_credentials[0].notes
     assert "visibility=internal" in internal_credentials[0].notes
-    (
-        settings.wechat_channels_resolver_api_base,
-        settings.wechat_channels_resolver_access_token,
-        settings.wechat_channels_resolver_provider,
-    ) = original_resolver
+    settings.wechat_channels_resolver_cookie = original_cookie
+
+    resolver = ShortVideoLinkResolver()
+    assert resolver._yuanbao_feed_credentials(
+        "https://channels.weixin.qq.com/finder-preview/pages/feed?token=general-token&eid=export-id"
+    ) == ("export-id", "general-token")
+    missing_cookie = asyncio.run(
+        resolver._resolve_with_credential(
+            "https://weixin.qq.com/sph/example",
+            "wechat_channels",
+            LinkResolverCredential(
+                platform="wechat_channels",
+                display_name="系统内置解析",
+                api_base="https://yuanbao.tencent.com",
+                notes="provider=yuanbao",
+            ),
+        )
+    )
+    assert missing_cookie is not None
+    assert missing_cookie.needs_manual_upload is True
+    assert "Cookie" in missing_cookie.diagnostic_errors[0]
 
     config = SimpleNamespace(
         provider="volcengine-ark",

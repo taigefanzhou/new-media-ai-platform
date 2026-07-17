@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import html
 import re
+import secrets
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
-from urllib.parse import quote, urljoin, urlparse
+from urllib.parse import parse_qs, quote, urljoin, urlparse
 
 import httpx
 
@@ -176,12 +178,8 @@ class ShortVideoLinkResolver:
         credential: LinkResolverCredential,
     ) -> LinkResolution | None:
         provider = self._note_value(credential.notes, "provider").lower()
-        if (
-            provider in {"justone", "justone-wechat", "justone_wechat", "justone-wechat-channels"}
-            or "47.117.133.51:30015" in credential.api_base
-            or "justone" in credential.api_base.lower()
-        ):
-            return await self._resolve_with_justone(source_url, platform, credential)
+        if provider in {"yuanbao", "yuanbao-wechat", "yuanbao_wechat"}:
+            return await self._resolve_with_yuanbao(source_url, platform, credential)
 
         endpoints = self._credential_endpoints(credential)
         if not endpoints:
@@ -244,64 +242,82 @@ class ShortVideoLinkResolver:
             diagnostic_errors=tuple(dict.fromkeys(diagnostics)),
         )
 
-    async def _resolve_with_justone(
+    async def _resolve_with_yuanbao(
         self,
         source_url: str,
         platform: str,
         credential: LinkResolverCredential,
     ) -> LinkResolution:
-        resolver_name = credential.display_name or "Just One 视频号解析"
-        token = credential.access_token or credential.client_secret
-        if not token:
+        resolver_name = credential.display_name or "系统内置解析"
+        cookie = credential.access_token or credential.client_secret
+        if not cookie:
             return LinkResolution(
                 original_url=source_url,
                 platform=platform,
                 canonical_url=source_url,
                 resolver_name=resolver_name,
                 needs_manual_upload=True,
-                message="Just One 解析需要 Access Token。",
-                diagnostic_errors=(f"{resolver_name} 缺少 Access Token",),
+                message="系统内置解析尚未配置登录凭据。",
+                diagnostic_errors=(f"{resolver_name} 缺少元宝登录 Cookie",),
             )
 
-        base = credential.api_base.strip().rstrip("/") or "http://47.117.133.51:30015"
         timeout = self._credential_timeout(credential)
-        headers = {
-            "Accept": "application/json",
-            "User-Agent": "new-media-ai-platform-link-resolver/1.0",
+        browser_headers = {
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+            "Content-Type": "application/json",
+            "Origin": "https://yuanbao.tencent.com",
+            "Referer": "https://yuanbao.tencent.com/chat/naQivTmsDa/cf4d0079-ed1b-4c55-a3f3-2ca1379727d1",
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
+            ),
+            "X-Requested-With": "XMLHttpRequest",
+            "X-Agentid": "naQivTmsDa/cf4d0079-ed1b-4c55-a3f3-2ca1379727d1",
+            "X-Device-Id": "1921b001708100d7fa31002b9646bd0cc15a3e2e1f",
+            "X-Source": "web",
+            "X-Web-Third-Source": "main",
+            "X-Webdriver": "0",
+            "X-Webversion": "2.69.0",
+            "X-Platform": "mac",
+            "Cookie": cookie,
         }
         try:
-            async with httpx.AsyncClient(timeout=timeout, follow_redirects=True, headers=headers) as client:
-                basic_response = await client.get(
-                    f"{base}/api/weixin-channels/get-video-basic-info/v1",
-                    params={"token": token, "feedInfo": source_url},
+            async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+                parsed_response = await client.post(
+                    "https://yuanbao.tencent.com/api/weixin/get_parse_result",
+                    headers=browser_headers,
+                    json={"type": "video_channel_url", "url": source_url, "scene": 1},
                 )
-                basic_response.raise_for_status()
-                basic_payload = basic_response.json()
-                basic_error = self._ok_or_message(basic_payload)
-                if basic_error:
-                    raise RuntimeError(f"basic info failed: {basic_error}")
+                parsed_response.raise_for_status()
+                parsed_payload = parsed_response.json()
+                parsed_data = parsed_payload.get("data") if isinstance(parsed_payload, dict) else None
+                if not isinstance(parsed_data, dict):
+                    raise RuntimeError(self._provider_message(parsed_payload) or "元宝没有返回视频解析数据")
 
-                basic_data = basic_payload.get("data") if isinstance(basic_payload, dict) else basic_payload
-                object_id = self._extract_text(basic_data, ("objectId", "object_id", "feedId", "feed_id", "id"))
-                object_nonce_id = self._extract_text(
-                    basic_data,
-                    ("objectNonceId", "object_nonce_id", "nonceId", "nonce_id"),
-                )
-                if not object_id:
-                    raise RuntimeError("basic info did not return objectId")
+                playable_url = str(parsed_data.get("playable_url") or "")
+                export_id, general_token = self._yuanbao_feed_credentials(playable_url)
+                if not export_id or not general_token:
+                    raise RuntimeError("元宝解析结果缺少视频访问凭据")
 
-                download_params = {"token": token, "objectId": object_id}
-                if object_nonce_id:
-                    download_params["objectNonceId"] = object_nonce_id
-                download_response = await client.get(
-                    f"{base}/api/weixin-channels/get-video-download-url/v1",
-                    params=download_params,
+                rid = f"{int(time.time()):x}-{secrets.token_hex(4)}"
+                feed_response = await client.post(
+                    "https://channels.weixin.qq.com/finder-preview/api/feed/get_feed_info",
+                    params={
+                        "_rid": rid,
+                        "_pageUrl": "https://channels.weixin.qq.com/finder-preview/pages/feed",
+                    },
+                    headers={
+                        "Accept": "application/json, text/plain, */*",
+                        "Content-Type": "application/json",
+                        "Origin": "https://channels.weixin.qq.com",
+                        "Referer": playable_url,
+                        "User-Agent": browser_headers["User-Agent"],
+                    },
+                    json={"baseReq": {"generalToken": general_token}, "exportId": export_id},
                 )
-                download_response.raise_for_status()
-                download_payload = download_response.json()
-                download_error = self._ok_or_message(download_payload)
-                if download_error:
-                    raise RuntimeError(f"download url failed: {download_error}")
+                feed_response.raise_for_status()
+                feed_payload = feed_response.json()
         except Exception as exc:
             return LinkResolution(
                 original_url=source_url,
@@ -309,23 +325,22 @@ class ShortVideoLinkResolver:
                 canonical_url=source_url,
                 resolver_name=resolver_name,
                 needs_manual_upload=True,
-                message="Just One 视频号解析失败。",
+                message="系统内置视频号解析失败，请更新登录凭据后重试。",
                 diagnostic_errors=(f"{resolver_name} 失败：{self._short_error(exc)}",),
             )
 
-        download_data = download_payload.get("data") if isinstance(download_payload, dict) else download_payload
-        media_url = self._extract_media_url(download_data) or self._extract_media_url(download_payload)
-        if not media_url:
+        err_code = str(feed_payload.get("errCode", "0")) if isinstance(feed_payload, dict) else "0"
+        media_url = self._extract_media_url(feed_payload)
+        if err_code not in {"0", ""} or not media_url:
+            message = self._provider_message(feed_payload) or "视频号没有返回可下载视频地址"
             return LinkResolution(
                 original_url=source_url,
                 platform=platform,
                 canonical_url=source_url,
-                title=self._extract_text(basic_data, ("title", "desc", "description", "caption", "content")),
-                author=self._extract_text(basic_data, ("nickname", "author", "user_name", "v2Name", "finderUsername")),
                 resolver_name=resolver_name,
                 needs_manual_upload=True,
-                message="Just One 没有返回可下载视频地址。",
-                diagnostic_errors=(f"{resolver_name} download-url 响应里没有视频地址",),
+                message=message,
+                diagnostic_errors=(f"{resolver_name}：{message}",),
             )
 
         return LinkResolution(
@@ -333,8 +348,14 @@ class ShortVideoLinkResolver:
             platform=platform,
             media_url=media_url,
             canonical_url=source_url,
-            title=self._extract_text(basic_data, ("title", "desc", "description", "caption", "content")),
-            author=self._extract_text(basic_data, ("nickname", "author", "user_name", "v2Name", "finderUsername")),
+            title=(
+                self._extract_text(feed_payload, ("description", "title", "desc", "caption"))
+                or self._extract_text(parsed_data, ("desc", "description", "title"))
+            ),
+            author=(
+                self._extract_text(feed_payload, ("nickname", "author", "user_name"))
+                or self._extract_text(parsed_data, ("author", "nickname"))
+            ),
             resolver_name=resolver_name,
         )
 
@@ -497,14 +518,16 @@ class ShortVideoLinkResolver:
                 return line.split("=", 1)[1].strip()
         return ""
 
-    def _ok_or_message(self, payload: Any) -> str:
+    def _provider_message(self, payload: Any) -> str:
         if not isinstance(payload, dict):
             return ""
-        code = str(payload.get("code", "")).strip()
-        message = str(payload.get("message", "")).strip()
-        if code and code not in {"0", "200", "success", "SUCCESS"}:
-            return message or f"provider returned code {code}"
-        return ""
+        return str(payload.get("msg") or payload.get("message") or payload.get("errMsg") or "").strip()
+
+    def _yuanbao_feed_credentials(self, playable_url: str) -> tuple[str, str]:
+        query = parse_qs(urlparse(playable_url).query)
+        export_id = (query.get("eid") or [""])[0]
+        general_token = (query.get("token") or [""])[0]
+        return export_id, general_token
 
     def _credential_timeout(self, credential: LinkResolverCredential) -> httpx.Timeout:
         raw_value = self._note_value(credential.notes, "timeout")
