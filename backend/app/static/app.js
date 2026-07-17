@@ -3614,6 +3614,8 @@ function platformLabel(value) {
     wechat_channels: "视频号",
     xiaohongshu: "小红书",
     kuaishou: "快手",
+    bilibili: "B站",
+    youtube: "YouTube",
     volcengine: "火山引擎",
     aliyun: "阿里云",
     manual: "手动",
@@ -3648,8 +3650,10 @@ function syncReferencePlatformHint() {
     auto: ["自动识别平台；适合不确定来源的真实视频链接。", ""],
     wechat_channels: ["视频号建议走链接解析：解析成功后可继续拆解脚本、画面和剪辑方式。", "ok"],
     douyin: ["抖音链接可先解析保存为参考素材，再进入深度拆解。", "ok"],
-    xiaohongshu: ["小红书链接依赖已配置的解析服务；解析失败会只保存参考链接。", "warn"],
+    xiaohongshu: ["小红书公开视频会自动获取并拆解；受限内容需要上传源文件。", "ok"],
     kuaishou: ["快手链接依赖已配置的解析服务；解析失败会只保存参考链接。", "warn"],
+    bilibili: ["B站公开视频会自动获取并分析口播、镜头和剪辑方式。", "ok"],
+    youtube: ["YouTube 公共视频会自动获取并分析口播、镜头和剪辑方式。", "ok"],
     manual: ["其他链接需要是可访问的视频地址，或后续上传源文件。", "warn"],
   }[platform] || ["请选择链接平台。", ""];
   setCaptureHint("#referencePlatformHint", messages[0], messages[1]);
@@ -5533,6 +5537,17 @@ async function createAndRunVideoAnalysis(materialId, language = "zh-CN", button 
   }
 }
 
+async function createAndRunTranscription(materialId, language = "zh-CN") {
+  const created = await api.post("/transcriptions", {
+    material_id: Number(materialId),
+    language,
+  });
+  state.latestTranscriptionId = created.id;
+  const task = await api.post(`/transcriptions/${created.id}/run`);
+  state.latestTranscriptionId = task.id;
+  return task;
+}
+
 async function generateScriptFromAnalysis(analysisId, button = null) {
   if (!analysisId) {
     toast("请先完成深度拆解");
@@ -5574,7 +5589,7 @@ async function saveReferenceLinkAndMaybeAnalyze(form, options = { analyze: false
   const originalText = button ? button.textContent : "";
   if (button) {
     button.disabled = true;
-    button.textContent = options.analyze ? "保存并拆解中..." : "保存中...";
+    button.textContent = options.analyze ? "正在获取视频..." : "保存中...";
   }
   try {
     const material = await api.post("/reference-materials/from-link", payload);
@@ -5585,6 +5600,13 @@ async function saveReferenceLinkAndMaybeAnalyze(form, options = { analyze: false
       renderAnalysisMaterialPreview();
     }
     if (options.analyze && material.file_path) {
+      if (button) button.textContent = "正在提取口播...";
+      try {
+        await createAndRunTranscription(material.id, language);
+      } catch {
+        // 视频理解模型仍会继续完成口播与画面分析。
+      }
+      if (button) button.textContent = "正在分析结构...";
       const task = await createAndRunVideoAnalysis(material.id, language);
       toast(`已保存并完成深度拆解：${analysisStatusLabel(task.status)}`);
       form.reset();

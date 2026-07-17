@@ -52,6 +52,10 @@ def detect_short_video_platform(source_url: str, selected_platform: str = "auto"
         return "xiaohongshu"
     if "kuaishou.com" in host or "kwai" in host:
         return "kuaishou"
+    if "bilibili.com" in host or host == "b23.tv":
+        return "bilibili"
+    if "youtube.com" in host or host == "youtu.be":
+        return "youtube"
     return "manual"
 
 

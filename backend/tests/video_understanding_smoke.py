@@ -12,9 +12,18 @@ os.chdir(ROOT)
 sys.path.insert(0, str(ROOT))
 
 from app.services.video_analysis import ReferenceAnalysisResult, ReferenceVideoAnalyzer  # noqa: E402
+from app.api.reference_learning import _supports_ytdlp  # noqa: E402
+from app.services.link_resolver import detect_short_video_platform  # noqa: E402
 
 
 def main() -> None:
+    assert _supports_ytdlp("https://www.douyin.com/video/123")
+    assert _supports_ytdlp("https://www.bilibili.com/video/BV123")
+    assert not _supports_ytdlp("https://weixin.qq.com/sph/example")
+    assert not _supports_ytdlp("https://example.com/video/123")
+    assert detect_short_video_platform("https://b23.tv/example") == "bilibili"
+    assert detect_short_video_platform("https://youtu.be/example") == "youtube"
+
     config = SimpleNamespace(
         provider="volcengine-ark",
         api_base="https://ark.cn-beijing.volces.com/api/v3/chat/completions",

@@ -9,7 +9,7 @@
         window.location.replace("/login.html");
       }
     </script>
-    <link rel="stylesheet" href="/styles.css?v=20260714-video-blueprint" />
+    <link rel="stylesheet" href="/styles.css?v=20260717-link-analysis" />
   </head>
   <body class="auth-pending">
     <aside class="sidebar">
@@ -330,6 +330,8 @@
                     <option value="douyin">抖音链接</option>
                     <option value="xiaohongshu">小红书链接</option>
                     <option value="kuaishou">快手链接</option>
+                    <option value="bilibili">B站链接</option>
+                    <option value="youtube">YouTube 链接</option>
                     <option value="manual">其他链接</option>
                   </select>
                 </label>
@@ -338,7 +340,7 @@
                 </label>
                 <div id="referencePlatformHint" class="capturePlatformHint"></div>
                 <div class="referenceActions">
-                  <button type="submit">保存并深度拆解</button>
+                  <button type="submit">开始智能分析</button>
                   <button id="saveReferenceOnlyBtn" type="button" class="secondary">只保存到参考列表</button>
                 </div>
                 <details class="referenceOptionalSettings">
@@ -945,6 +947,6 @@
     </div>
 
     <div id="toast"></div>
-    <script src="/app.js?v=20260714-video-blueprint"></script>
+    <script src="/app.js?v=20260717-link-analysis"></script>
   </body>
 </html>

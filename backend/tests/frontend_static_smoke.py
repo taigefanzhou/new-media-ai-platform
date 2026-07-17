@@ -34,6 +34,7 @@ def main() -> None:
         "scriptCandidateList",
         "scriptDetailPanel",
         "creationPlanner",
+        "referenceLinkForm",
         "continueGenerateScriptBtn",
     ):
         assert f'id="{dom_id}"' in html, f"missing DOM id: {dom_id}"
@@ -53,6 +54,7 @@ def main() -> None:
         "#scriptCandidateList",
         "#scriptDetailPanel",
         "generateOneMoreScript",
+        "createAndRunTranscription",
     ):
         assert js_token in js, f"missing JS token: {js_token}"
 

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 import json
 import mimetypes
 from pathlib import Path
+import sys
 from typing import Optional
 from urllib.parse import urlparse
 from uuid import uuid4
@@ -67,6 +69,18 @@ REFERENCE_MEDIA_EXTENSIONS = {
     ".aac",
     ".wav",
 }
+
+YTDLP_SUPPORTED_HOSTS = (
+    "b23.tv",
+    "bilibili.com",
+    "douyin.com",
+    "iesdouyin.com",
+    "tiktok.com",
+    "xiaohongshu.com",
+    "xhslink.com",
+    "youtu.be",
+    "youtube.com",
+)
 
 
 def _url_preview(value: str | None, max_length: int = 110) -> str:
@@ -230,6 +244,57 @@ async def _download_reference_media(source_url: str, storage_dir: Path) -> Path 
             return file_path
 
 
+def _supports_ytdlp(source_url: str) -> bool:
+    host = (urlparse(source_url).hostname or "").lower()
+    return any(host == domain or host.endswith(f".{domain}") for domain in YTDLP_SUPPORTED_HOSTS)
+
+
+async def _download_reference_media_with_ytdlp(source_url: str, storage_dir: Path) -> Path | None:
+    if not _supports_ytdlp(source_url):
+        return None
+
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    process = await asyncio.create_subprocess_exec(
+        sys.executable,
+        "-m",
+        "yt_dlp",
+        "--no-playlist",
+        "--max-filesize",
+        "800M",
+        "--merge-output-format",
+        "mp4",
+        "--output",
+        str(storage_dir / "source.%(ext)s"),
+        "--print",
+        "after_move:filepath",
+        source_url,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    try:
+        stdout, _ = await asyncio.wait_for(process.communicate(), timeout=600)
+    except asyncio.TimeoutError:
+        process.kill()
+        await process.communicate()
+        return None
+    if process.returncode != 0:
+        return None
+
+    output_lines = stdout.decode("utf-8", errors="ignore").strip().splitlines()
+    candidates = [Path(line.strip()) for line in output_lines if line.strip()]
+    candidates.extend(storage_dir.glob("source.*"))
+    storage_root = storage_dir.resolve()
+    for candidate in candidates:
+        try:
+            resolved = candidate.resolve()
+            resolved.relative_to(storage_root)
+        except (OSError, ValueError):
+            continue
+        if resolved.is_file() and resolved.suffix.lower() in REFERENCE_MEDIA_EXTENSIONS:
+            return resolved
+    return None
+
+
 def _link_resolver_credentials(session: Session, platform: str) -> list[LinkResolverCredential]:
     credentials = session.exec(
         select(PlatformCredential).where(
@@ -277,6 +342,19 @@ async def _resolve_and_download_reference_media(
         file_path = None
     if file_path:
         return file_path, resolution
+
+    try:
+        file_path = await _download_reference_media_with_ytdlp(source_url, storage_dir)
+    except Exception:
+        file_path = None
+    if file_path:
+        return file_path, LinkResolution(
+            original_url=source_url,
+            platform=platform_name,
+            media_url=source_url,
+            canonical_url=source_url,
+            resolver_name="yt-dlp",
+        )
 
     try:
         resolver = ShortVideoLinkResolver()
