@@ -121,6 +121,19 @@ def test_visual_quality_drives_one_targeted_retry() -> None:
     repair = VideoPipeline._visual_repair_instruction(review)
     assert "双手手指畸形" in repair
     assert "没有完成回头动作" in repair
+    assert VideoPipeline._should_retry_visual_review(75, review, attempts=1)
+    assert not VideoPipeline._should_retry_visual_review(75, review, attempts=2)
+    assert not VideoPipeline._should_retry_visual_review(
+        75,
+        {"issues": ["画面风格可继续人工复核"]},
+        attempts=1,
+    )
+
+    task = VideoTask(script_id=1, production_mode="seedance_scene", segment_count=1)
+    segment = VideoSegment(video_task_id=1, segment_index=1, title="一镜到底", duration_seconds=10, prompt="walk")
+    stability = VideoPipeline._presenter_stability_instruction(task, segment)
+    assert "one uninterrupted continuous tracking take" in stability
+    assert "do not gesture" in stability
 
 
 def test_completed_segment_can_be_reused_after_failure() -> None:

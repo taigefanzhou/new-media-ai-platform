@@ -480,7 +480,7 @@ class VideoPipeline:
                 visual_review = await self._review_segment_candidate(chosen_path, segment)
                 if visual_review is not None:
                     quality = self._quality_with_visual_review(quality, visual_review)
-                    if quality.score < 65 and segment.generation_attempts < 2:
+                    if self._should_retry_visual_review(quality.score, visual_review, segment.generation_attempts):
                         retry_path = await self._generate_segment_candidate(
                             segment,
                             task,
@@ -548,11 +548,7 @@ class VideoPipeline:
         ).strip()
         human = self.session.get(DigitalHuman, task.digital_human_id) if task.digital_human_id else None
         if task.production_mode == "seedance_scene" and self._trusted_asset_uri(human):
-            prompt = (
-                f"{prompt}\nFavor a stable medium or medium-full shot. Keep both hands relaxed and separated; "
-                "do not clasp fingers or use complex hand gestures. Preserve the exact architecture, gate type, "
-                "prop positions and lighting throughout this segment."
-            ).strip()
+            prompt = f"{prompt}\n{self._presenter_stability_instruction(task, segment)}".strip()
         if audio_reference_url:
             prompt = f"{prompt}\nUse [Audio1] as the exact speech rhythm and mouth-motion reference for this segment."
         if task.production_mode in {"digital_human", "reference_clone", "talking_head_template"} and self._trusted_asset_uri(human):
@@ -656,6 +652,46 @@ class VideoPipeline:
             f"Regenerate this segment once and correct only these visible problems: {detail}. "
             "Keep one simple action, stable identity and unchanged scene objects."
         )
+
+    @staticmethod
+    def _should_retry_visual_review(score: float, review: dict[str, object], attempts: int) -> bool:
+        if attempts >= 2 or score >= 82:
+            return False
+        issues = review.get("issues") if isinstance(review.get("issues"), list) else []
+        detail = " ".join(str(item) for item in issues).lower()
+        critical_tokens = (
+            "手部",
+            "手指",
+            "畸形",
+            "扭曲",
+            "人脸",
+            "乱码",
+            "跳变",
+            "不一致",
+            "hand",
+            "finger",
+            "deform",
+            "distort",
+            "face",
+            "garbled",
+            "jump",
+        )
+        return any(token in detail for token in critical_tokens)
+
+    @staticmethod
+    def _presenter_stability_instruction(task: VideoTask, segment: VideoSegment) -> str:
+        instruction = (
+            "Use a stable medium or medium-full shot. Keep both arms naturally relaxed with only minimal walking swing; "
+            "do not gesture, clasp fingers, spread fingers toward camera or make hands prominent. Preserve the exact "
+            "architecture, gate design, prop positions, alert-light color and lighting throughout the segment."
+        )
+        if task.segment_count == 1 and 8 <= segment.duration_seconds <= 15:
+            instruction += (
+                " Render one uninterrupted continuous tracking take with no cut, transition, scene replacement, time jump "
+                "or camera teleportation. Keep the same background geometry from first frame to last frame and perform "
+                "only the explicitly timed secondary action."
+            )
+        return instruction
 
     async def _review_final_output(self, task: VideoTask, script: Script) -> None:
         output_path = task.captioned_output_path or task.output_path
