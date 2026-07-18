@@ -185,19 +185,43 @@ def main() -> None:
 
     class QualityScopeAnalyzer(ReferenceVideoAnalyzer):
         captured_prompt = ""
+        low_human_fidelity = False
 
         def _analyze_locally(self, video_path, transcript):
             return local
 
         async def _call_openai_compatible_vision(self, prompt, image_path, max_tokens=5000):
             self.captured_prompt = prompt
-            return {"quality_score": 90, "decision": "passed", "issues": []}, {"total_tokens": 1}
+            return {
+                "quality_score": 90,
+                "decision": "passed",
+                "issues": [],
+                "dimensions": {
+                    "human_fidelity": 60 if self.low_human_fidelity else 91,
+                    "prompt_alignment": 88,
+                    "temporal_consistency": 86,
+                    "physical_plausibility": 84,
+                    "text_and_watermark": 95,
+                    "audio_caption_quality": None,
+                },
+            }, {"total_tokens": 1}
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         visual_plate = Path(tmp_dir) / "visual-plate.mp4"
         visual_plate.write_bytes(b"video")
         scope_analyzer = QualityScopeAnalyzer(config)
-        asyncio.run(scope_analyzer.review_generated_output(str(visual_plate), "walk", 5, visual_only=True))
+        visual_review = asyncio.run(
+            scope_analyzer.review_generated_output(str(visual_plate), "walk", 5, visual_only=True)
+        )
+        assert visual_review is not None
+        assert visual_review["decision"] == "passed"
+        assert visual_review["dimensions"]["human_fidelity"] == 91
+        scope_analyzer.low_human_fidelity = True
+        low_dimension_review = asyncio.run(
+            scope_analyzer.review_generated_output(str(visual_plate), "walk", 5, visual_only=True)
+        )
+        assert low_dimension_review is not None
+        assert low_dimension_review["decision"] == "review"
         assert "不得因缺少音轨或无法判断口型同步而扣分" in scope_analyzer.captured_prompt
 
     class InlineAnalyzer(ReferenceVideoAnalyzer):

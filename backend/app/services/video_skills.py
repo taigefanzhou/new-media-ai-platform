@@ -73,6 +73,8 @@ VIDEO_PRODUCTION_SKILLS: tuple[VideoProductionSkill, ...] = (
         summary="把主题变成可执行的口播稿、镜头表、素材清单、Seedance 英文提示词和后期字幕策略。",
         workflow_rules=(
             "storyboard_plan 必须包含 start_second/end_second/shot_type/visual/person_action/screen_text/asset_or_background/ai_prompt/needs_lip_sync。",
+            "每个镜头先满足镜头合同：一个叙事意图、一个主动作、一个运镜、一个明确结束状态；超过范围必须拆镜头。",
+            "参考图只负责身份、产品或场景，参考视频只负责动作、运镜或节奏，参考音频只负责语速和声音节拍；每份参考素材只承担一个主要角色。",
             "多个 5-15 秒镜头必须共享视觉主题、灯光、人物动作尺度和字幕语言，不能像不同视频拼接。",
             "Seedance 提示词使用英文，明确画幅、真人质感、自然动作、无水印、无画面内文字。",
             "8-15 秒真人单镜头最多安排一个主动作；人物行走口播时，道具和背景保持静止，不再叠加回头、定时亮灯或表情突变。",
@@ -92,6 +94,9 @@ VIDEO_PRODUCTION_SKILLS: tuple[VideoProductionSkill, ...] = (
             "前3秒先给结果、冲突、异常或利益点；删除问候、Logo片头、重复表达和无效停顿。",
             "每个分镜补齐 edit_intent、transition、audio_cue、color_note、caption_emphasis；无法说明叙事作用的镜头删除。",
             "对话和旁白跨镜头优先使用 J/L Cut；B-roll 与当前台词语义一致，显式转场只用于时间、空间或情绪变化。",
+            "剪辑固定按主叙事粗剪、对白和停顿、B-roll、声音、字幕、色彩、质检七遍执行，生成模型不负责最终字幕和包装。",
+            "中文口播字幕默认每行不超过16个汉字、最多两行，并避开面部、嘴部、产品主体和平台控件安全区。",
+            "人声优先，成片音轨使用响度归一化；音乐和音效不得掩盖口播，跨镜头声音优先连续而不是每镜重启。",
             "Mac 剪映10.9只通过真实 UI 执行，不读写加密草稿；素材必须从缩略图中心长按拖入主时间线。",
         ),
         quality_checks=(
@@ -109,6 +114,7 @@ VIDEO_PRODUCTION_SKILLS: tuple[VideoProductionSkill, ...] = (
         workflow_rules=(
             "底片不允许模型生成大字、Logo、贴纸、UI 或第三方水印；字幕必须由系统后期统一添加。",
             "数字人视频优先检查脸、嘴、眼、手势和背景稳定性。",
+            "质检必须分别给出人物真实性、脚本对齐、时序一致、物理合理、文字水印、音频字幕结果，不能只返回一个总分。",
             "生成失败或质量异常必须能回溯到分镜、素材、模型和字幕步骤。",
         ),
         quality_checks=(
@@ -145,11 +151,14 @@ def script_generation_requirements() -> list[str]:
         "storyboard_plan 每段必须能被素材匹配器检索：asset_or_background 写具体素材类型、场景、产品或背景。",
         "每个 ai_prompt 必须包含 clean plate / no on-screen text / no watermark / consistent background / natural human motion。",
         "每段 storyboard_plan 必须补齐专业剪辑字段：edit_intent、transition、audio_cue、color_note、caption_emphasis。",
+        "每段必须满足镜头合同：edit_intent 只写一个叙事目的，person_action 只写一个主动作，shot_type 只写一个运镜，visual 明确镜头结束时的状态。",
+        "每份参考素材只能承担一个主要角色：参考图锁定身份/产品/场景，参考视频控制动作/运镜/节奏，参考音频控制语速/口播节拍；不得让同一素材同时控制互相冲突的目标。",
         "transition 默认 hard_cut；只有时间、空间或情绪变化时才使用显式转场，对话和旁白跨镜头优先计划 J/L Cut。",
         "字幕内容只能进入 screen_text 和后期字幕，不允许写入视频模型画面内文字。",
         "数字人口播必须保持人物、性别、声音、动作和背景稳定，不能无理由切换多个背景。",
         "8-15 秒 needs_lip_sync 真人单镜头最多一个主动作：行走口播、回头、操作道具三选一；不得同时加入定时道具变化和表情突变。",
         "如果人物选择行走口播，道具、背景和灯光必须全程静止，双手只做自然轻微摆动；复杂剧情改用静态人物加 B-roll 或拆成独立镜头。",
+        "脚本结构默认 Hook -> 核心信息 -> CTA；前3-6秒必须直接出现受众痛点、冲突、结果或利益点，不使用问候和品牌片头占用开场。",
         "酒店干货口播默认按何依依参考模板组织：定向喊话和利益点 -> 痛点 -> 方法引入 -> 2-4 个动作 -> 真实证据 -> 注意事项 -> 行动引导。",
     ]
 
@@ -222,9 +231,14 @@ def material_selection_rules() -> list[str]:
 
 def quality_guard_checklist() -> list[str]:
     return [
+        "人物真实性：身份、脸、嘴、眼、手、身体跨帧稳定。",
+        "脚本对齐：主体、动作、场景和镜头结束状态符合分镜合同。",
+        "时序与物理：无随机跳切、背景漂移、物体变形或不合理运动。",
         "底片无内嵌大字、标题、贴纸、Logo、UI、水印。",
         "脸部、嘴形、眼睛、手势和身体无明显抖动、乱码或撕裂。",
         "背景、人物身份、音色、性别和脚本设定保持一致。",
         "字幕由系统后期添加，中文正常显示，不遮脸、不用粗暴黑块。",
+        "中文字幕每行不超过16个汉字、最多两行，位置避开人物和重要动作。",
+        "成片人声清晰、响度稳定，BGM和音效不遮盖口播。",
         "画面内容和口播脚本一致，参考素材不侵权、不复刻。",
     ]

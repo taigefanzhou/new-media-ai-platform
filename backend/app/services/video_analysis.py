@@ -110,6 +110,14 @@ class ReferenceVideoAnalyzer:
                     "decision": "passed 或 review",
                     "summary": "中文一句话结论",
                     "issues": ["中文问题描述"],
+                    "dimensions": {
+                        "human_fidelity": "0-100，身份、脸、手和身体稳定性",
+                        "prompt_alignment": "0-100，主体、动作、场景和结束状态与要求的符合度",
+                        "temporal_consistency": "0-100，跨帧人物、背景、物体和镜头连续性",
+                        "physical_plausibility": "0-100，动作、交互和物体运动的物理合理性",
+                        "text_and_watermark": "0-100，100表示无乱码文字、第三方标识和模型水印",
+                        "audio_caption_quality": "最终成片填0-100；无声视觉底片填null",
+                    },
                 },
             },
             ensure_ascii=False,
@@ -124,9 +132,40 @@ class ReferenceVideoAnalyzer:
         except Exception:
             return None
         score = self._safe_score(parsed.get("quality_score"), default=70)
-        decision = "passed" if str(parsed.get("decision") or "").lower() == "passed" and score >= 82 else "review"
+        raw_dimensions = parsed.get("dimensions") if isinstance(parsed.get("dimensions"), dict) else {}
+        dimensions = {
+            key: self._safe_score(value)
+            for key, value in raw_dimensions.items()
+            if key in {
+                "human_fidelity",
+                "prompt_alignment",
+                "temporal_consistency",
+                "physical_plausibility",
+                "text_and_watermark",
+                "audio_caption_quality",
+            }
+            and isinstance(value, (int, float))
+        }
+        if dimensions:
+            score = min(score, round(sum(dimensions.values()) / len(dimensions), 1))
+        dimension_passed = not dimensions or min(dimensions.values()) >= 75
+        decision = (
+            "passed"
+            if str(parsed.get("decision") or "").lower() == "passed" and score >= 82 and dimension_passed
+            else "review"
+        )
         issues = parsed.get("issues") if isinstance(parsed.get("issues"), list) else []
         summary = str(parsed.get("summary") or "视觉复核已完成。").strip()
+        if dimensions:
+            labels = {
+                "human_fidelity": "人物",
+                "prompt_alignment": "对齐",
+                "temporal_consistency": "时序",
+                "physical_plausibility": "物理",
+                "text_and_watermark": "文字",
+                "audio_caption_quality": "音频字幕",
+            }
+            summary = f"{summary} 分项：{'、'.join(f'{labels[key]}{value:.0f}' for key, value in dimensions.items())}。"
         if issues:
             summary = f"{summary} 问题：{'；'.join(str(item) for item in issues[:3])}"
         return {
@@ -134,6 +173,7 @@ class ReferenceVideoAnalyzer:
             "decision": decision,
             "summary": summary,
             "issues": [str(item) for item in issues[:3]],
+            "dimensions": dimensions,
             "usage": usage,
         }
 
