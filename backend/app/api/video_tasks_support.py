@@ -9,6 +9,7 @@ from sqlmodel import Session
 
 from app.api.access import _assign_owner
 from app.models.entities import Script, TaskStatus, User, VideoTask
+from app.services.ai_clients import MediaGenerationClient
 from app.services.export_profiles import resolve_export_profile
 from app.services.pipeline import VideoPipeline
 
@@ -62,6 +63,15 @@ def _build_video_task(
     if production_mode not in PRODUCTION_MODES:
         raise HTTPException(status_code=400, detail="Unknown production mode")
     segment_count = _estimated_video_segment_count(script.duration_seconds)
+    if production_mode == "seedance_scene":
+        segment_count = len(
+            MediaGenerationClient().segment_plan(
+                script.seedance_prompt,
+                script.storyboard,
+                script.duration_seconds,
+                script.storyboard_plan,
+            )
+        )
     platform_name = target_platform or script.target_platform or "douyin"
     # ponytail: reference_clone currently means the approved He Yiyi 9:16 hotel talking template.
     if production_mode == "reference_clone":

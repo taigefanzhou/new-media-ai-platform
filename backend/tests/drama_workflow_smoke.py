@@ -17,7 +17,9 @@ os.environ["DATABASE_URL"] = f"sqlite:///{db_file.name}"
 os.environ["STORAGE_DIR"] = tempfile.mkdtemp(prefix="new-media-drama-storage-")
 
 from fastapi.testclient import TestClient  # noqa: E402
+from app.api.video_tasks_support import _build_video_task  # noqa: E402
 from app.main import app  # noqa: E402
+from app.models.entities import Script  # noqa: E402
 from app.services.ai_clients import MediaGenerationClient  # noqa: E402
 
 
@@ -85,6 +87,15 @@ def main() -> None:
             ],
         )
         assert [item["duration_seconds"] for item in continuous_plan] == [10]
+        continuous_script = Script(
+            duration_seconds=10,
+            storyboard="0-5秒：行走。5-10秒：回头。",
+            storyboard_plan=json.dumps(
+                [{"start_second": 0, "end_second": 10, "ai_prompt": "walk and look back in one shot"}],
+                ensure_ascii=False,
+            ),
+        )
+        assert _build_video_task(continuous_script, 6, production_mode="seedance_scene").segment_count == 1
     print("drama workflow smoke ok")
 
 
