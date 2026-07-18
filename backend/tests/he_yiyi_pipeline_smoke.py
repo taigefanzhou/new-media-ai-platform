@@ -10,6 +10,8 @@ from app.api.video_tasks_support import _build_video_task
 from app.models.entities import DigitalHuman, Script
 from app.services.ai_clients import MediaGenerationClient
 from app.services.export_profiles import resolve_export_profile
+from app.services.pipeline import VideoPipeline
+from app.services.video_quality import VideoQualityResult
 from app.services.video_skills import he_yiyi_hotel_template_manifest
 
 
@@ -47,7 +49,6 @@ def test_trusted_asset_uses_seedance_reference_format() -> None:
         volcengine_asset_status="active",
         volcengine_asset_uri="asset-20260711223536-zgjjn",
     )
-    from app.services.pipeline import VideoPipeline
 
     assert VideoPipeline._trusted_asset_uri(human) == "asset://asset-20260711223536-zgjjn"
     item = MediaGenerationClient()._seedance_reference_content_item(
@@ -61,8 +62,6 @@ def test_trusted_asset_uses_seedance_reference_format() -> None:
 
 
 def test_reference_clone_rejects_old_portrait_fallback() -> None:
-    from app.services.pipeline import VideoPipeline
-
     old_portrait_only = DigitalHuman(name="旧黄丽头像", portrait_material_id=25)
     try:
         VideoPipeline._require_reference_clone_asset(old_portrait_only)
@@ -94,11 +93,28 @@ def test_portrait_export_requests_1080p() -> None:
     assert payload["content"][0]["text"] == "hotel presenter"
 
 
+def test_visual_quality_drives_one_targeted_retry() -> None:
+    local = VideoQualityResult(100, "passed", "基础检查通过", 5, 1080, 1920)
+    review = {
+        "score": 60,
+        "decision": "review",
+        "summary": "手指结构异常",
+        "issues": ["双手手指畸形", "没有完成回头动作"],
+    }
+    merged = VideoPipeline._quality_with_visual_review(local, review)
+    assert merged.score == 60
+    assert merged.status == "review"
+    repair = VideoPipeline._visual_repair_instruction(review)
+    assert "双手手指畸形" in repair
+    assert "没有完成回头动作" in repair
+
+
 def main() -> None:
     test_he_yiyi_reference_template_is_executable()
     test_trusted_asset_uses_seedance_reference_format()
     test_reference_clone_rejects_old_portrait_fallback()
     test_portrait_export_requests_1080p()
+    test_visual_quality_drives_one_targeted_retry()
     print("he yiyi pipeline smoke ok")
 
 

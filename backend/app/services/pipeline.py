@@ -427,6 +427,24 @@ class VideoPipeline:
                     quality.width,
                     quality.height,
                 )
+            if not uses_library_clip and task.production_mode == "seedance_scene":
+                visual_review = await self._review_segment_candidate(chosen_path, segment)
+                if visual_review is not None:
+                    quality = self._quality_with_visual_review(quality, visual_review)
+                    if quality.score < 65 and segment.generation_attempts < 2:
+                        retry_path = await self._generate_segment_candidate(
+                            segment,
+                            task,
+                            material,
+                            repair_instruction=self._visual_repair_instruction(visual_review),
+                        )
+                        retry_local = self._inspect_segment_output(retry_path, segment, task)
+                        retry_visual = await self._review_segment_candidate(retry_path, segment)
+                        if retry_visual is not None:
+                            retry_quality = self._quality_with_visual_review(retry_local, retry_visual, "定向重做视觉质检")
+                            if retry_quality.score > quality.score:
+                                chosen_path = retry_path
+                                quality = retry_quality
             segment.output_path = chosen_path
             segment.status = TaskStatus.needs_review
             segment.quality_status = quality.status
@@ -478,6 +496,12 @@ class VideoPipeline:
             if part
         ).strip()
         human = self.session.get(DigitalHuman, task.digital_human_id) if task.digital_human_id else None
+        if task.production_mode == "seedance_scene" and self._trusted_asset_uri(human):
+            prompt = (
+                f"{prompt}\nFavor a stable medium or medium-full shot. Keep both hands relaxed and separated; "
+                "do not clasp fingers or use complex hand gestures. Preserve the exact architecture, gate type, "
+                "prop positions and lighting throughout this segment."
+            ).strip()
         if task.production_mode in {"digital_human", "reference_clone", "talking_head_template"} and self._trusted_asset_uri(human):
             prompt = (
                 f"{prompt}\nUse the authorized woman in the reference image as the only presenter. "
@@ -528,6 +552,54 @@ class VideoPipeline:
             expected_duration_seconds=segment.duration_seconds,
             expected_width=task.export_width,
             expected_height=task.export_height,
+        )
+
+    async def _review_segment_candidate(
+        self,
+        clip_path: str,
+        segment: VideoSegment,
+    ) -> dict[str, object] | None:
+        review = await ReferenceVideoAnalyzer(self.quality_model_config).review_generated_output(
+            clip_path,
+            segment.prompt,
+            segment.duration_seconds,
+        )
+        if review is not None:
+            usage = review["usage"] if isinstance(review.get("usage"), dict) else {}
+            self._record_usage(
+                "video_understanding",
+                self.quality_model_config,
+                provider=self._usage_provider(self.quality_model_config, "video-understanding"),
+                model_name=self._usage_model(self.quality_model_config, "video-quality-review"),
+                prompt_tokens=int(usage.get("prompt_tokens") or usage.get("promptTokenCount") or 0),
+                completion_tokens=int(usage.get("completion_tokens") or usage.get("completionTokenCount") or 0),
+            )
+        return review
+
+    @staticmethod
+    def _quality_with_visual_review(
+        local: VideoQualityResult,
+        visual: dict[str, object],
+        label: str = "片段视觉质检",
+    ) -> VideoQualityResult:
+        score = min(local.score, float(visual.get("score") or 0))
+        passed = score >= 82 and visual.get("decision") == "passed"
+        return VideoQualityResult(
+            score,
+            "passed" if passed else "review",
+            f"{local.summary} {label}：{visual.get('summary') or '需要人工复核。'}",
+            local.duration_seconds,
+            local.width,
+            local.height,
+        )
+
+    @staticmethod
+    def _visual_repair_instruction(review: dict[str, object]) -> str:
+        issues = review.get("issues") if isinstance(review.get("issues"), list) else []
+        detail = "; ".join(str(item) for item in issues[:3]) or str(review.get("summary") or "visible quality defects")
+        return (
+            f"Regenerate this segment once and correct only these visible problems: {detail}. "
+            "Keep one simple action, stable identity and unchanged scene objects."
         )
 
     async def _review_final_output(self, task: VideoTask, script: Script) -> None:
@@ -746,7 +818,7 @@ class VideoPipeline:
             return ""
         return (
             "Use the latest authorized enterprise asset exactly as supplied. Preserve the person's identity, apparent age, "
-            "facial proportions, shoulder-length side-parted hairstyle, clothing, accessories and natural skin texture. "
+            "facial proportions, hairstyle, clothing, accessories and natural skin texture. "
             "Do not restyle the hair, replace the outfit, age the person, reshape facial features, apply heavy makeup, "
             "or use plastic smoothing. Only adapt camera framing, speaking motion and lighting to the requested shot."
         )

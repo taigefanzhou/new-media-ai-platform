@@ -126,6 +126,7 @@ class ReferenceVideoAnalyzer:
             "score": score,
             "decision": decision,
             "summary": summary,
+            "issues": [str(item) for item in issues[:3]],
             "usage": usage,
         }
 

@@ -788,6 +788,9 @@ class MediaGenerationClient:
         storyboard_plan: str | list[dict[str, object]] | None = None,
     ) -> list[dict[str, object]]:
         structured_plan = self._media_storyboard_plan(storyboard_plan, duration_seconds)
+        timed_plan = self._timed_action_plan(storyboard, duration_seconds, structured_plan)
+        if timed_plan:
+            return timed_plan
         if structured_plan:
             return structured_plan
         clip_count = self._clip_count_for_duration(duration_seconds)
@@ -810,6 +813,54 @@ class MediaGenerationClient:
                     "prompt": segment_prompt,
                 }
             )
+        return plan
+
+    def _timed_action_plan(
+        self,
+        storyboard: str,
+        duration_seconds: int,
+        structured_plan: list[dict[str, object]],
+    ) -> list[dict[str, object]]:
+        if len(structured_plan) != 1 or not 8 <= duration_seconds <= 15:
+            return []
+        range_token = r"\d+\s*[-—–~至到]\s*\d+\s*秒\s*[：:]"
+        matches = re.findall(
+            rf"(\d+)\s*[-—–~至到]\s*(\d+)\s*秒\s*[：:]\s*(.*?)(?={range_token}|$)",
+            storyboard or "",
+            flags=re.DOTALL,
+        )
+        beats = [
+            (int(start), int(end), description.strip(" \n。；;"))
+            for start, end, description in matches
+            if int(start) < int(end) and description.strip()
+        ]
+        if not 2 <= len(beats) <= 3 or beats[0][0] != 0 or beats[-1][1] != duration_seconds:
+            return []
+        if any(end - start < 4 or end - start > 8 for start, end, _ in beats):
+            return []
+
+        source = structured_plan[0]
+        scene = str(source.get("asset_or_background") or "同一场景、光线和道具布局")
+        camera = str(source.get("shot_type") or "稳定中近景")
+        plan: list[dict[str, object]] = []
+        for index, (start, end, action) in enumerate(beats, start=1):
+            item = dict(source)
+            item.update(
+                {
+                    "title": f"第 {index} 镜 · {action[:16]}",
+                    "start_second": start,
+                    "duration_seconds": end - start,
+                    "prompt": (
+                        "Vertical realistic live-action shot. "
+                        f"Scene continuity lock: {scene}. Camera: {camera}. "
+                        f"This segment only: {action}. "
+                        "Keep the same presenter, outfit, lighting, architecture and exact prop design as adjacent segments. "
+                        "One simple action only, natural motion, no extra people, no embedded text, no logo, no watermark."
+                    ),
+                    "person_action": action,
+                }
+            )
+            plan.append(item)
         return plan
 
     def _media_storyboard_plan(
