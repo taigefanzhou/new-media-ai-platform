@@ -60,14 +60,6 @@ def test_trusted_asset_uses_seedance_reference_format() -> None:
         "image_url": {"url": "asset://asset-20260711223536-zgjjn"},
         "role": "reference_image",
     }
-    continuity = MediaGenerationClient()._seedance_reference_content_item(
-        {
-            "kind": "image",
-            "source_url": "https://media.example.com/generation-inputs/a/continuity.jpg",
-            "role": "reference_image",
-        }
-    )
-    assert continuity and continuity["role"] == "reference_image"
     audio = MediaGenerationClient()._seedance_reference_content_item(
         {
             "kind": "audio",

@@ -2619,29 +2619,6 @@ class MediaGenerationClient:
         subprocess.run(command, check=True, capture_output=True)
         return str(output_path), self._generation_input_url(output_path)
 
-    def prepare_continuity_frame(self, video_path: str) -> tuple[str, str] | None:
-        if not self.settings.app_public_base_url or not self._is_local_path(video_path):
-            return None
-        source = Path(video_path)
-        if not source.exists():
-            return None
-        output_path = self._asset_path("generation-inputs", "continuity.jpg")
-        command = [
-            self.settings.ffmpeg_binary,
-            "-y",
-            "-sseof",
-            "-0.08",
-            "-i",
-            str(source),
-            "-frames:v",
-            "1",
-            "-q:v",
-            "2",
-            str(output_path),
-        ]
-        subprocess.run(command, check=True, capture_output=True)
-        return str(output_path), self._generation_input_url(output_path)
-
     def cleanup_generation_inputs(self, paths: list[str]) -> None:
         for value in paths:
             path = Path(value)

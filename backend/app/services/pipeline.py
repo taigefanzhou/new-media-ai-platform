@@ -405,7 +405,6 @@ class VideoPipeline:
         self,
         segment: VideoSegment,
         task: VideoTask,
-        continuity_frame_url: str | None = None,
         audio_reference_url: str | None = None,
     ) -> str:
         segment.status = TaskStatus.running
@@ -433,7 +432,6 @@ class VideoPipeline:
                     segment,
                     task,
                     material,
-                    continuity_frame_url=continuity_frame_url,
                     audio_reference_url=audio_reference_url,
                 )
             quality = self._inspect_segment_output(clip_path, segment, task)
@@ -447,7 +445,6 @@ class VideoPipeline:
                         "Avoid blank or dark frames. Keep the requested duration and aspect ratio. "
                         "Use a clear, stable live-action shot."
                     ),
-                    continuity_frame_url=continuity_frame_url,
                     audio_reference_url=audio_reference_url,
                 )
                 retry_quality = self._inspect_segment_output(retry_path, segment, task)
@@ -489,7 +486,6 @@ class VideoPipeline:
                             task,
                             material,
                             repair_instruction=self._visual_repair_instruction(visual_review),
-                            continuity_frame_url=continuity_frame_url,
                             audio_reference_url=audio_reference_url,
                         )
                         retry_local = self._inspect_segment_output(retry_path, segment, task)
@@ -539,7 +535,6 @@ class VideoPipeline:
         task: VideoTask,
         material: Material | None,
         repair_instruction: str = "",
-        continuity_frame_url: str | None = None,
         audio_reference_url: str | None = None,
     ) -> str:
         prompt = " ".join(
@@ -558,11 +553,6 @@ class VideoPipeline:
                 "do not clasp fingers or use complex hand gestures. Preserve the exact architecture, gate type, "
                 "prop positions and lighting throughout this segment."
             ).strip()
-        if continuity_frame_url:
-            prompt = (
-                f"{prompt}\nUse the supplied continuity image as a visual reference for the previous shot. "
-                "Preserve its clothing, architecture, props and lighting while continuing the requested action."
-            )
         if audio_reference_url:
             prompt = f"{prompt}\nUse [Audio1] as the exact speech rhythm and mouth-motion reference for this segment."
         if task.production_mode in {"digital_human", "reference_clone", "talking_head_template"} and self._trusted_asset_uri(human):
@@ -589,7 +579,7 @@ class VideoPipeline:
             task.segment_count,
             task.export_profile,
             reference_media=(
-                self._scene_reference_media(task, material, continuity_frame_url, audio_reference_url)
+                self._scene_reference_media(task, material, audio_reference_url)
                 if task.production_mode in {
                     "digital_human",
                     "material_mix",
@@ -865,7 +855,6 @@ class VideoPipeline:
         self,
         task: VideoTask,
         material: Material | None,
-        continuity_frame_url: str | None = None,
         audio_reference_url: str | None = None,
     ) -> list[dict[str, object]]:
         references = self._seedance_reference_media(material)
@@ -880,16 +869,6 @@ class VideoPipeline:
                     "source_url": asset_uri,
                     "copyright_status": "authorized_real_person",
                 },
-            )
-        if continuity_frame_url:
-            references.append(
-                {
-                    "name": "上一镜末帧",
-                    "kind": "image",
-                    "source_url": continuity_frame_url,
-                    "role": "reference_image",
-                    "copyright_status": "generated_continuity_input",
-                }
             )
         if audio_reference_url:
             references.append(
@@ -957,26 +936,15 @@ class VideoPipeline:
     ) -> list[str]:
         clips: list[str] = []
         temporary_inputs: list[str] = []
-        continuity_frame_url: str | None = None
         elapsed_seconds = 0.0
         human = self.session.get(DigitalHuman, task.digital_human_id) if task.digital_human_id else None
         use_multimodal_refs = bool(self._trusted_asset_uri(human))
         try:
-            for index, segment in enumerate(segments):
+            for segment in segments:
                 if self._reusable_segment_output(segment):
                     clip_path = str(segment.output_path)
                     clips.append(clip_path)
                     elapsed_seconds += segment.duration_seconds
-                    if use_multimodal_refs and index < len(segments) - 1:
-                        try:
-                            prepared_frame = self.media.prepare_continuity_frame(clip_path)
-                            if prepared_frame:
-                                frame_path, continuity_frame_url = prepared_frame
-                                temporary_inputs.append(frame_path)
-                        except Exception as exc:
-                            task.audit_notes = (
-                                f"{task.audit_notes}\n连续性末帧准备失败，后续镜头改用人物资产和提示词：{exc}"
-                            ).strip()
                     continue
                 audio_reference_url: str | None = None
                 if use_multimodal_refs:
@@ -994,19 +962,10 @@ class VideoPipeline:
                 clip_path = await self._run_segment(
                     segment,
                     task,
-                    continuity_frame_url=continuity_frame_url,
                     audio_reference_url=audio_reference_url,
                 )
                 clips.append(clip_path)
                 elapsed_seconds += segment.duration_seconds
-                if use_multimodal_refs and index < len(segments) - 1:
-                    try:
-                        prepared_frame = self.media.prepare_continuity_frame(clip_path)
-                        if prepared_frame:
-                            frame_path, continuity_frame_url = prepared_frame
-                            temporary_inputs.append(frame_path)
-                    except Exception as exc:
-                        task.audit_notes = f"{task.audit_notes}\n连续性末帧准备失败，后续镜头改用人物资产和提示词：{exc}".strip()
             return clips
         finally:
             self.media.cleanup_generation_inputs(temporary_inputs)
