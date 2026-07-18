@@ -267,6 +267,8 @@ class VideoPipeline:
         return await self._finalize_task(task, script)
 
     async def _apply_professional_render(self, task: VideoTask, script: Script) -> None:
+        if task.production_mode == "seedance_scene":
+            return
         original_output = task.output_path
         # The reference template's inserts are timed for a long-form video. Scaling
         # them into a short clip covers the presenter for most of the runtime.
