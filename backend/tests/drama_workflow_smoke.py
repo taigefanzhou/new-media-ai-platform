@@ -60,7 +60,7 @@ def main() -> None:
                     "shot_type": "medium tracking shot",
                     "asset_or_background": "固定的云端安防通道和同一组三辊闸机",
                     "person_action": "行走讲解，随后回头",
-                    "ai_prompt": "walk, speak, trigger alarm and look back in one shot",
+                    "ai_prompt": "walk, speak, trigger a small red alarm light and look back in one shot",
                 }
             ],
         )
@@ -68,6 +68,7 @@ def main() -> None:
         assert "黄丽迎面行走讲解" in str(action_plan[0]["prompt"])
         assert "黄丽停步回头" not in str(action_plan[0]["prompt"])
         assert "黄丽停步回头" in str(action_plan[1]["prompt"])
+        assert "red alarm light" in str(action_plan[1]["prompt"])
     print("drama workflow smoke ok")
 
 

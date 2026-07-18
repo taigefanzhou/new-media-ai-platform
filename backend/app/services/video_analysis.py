@@ -76,6 +76,7 @@ class ReferenceVideoAnalyzer:
         video_path: str,
         requested_prompt: str,
         expected_duration_seconds: int,
+        visual_only: bool = False,
     ) -> dict[str, object] | None:
         """Use the configured vision model once to review a finished generated video."""
         if not self._can_use_model():
@@ -84,6 +85,12 @@ class ReferenceVideoAnalyzer:
         if not path.exists() or not path.is_file():
             return None
         local_result = self._analyze_locally(path, "")
+        review_scope = (
+            "这是尚未合成配音的无声视觉底片，只检查人物、动作、手部、场景和物体一致性；"
+            "不得因缺少音轨或无法判断口型同步而扣分或列为问题。"
+            if visual_only
+            else "这是最终成片；如果抽帧无法可靠判断口型同步，需注明人工复核，但不得仅因此扣分。"
+        )
         prompt = json.dumps(
             {
                 "task": "审核一条 AI 生成短视频是否可进入人工终审。",
@@ -95,7 +102,7 @@ class ReferenceVideoAnalyzer:
                     "检查主体、场景和动作是否明显偏离 requested_prompt。",
                     "检查画面是否清晰、无黑屏；系统后期添加的正常字幕属于成片内容，不得判为水印，只有第三方标识、模型生成的乱码文字或大面积无关文字才计为问题。",
                     "requested_prompt 中的无文字要求只约束 AI 生成底片，不禁止最终成片使用正常后期字幕。",
-                    "如果无法从抽帧可靠判断口型同步，必须说明，不可臆测通过。",
+                    review_scope,
                     "必须返回严格 JSON，不要 Markdown。",
                 ],
                 "json_schema": {

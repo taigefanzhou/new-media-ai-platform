@@ -842,6 +842,7 @@ class MediaGenerationClient:
         source = structured_plan[0]
         scene = str(source.get("asset_or_background") or "同一场景、光线和道具布局")
         camera = str(source.get("shot_type") or "稳定中近景")
+        source_prompt = str(source.get("prompt") or "").strip()
         plan: list[dict[str, object]] = []
         for index, (start, end, action) in enumerate(beats, start=1):
             item = dict(source)
@@ -852,6 +853,7 @@ class MediaGenerationClient:
                     "duration_seconds": end - start,
                     "prompt": (
                         "Vertical realistic live-action shot. "
+                        f"Global visual specification (keep identity, colors, props and scene details; ignore its timing sequence): {source_prompt}. "
                         f"Scene continuity lock: {scene}. Camera: {camera}. "
                         f"This segment only: {action}. "
                         "Keep the same presenter, outfit, lighting, architecture and exact prop design as adjacent segments. "
@@ -2587,6 +2589,73 @@ class MediaGenerationClient:
         folder.mkdir(parents=True, exist_ok=True)
         return folder / filename
 
+    def prepare_segment_audio_reference(
+        self,
+        audio_path: str,
+        start_seconds: float,
+        duration_seconds: int,
+    ) -> tuple[str, str] | None:
+        if not self.settings.app_public_base_url or not self._is_local_path(audio_path):
+            return None
+        source = Path(audio_path)
+        if not source.exists():
+            return None
+        output_path = self._asset_path("generation-inputs", "speech.wav")
+        command = [
+            self.settings.ffmpeg_binary,
+            "-y",
+            "-ss",
+            str(max(0.0, start_seconds)),
+            "-t",
+            str(max(1, duration_seconds)),
+            "-i",
+            str(source),
+            "-ac",
+            "1",
+            "-ar",
+            "44100",
+            str(output_path),
+        ]
+        subprocess.run(command, check=True, capture_output=True)
+        return str(output_path), self._generation_input_url(output_path)
+
+    def prepare_continuity_frame(self, video_path: str) -> tuple[str, str] | None:
+        if not self.settings.app_public_base_url or not self._is_local_path(video_path):
+            return None
+        source = Path(video_path)
+        if not source.exists():
+            return None
+        output_path = self._asset_path("generation-inputs", "continuity.jpg")
+        command = [
+            self.settings.ffmpeg_binary,
+            "-y",
+            "-sseof",
+            "-0.08",
+            "-i",
+            str(source),
+            "-frames:v",
+            "1",
+            "-q:v",
+            "2",
+            str(output_path),
+        ]
+        subprocess.run(command, check=True, capture_output=True)
+        return str(output_path), self._generation_input_url(output_path)
+
+    def cleanup_generation_inputs(self, paths: list[str]) -> None:
+        for value in paths:
+            path = Path(value)
+            path.unlink(missing_ok=True)
+            try:
+                path.parent.rmdir()
+            except OSError:
+                pass
+
+    def _generation_input_url(self, path: Path) -> str:
+        root = (self.storage_dir / "generation-inputs").resolve()
+        relative = path.resolve().relative_to(root).as_posix()
+        return f"{str(self.settings.app_public_base_url).rstrip('/')}/generation-inputs/{quote(relative, safe='/')}"
+
     def _clip_duration_for_duration(self, duration_seconds: int) -> int:
         return 10 if duration_seconds >= 60 else 5
 
@@ -2654,15 +2723,16 @@ class MediaGenerationClient:
         source_url = str(item.get("source_url") or "").strip()
         file_path = str(item.get("file_path") or "").strip()
         kind = str(item.get("kind") or "").lower()
+        role = str(item.get("role") or "reference_image")
         if source_url.startswith("asset://"):
-            return {"type": "image_url", "image_url": {"url": source_url}, "role": "reference_image"}
+            return {"type": "image_url", "image_url": {"url": source_url}, "role": role}
         media_url = self._public_media_url(source_url) or self._public_media_url(file_path)
         if not media_url:
             return None
 
         mime_type = mimetypes.guess_type(media_url)[0] or mimetypes.guess_type(file_path)[0] or ""
         if kind in {"image", "portrait", "product"} or mime_type.startswith("image/"):
-            return {"type": "image_url", "image_url": {"url": media_url}, "role": "reference_image"}
+            return {"type": "image_url", "image_url": {"url": media_url}, "role": role}
         if kind in {"video", "reference", "avatar_source"} or mime_type.startswith("video/"):
             return {"type": "video_url", "video_url": {"url": media_url}, "role": "reference_video"}
         if mime_type.startswith("audio/"):

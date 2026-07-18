@@ -59,6 +59,26 @@ def test_trusted_asset_uses_seedance_reference_format() -> None:
         "image_url": {"url": "asset://asset-20260711223536-zgjjn"},
         "role": "reference_image",
     }
+    continuity = MediaGenerationClient()._seedance_reference_content_item(
+        {
+            "kind": "image",
+            "source_url": "https://media.example.com/generation-inputs/a/continuity.jpg",
+            "role": "first_frame",
+        }
+    )
+    assert continuity and continuity["role"] == "first_frame"
+    audio = MediaGenerationClient()._seedance_reference_content_item(
+        {
+            "kind": "audio",
+            "source_url": "https://media.example.com/generation-inputs/a/speech.wav",
+            "role": "reference_audio",
+        }
+    )
+    assert audio == {
+        "type": "audio_url",
+        "audio_url": {"url": "https://media.example.com/generation-inputs/a/speech.wav"},
+        "role": "reference_audio",
+    }
 
 
 def test_reference_clone_rejects_old_portrait_fallback() -> None:

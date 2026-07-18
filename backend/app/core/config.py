@@ -7,6 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     app_name: str = "New Media AI Platform"
+    app_public_base_url: Optional[str] = None
     database_url: str = "sqlite:///./data/platform.db"
     storage_dir: str = "./data/storage"
     admin_username: str = "admin"

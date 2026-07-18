@@ -183,6 +183,23 @@ def main() -> None:
     assert fallback.analysis_source == "contact_sheet_deep"
     assert fallback.total_tokens == 15
 
+    class QualityScopeAnalyzer(ReferenceVideoAnalyzer):
+        captured_prompt = ""
+
+        def _analyze_locally(self, video_path, transcript):
+            return local
+
+        async def _call_openai_compatible_vision(self, prompt, image_path, max_tokens=5000):
+            self.captured_prompt = prompt
+            return {"quality_score": 90, "decision": "passed", "issues": []}, {"total_tokens": 1}
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        visual_plate = Path(tmp_dir) / "visual-plate.mp4"
+        visual_plate.write_bytes(b"video")
+        scope_analyzer = QualityScopeAnalyzer(config)
+        asyncio.run(scope_analyzer.review_generated_output(str(visual_plate), "walk", 5, visual_only=True))
+        assert "不得因缺少音轨或无法判断口型同步而扣分" in scope_analyzer.captured_prompt
+
     class InlineAnalyzer(ReferenceVideoAnalyzer):
         async def _call_volcengine_inline_video(self, prompt, video_path, duration_seconds):
             return {"quality_score": 90}, {"total_tokens": 1}

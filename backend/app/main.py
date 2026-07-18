@@ -3,6 +3,7 @@ from fastapi import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 from app.api.router import api_router
 from app.core.auth import user_from_token
 from app.core.config import get_settings
@@ -11,6 +12,8 @@ from sqlmodel import Session
 
 
 settings = get_settings()
+generation_inputs_dir = Path(settings.storage_dir).expanduser().resolve() / "generation-inputs"
+generation_inputs_dir.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title=settings.app_name)
 
@@ -27,7 +30,9 @@ app.add_middleware(
 async def disable_static_cache(request, call_next):
     response = await call_next(request)
     path = request.url.path
-    if not path.startswith("/api/") and path.endswith((".html", ".js", ".css", "/")):
+    if path.startswith("/generation-inputs/") or (
+        not path.startswith("/api/") and path.endswith((".html", ".js", ".css", "/"))
+    ):
         response.headers["Cache-Control"] = "no-store"
     return response
 
@@ -69,4 +74,5 @@ def on_startup() -> None:
 
 
 app.include_router(api_router, prefix="/api")
+app.mount("/generation-inputs", StaticFiles(directory=generation_inputs_dir), name="generation-inputs")
 app.mount("/", StaticFiles(directory="app/static", html=True), name="static")

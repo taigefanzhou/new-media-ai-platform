@@ -28,6 +28,7 @@ class GeneratedVideoQualityGuard:
         expected_duration_seconds: int | None = None,
         expected_width: int | None = None,
         expected_height: int | None = None,
+        require_audio: bool = True,
     ) -> VideoQualityResult:
         path = Path(video_path)
         if not path.exists() or not path.is_file() or path.stat().st_size < 1024:
@@ -51,7 +52,7 @@ class GeneratedVideoQualityGuard:
             if abs(expected_ratio - actual_ratio) > 0.08:
                 score -= 25
                 reasons.append("画幅与导出规格不一致")
-        if not bool(metadata.get("has_audio")):
+        if require_audio and not bool(metadata.get("has_audio")):
             score -= 35
             reasons.append("成片缺少有效音轨")
         if self._looks_near_black(path, duration):
