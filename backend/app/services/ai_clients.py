@@ -843,6 +843,11 @@ class MediaGenerationClient:
         scene = str(source.get("asset_or_background") or "同一场景、光线和道具布局")
         camera = str(source.get("shot_type") or "稳定中近景")
         source_prompt = str(source.get("prompt") or "").strip()
+        continuity_request = " ".join(
+            str(source.get(key) or "") for key in ("prompt", "visual", "edit_intent", "transition", "shot_type")
+        ).lower()
+        if any(token in continuity_request for token in ("one shot", "single shot", "continuous shot", "no cut", "一镜到底", "无剪辑")):
+            return []
         plan: list[dict[str, object]] = []
         for index, (start, end, action) in enumerate(beats, start=1):
             item = dict(source)
