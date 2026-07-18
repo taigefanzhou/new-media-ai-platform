@@ -415,10 +415,20 @@ class SubtitleEngine:
             str(output_path),
         ]
         try:
-            subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+            result = subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
         except subprocess.CalledProcessError as exc:
             detail = (exc.stderr or "").strip().splitlines()[-1:] or ["未知错误"]
             raise RuntimeError(f"字幕烧录失败：{detail[0]}") from exc
+        font_error = self._font_render_error(result.stderr)
+        if font_error:
+            output_path.unlink(missing_ok=True)
+            raise RuntimeError(f"字幕烧录失败：{font_error}")
+
+    @staticmethod
+    def _font_render_error(stderr: str) -> str | None:
+        if "failed to find any fallback with glyph" in (stderr or ""):
+            return "服务器缺少可用的中文字体"
+        return None
 
     def _subtitle_fonts_dir(self) -> Path | None:
         storage_root = get_storage_root()

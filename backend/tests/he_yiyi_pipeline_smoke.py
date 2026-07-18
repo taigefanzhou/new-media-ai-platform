@@ -12,6 +12,7 @@ from app.models.entities import DigitalHuman, Script, TaskStatus, VideoSegment, 
 from app.services.ai_clients import MediaGenerationClient
 from app.services.export_profiles import resolve_export_profile
 from app.services.pipeline import VideoPipeline
+from app.services.subtitles import SubtitleEngine
 from app.services.video_quality import VideoQualityResult
 from app.services.video_skills import he_yiyi_hotel_template_manifest
 
@@ -140,6 +141,11 @@ def test_completed_segment_can_be_reused_after_failure() -> None:
     assert VideoPipeline._should_reuse_completed_segments(queued_retry)
 
 
+def test_missing_chinese_font_is_not_published_as_square_glyphs() -> None:
+    assert SubtitleEngine._font_render_error("fontselect: failed to find any fallback with glyph 0x6211")
+    assert SubtitleEngine._font_render_error("normal libass output") is None
+
+
 def main() -> None:
     test_he_yiyi_reference_template_is_executable()
     test_trusted_asset_uses_seedance_reference_format()
@@ -147,6 +153,7 @@ def main() -> None:
     test_portrait_export_requests_1080p()
     test_visual_quality_drives_one_targeted_retry()
     test_completed_segment_can_be_reused_after_failure()
+    test_missing_chinese_font_is_not_published_as_square_glyphs()
     print("he yiyi pipeline smoke ok")
 
 
