@@ -1,5 +1,6 @@
 import os
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -7,7 +8,7 @@ os.chdir(ROOT)
 sys.path.insert(0, str(ROOT))
 
 from app.api.video_tasks_support import _build_video_task
-from app.models.entities import DigitalHuman, Script
+from app.models.entities import DigitalHuman, Script, VideoSegment
 from app.services.ai_clients import MediaGenerationClient
 from app.services.export_profiles import resolve_export_profile
 from app.services.pipeline import VideoPipeline
@@ -63,10 +64,10 @@ def test_trusted_asset_uses_seedance_reference_format() -> None:
         {
             "kind": "image",
             "source_url": "https://media.example.com/generation-inputs/a/continuity.jpg",
-            "role": "first_frame",
+            "role": "reference_image",
         }
     )
-    assert continuity and continuity["role"] == "first_frame"
+    assert continuity and continuity["role"] == "reference_image"
     audio = MediaGenerationClient()._seedance_reference_content_item(
         {
             "kind": "audio",
@@ -129,12 +130,23 @@ def test_visual_quality_drives_one_targeted_retry() -> None:
     assert "没有完成回头动作" in repair
 
 
+def test_completed_segment_can_be_reused_after_failure() -> None:
+    with tempfile.TemporaryDirectory(prefix="segment-resume-") as directory:
+        clip = Path(directory) / "segment.mp4"
+        clip.write_bytes(b"completed")
+        segment = VideoSegment(video_task_id=29, segment_index=1, title="第一段", prompt="same", output_path=str(clip))
+        assert VideoPipeline._reusable_segment_output(segment)
+        clip.unlink()
+        assert not VideoPipeline._reusable_segment_output(segment)
+
+
 def main() -> None:
     test_he_yiyi_reference_template_is_executable()
     test_trusted_asset_uses_seedance_reference_format()
     test_reference_clone_rejects_old_portrait_fallback()
     test_portrait_export_requests_1080p()
     test_visual_quality_drives_one_targeted_retry()
+    test_completed_segment_can_be_reused_after_failure()
     print("he yiyi pipeline smoke ok")
 
 

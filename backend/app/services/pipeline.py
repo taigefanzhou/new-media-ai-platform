@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 import logging
+from pathlib import Path
 import re
 from sqlmodel import select
 from sqlmodel import Session
@@ -67,6 +68,7 @@ class VideoPipeline:
         )
 
     async def run(self, task: VideoTask) -> VideoTask:
+        reuse_completed = task.status == TaskStatus.failed and task.production_mode == "seedance_scene"
         task.status = TaskStatus.running
         task.updated_at = datetime.utcnow()
         self.session.add(task)
@@ -94,11 +96,15 @@ class VideoPipeline:
                 script.duration_seconds,
                 script.storyboard_plan,
             )
-            segments = self._reset_segments(task, segment_specs)
+            segments = self._reset_segments(task, segment_specs, reuse_completed=reuse_completed)
             task.generation_mode = "long" if script.duration_seconds >= 120 else "short"
             task.segment_count = len(segments)
-            task.completed_segments = 0
+            task.completed_segments = sum(1 for segment in segments if self._reusable_segment_output(segment))
             task.audit_notes = self._task_plan_notes(task, script)
+            if task.completed_segments:
+                task.audit_notes = (
+                    f"{task.audit_notes}\n断点续跑：复用 {task.completed_segments} 个已完成分镜，只生成缺失分镜。"
+                ).strip()
             self.session.add(task)
             self.session.commit()
             self.session.refresh(task)
@@ -314,8 +320,35 @@ class VideoPipeline:
             if material.file_path and (material.owner_user_id in (None, task.owner_user_id))
         ][:6]
 
-    def _reset_segments(self, task: VideoTask, segment_specs: list[dict[str, object]]) -> list[VideoSegment]:
-        existing = self.session.exec(select(VideoSegment).where(VideoSegment.video_task_id == task.id)).all()
+    def _reset_segments(
+        self,
+        task: VideoTask,
+        segment_specs: list[dict[str, object]],
+        reuse_completed: bool = False,
+    ) -> list[VideoSegment]:
+        existing = list(
+            self.session.exec(
+                select(VideoSegment)
+                .where(VideoSegment.video_task_id == task.id)
+                .order_by(VideoSegment.segment_index.asc())
+            ).all()
+        )
+        same_plan = reuse_completed and len(existing) == len(segment_specs) and all(
+            segment.duration_seconds == int(spec.get("duration_seconds") or 10)
+            and segment.prompt == str(spec.get("prompt") or "")
+            for segment, spec in zip(existing, segment_specs)
+        )
+        if same_plan:
+            for segment in existing:
+                if not self._reusable_segment_output(segment):
+                    segment.status = TaskStatus.queued
+                    segment.error_message = None
+                    segment.quality_status = "pending"
+                    segment.quality_score = 0
+                    segment.quality_summary = "等待重新生成后的自动质检。"
+                    self.session.add(segment)
+            self.session.commit()
+            return existing
         for segment in existing:
             self.session.delete(segment)
         self.session.commit()
@@ -359,6 +392,10 @@ class VideoPipeline:
         for segment in segments:
             self.session.refresh(segment)
         return segments
+
+    @staticmethod
+    def _reusable_segment_output(segment: VideoSegment) -> bool:
+        return bool(segment.output_path and Path(segment.output_path).is_file())
 
     async def _run_segment(
         self,
@@ -518,7 +555,10 @@ class VideoPipeline:
                 "prop positions and lighting throughout this segment."
             ).strip()
         if continuity_frame_url:
-            prompt = f"{prompt}\nStart exactly from the supplied first-frame reference and preserve its clothing, props and lighting."
+            prompt = (
+                f"{prompt}\nUse the supplied continuity image as a visual reference for the previous shot. "
+                "Preserve its clothing, architecture, props and lighting while continuing the requested action."
+            )
         if audio_reference_url:
             prompt = f"{prompt}\nUse [Audio1] as the exact speech rhythm and mouth-motion reference for this segment."
         if task.production_mode in {"digital_human", "reference_clone", "talking_head_template"} and self._trusted_asset_uri(human):
@@ -843,7 +883,7 @@ class VideoPipeline:
                     "name": "上一镜末帧",
                     "kind": "image",
                     "source_url": continuity_frame_url,
-                    "role": "first_frame",
+                    "role": "reference_image",
                     "copyright_status": "generated_continuity_input",
                 }
             )
@@ -919,6 +959,21 @@ class VideoPipeline:
         use_multimodal_refs = bool(self._trusted_asset_uri(human))
         try:
             for index, segment in enumerate(segments):
+                if self._reusable_segment_output(segment):
+                    clip_path = str(segment.output_path)
+                    clips.append(clip_path)
+                    elapsed_seconds += segment.duration_seconds
+                    if use_multimodal_refs and index < len(segments) - 1:
+                        try:
+                            prepared_frame = self.media.prepare_continuity_frame(clip_path)
+                            if prepared_frame:
+                                frame_path, continuity_frame_url = prepared_frame
+                                temporary_inputs.append(frame_path)
+                        except Exception as exc:
+                            task.audit_notes = (
+                                f"{task.audit_notes}\n连续性末帧准备失败，后续镜头改用人物资产和提示词：{exc}"
+                            ).strip()
+                    continue
                 audio_reference_url: str | None = None
                 if use_multimodal_refs:
                     try:
