@@ -16,8 +16,10 @@ def main() -> None:
     skills = {item["key"]: item for item in video_skill_manifest()}
     editor = skills["jianying_professional_editing"]
     reference_analysis = skills["reference_video_analysis"]
+    storyboard = skills["storyboard_generation"]
     assert "J/L Cut" in " ".join(editor["workflow_rules"])
     assert "证据" in " ".join(reference_analysis["workflow_rules"])
+    assert "最多安排一个主动作" in " ".join(storyboard["workflow_rules"])
     assert "专业剪辑" in list_video_production_skills()["pipeline"]
 
     plan = ScriptGenerator()._normalize_storyboard_plan(

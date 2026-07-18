@@ -75,6 +75,7 @@ VIDEO_PRODUCTION_SKILLS: tuple[VideoProductionSkill, ...] = (
             "storyboard_plan 必须包含 start_second/end_second/shot_type/visual/person_action/screen_text/asset_or_background/ai_prompt/needs_lip_sync。",
             "多个 5-15 秒镜头必须共享视觉主题、灯光、人物动作尺度和字幕语言，不能像不同视频拼接。",
             "Seedance 提示词使用英文，明确画幅、真人质感、自然动作、无水印、无画面内文字。",
+            "8-15 秒真人单镜头最多安排一个主动作；人物行走口播时，道具和背景保持静止，不再叠加回头、定时亮灯或表情突变。",
         ),
         quality_checks=(
             "镜头时长是否可执行，长视频是否拆成足够段落。",
@@ -147,6 +148,8 @@ def script_generation_requirements() -> list[str]:
         "transition 默认 hard_cut；只有时间、空间或情绪变化时才使用显式转场，对话和旁白跨镜头优先计划 J/L Cut。",
         "字幕内容只能进入 screen_text 和后期字幕，不允许写入视频模型画面内文字。",
         "数字人口播必须保持人物、性别、声音、动作和背景稳定，不能无理由切换多个背景。",
+        "8-15 秒 needs_lip_sync 真人单镜头最多一个主动作：行走口播、回头、操作道具三选一；不得同时加入定时道具变化和表情突变。",
+        "如果人物选择行走口播，道具、背景和灯光必须全程静止，双手只做自然轻微摆动；复杂剧情改用静态人物加 B-roll 或拆成独立镜头。",
         "酒店干货口播默认按何依依参考模板组织：定向喊话和利益点 -> 痛点 -> 方法引入 -> 2-4 个动作 -> 真实证据 -> 注意事项 -> 行动引导。",
     ]
 
