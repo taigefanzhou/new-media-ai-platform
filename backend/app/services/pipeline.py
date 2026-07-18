@@ -68,7 +68,7 @@ class VideoPipeline:
         )
 
     async def run(self, task: VideoTask) -> VideoTask:
-        reuse_completed = task.status == TaskStatus.failed and task.production_mode == "seedance_scene"
+        reuse_completed = self._should_reuse_completed_segments(task)
         task.status = TaskStatus.running
         task.updated_at = datetime.utcnow()
         self.session.add(task)
@@ -396,6 +396,10 @@ class VideoPipeline:
     @staticmethod
     def _reusable_segment_output(segment: VideoSegment) -> bool:
         return bool(segment.output_path and Path(segment.output_path).is_file())
+
+    @staticmethod
+    def _should_reuse_completed_segments(task: VideoTask) -> bool:
+        return task.production_mode == "seedance_scene" and task.completed_segments > 0 and not task.output_path
 
     async def _run_segment(
         self,

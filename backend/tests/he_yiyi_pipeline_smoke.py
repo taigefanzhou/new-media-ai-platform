@@ -8,7 +8,7 @@ os.chdir(ROOT)
 sys.path.insert(0, str(ROOT))
 
 from app.api.video_tasks_support import _build_video_task
-from app.models.entities import DigitalHuman, Script, VideoSegment
+from app.models.entities import DigitalHuman, Script, TaskStatus, VideoSegment, VideoTask
 from app.services.ai_clients import MediaGenerationClient
 from app.services.export_profiles import resolve_export_profile
 from app.services.pipeline import VideoPipeline
@@ -138,6 +138,14 @@ def test_completed_segment_can_be_reused_after_failure() -> None:
         assert VideoPipeline._reusable_segment_output(segment)
         clip.unlink()
         assert not VideoPipeline._reusable_segment_output(segment)
+
+    queued_retry = VideoTask(
+        script_id=21,
+        production_mode="seedance_scene",
+        status=TaskStatus.queued,
+        completed_segments=1,
+    )
+    assert VideoPipeline._should_reuse_completed_segments(queued_retry)
 
 
 def main() -> None:
